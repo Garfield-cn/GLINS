@@ -16,8 +16,8 @@ namespace gici {
 namespace INS {
 
 // Role of formator
-enum Role {
-  NotINS,
+enum class Role {
+  None,
   Major, 
   Minor
 };

@@ -231,7 +231,7 @@ void Streaming::bindLogWithInput(void)
     for (size_t j = 0; j < static_this_[i]->formators_.size(); j++) {
     if (!static_this_[i]->has_logging_) continue;
     auto& streaming_log = static_this_[i];
-    if (!streaming_log->formators_[j].type == StreamIOType::Log) continue;
+    if (!(streaming_log->formators_[j].type == StreamIOType::Log)) continue;
     std::string& input_tag = streaming_log->formators_[j].input_tag;
     std::string& log_tag = streaming_log->formators_[j].tag;
     // find input tag in all instantiate objects

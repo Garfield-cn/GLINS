@@ -221,24 +221,25 @@ extern void updateStreamData(int ret, obs_t *obs, nav_t *nav,
   sta_t *sta, ssr_t *ssr, int iobs, int sat, 
   std::vector<DataFormat::GNSS::Ptr>& gnss_data)
 {
+  GNSSDataType type = static_cast<GNSSDataType>(ret);
   // Observation data
-  if (ret == GNSSDataType::Observation) {
+  if (type == GNSSDataType::Observation) {
     updateObservation(obs, gnss_data[iobs]);
   }
   // Ephemeris data
-  else if (ret == GNSSDataType::Ephemeris) {
+  else if (type == GNSSDataType::Ephemeris) {
     updateEphemeris(nav, sat, gnss_data[0]);
   }
   // Ionosphere parameters
-  else if (ret == GNSSDataType::IonPara) {
+  else if (type == GNSSDataType::IonPara) {
     updateIonAndUTC(nav, gnss_data[0]);
   }
   // Antenna position parameters
-  else if (ret == GNSSDataType::AntePos) {
+  else if (type == GNSSDataType::AntePos) {
     updateAntennaPosition(sta, gnss_data[0]);
   }
   // SSR (precise ephemeris, DCBs, etc..)
-  else if (ret == GNSSDataType::SSR) {
+  else if (type == GNSSDataType::SSR) {
     updateSSR(ssr, gnss_data[0]);
   }
 }
@@ -314,14 +315,15 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
     int sat = rtcm_.ephsat;
     rtklib::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
+    GNSSDataType type = static_cast<GNSSDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
-      ret == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
-    if (std::find(gnss->types.begin(), gnss->types.end(), ret)
+      type == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
+    if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
-      gnss->types.push_back(ret);
+      gnss->types.push_back(type);
     }
     
-    if (ret == GNSSDataType::Observation) {
+    if (type == GNSSDataType::Observation) {
       if (iobs < MaxDataSize::RTCM2) iobs++;
       if (iobs >= MaxDataSize::RTCM2) {
         LOG(WARNING) << "Max data length surpassed!";
@@ -403,14 +405,15 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
     int sat = rtcm_.ephsat;
     rtklib::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
+    GNSSDataType type = static_cast<GNSSDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
-      ret == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
-    if (std::find(gnss->types.begin(), gnss->types.end(), ret)
+      type == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
+    if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
-      gnss->types.push_back(ret);
+      gnss->types.push_back(type);
     }
     
-    if (ret == GNSSDataType::Observation) {
+    if (type == GNSSDataType::Observation) {
       if (iobs < MaxDataSize::RTCM3) iobs++;
       if (iobs >= MaxDataSize::RTCM3) {
         LOG(WARNING) << "Max data length surpassed!";
@@ -431,7 +434,7 @@ int RTCM3Formator::encode(
   const DataFormat::Ptr& data, uint8_t *buf)
 {
   // Check the control structure
-  std::map<int, bool> type_valid;
+  std::map<GNSSDataType, bool> type_valid;
   type_valid.insert(std::make_pair(GNSSDataType::Observation, false));
   type_valid.insert(std::make_pair(GNSSDataType::Ephemeris, false));
   type_valid.insert(std::make_pair(GNSSDataType::AntePos, false));
@@ -485,7 +488,7 @@ GNSSRawFormator::GNSSRawFormator(Config& config)
   type_ = FormatorType::GNSSRaw;
   option_tools::convert(config.sub_type, format_);
 
-  init_raw(&raw_, format_);
+  init_raw(&raw_, static_cast<int>(format_));
   raw_.time = rtklib::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::GNSSRaw; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
@@ -502,7 +505,7 @@ GNSSRawFormator::GNSSRawFormator(YAML::Node& node)
   type_ = FormatorType::GNSSRaw;
   option_tools::convert(config.sub_type, format_);
 
-  init_raw(&raw_, format_);
+  init_raw(&raw_, static_cast<int>(format_));
   raw_.time = rtklib::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::GNSSRaw; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
@@ -529,7 +532,7 @@ int GNSSRawFormator::decode(const uint8_t *buf, int size,
   bool is_others = false;
   int iobs = 0;
   for (int i = 0; i < size; i++) {
-    int ret = input_raw(&raw_, format_, buf[i]);
+    int ret = input_raw(&raw_, static_cast<int>(format_), buf[i]);
     if (ret <= 0) continue;
 
     obs_t *obs = &raw_.obs;
@@ -538,14 +541,15 @@ int GNSSRawFormator::decode(const uint8_t *buf, int size,
     int sat = raw_.ephsat;
     rtklib::updateStreamData(
         ret, obs, nav, sta, NULL, iobs, sat, gnss_data);
+    GNSSDataType type = static_cast<GNSSDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
-      ret == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
-    if (std::find(gnss->types.begin(), gnss->types.end(), ret)
+      type == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
+    if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
-      gnss->types.push_back(ret);
+      gnss->types.push_back(type);
     }
     
-    if (ret == GNSSDataType::Observation) {
+    if (type == GNSSDataType::Observation) {
       if (iobs < MaxDataSize::GNSSRaw) iobs++;
       if (iobs >= MaxDataSize::GNSSRaw) {
         LOG(WARNING) << "Max data length surpassed!";

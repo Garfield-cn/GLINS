@@ -107,7 +107,7 @@ int SerialStreamer::open(StreamerRWType type)
      << config_.parity << ":" << config_.stop_bit << ":" 
      << config_.flow_control;
         
-  return stropen(&stream_, STR_SERIAL, type, path.str().data());
+  return stropen(&stream_, STR_SERIAL, static_cast<int>(type), path.str().data());
 }
 
 // File stream control
@@ -135,7 +135,7 @@ int FileStreamer::open(StreamerRWType type)
   }
   
   // R&W mode may fail if file does not exist
-  return stropen(&stream_, STR_FILE, type, path.str().data());
+  return stropen(&stream_, STR_FILE, static_cast<int>(type), path.str().data());
 }
 
 // TCP server stream control
@@ -151,7 +151,7 @@ int TcpServerStreamer::open(StreamerRWType type)
   std::stringstream path;
   path << ":" << config_.port;
         
-  return stropen(&stream_, STR_TCPSVR, type, path.str().data());
+  return stropen(&stream_, STR_TCPSVR, static_cast<int>(type), path.str().data());
 }
 
 // TCP client stream control
@@ -168,7 +168,7 @@ int TcpClientStreamer::open(StreamerRWType type)
   std::stringstream path;
   path << config_.ip << ":" << config_.port;
         
-  return stropen(&stream_, STR_TCPCLI, type, path.str().data());
+  return stropen(&stream_, STR_TCPCLI, static_cast<int>(type), path.str().data());
 }
 
 // Ntrip server stream control
@@ -188,7 +188,7 @@ int NtripServerStreamer::open(StreamerRWType type)
   path << ":" << config_.passward << "@" << config_.ip << ":" 
      << config_.port << "/" << config_.mountpoint << ":";
         
-  return stropen(&stream_, STR_NTRIPSVR, type, path.str().data());
+  return stropen(&stream_, STR_NTRIPSVR, static_cast<int>(type), path.str().data());
 }
 
 // Ntrip client stream control
@@ -209,7 +209,7 @@ int NtripClientStreamer::open(StreamerRWType type)
   path << config_.username << ":" << config_.passward << "@"
      << config_.ip << ":" << config_.port << "/" << config_.mountpoint;
         
-  return stropen(&stream_, STR_NTRIPCLI, type, path.str().data());
+  return stropen(&stream_, STR_NTRIPCLI, static_cast<int>(type), path.str().data());
 }
 
 // V4L2 stream control

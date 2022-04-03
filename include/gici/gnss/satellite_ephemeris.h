@@ -17,7 +17,7 @@
 namespace gici {
 
 // GNSS satellite position type
-enum SatPositionType {
+enum class SatPositionType {
   None,
   Broadcast,
   Precise,

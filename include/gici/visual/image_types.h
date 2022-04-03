@@ -16,8 +16,8 @@ namespace gici {
 namespace camera {
 
 // Role of formator
-enum Role {
-  NotCamera,
+enum class Role {
+  None,
   Mono, 
   StereoMajor,
   StereoMinor,

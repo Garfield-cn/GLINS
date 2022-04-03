@@ -17,8 +17,8 @@ namespace gici {
 namespace GNSS {
 
 // Role of formator
-enum Role {
-  NotGNSS,
+enum class Role {
+  None,
   Rover,
   Reference,
   Ephemeris,
@@ -26,7 +26,7 @@ enum Role {
   Heading,
 };
 
-  // NoGNSSData = 0,
+  // None = 0,
   // Ephemeris = 2,
   // Observation = 1,
   // AntePos = 5,  // Antenna position
@@ -34,7 +34,7 @@ enum Role {
   // SSR = 10
 
 // Satellite ephemeris types
-enum SatEphType {
+enum class SatEphType {
   Broadcast,
   Precise
 };

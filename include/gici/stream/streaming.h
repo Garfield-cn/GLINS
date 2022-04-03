@@ -21,7 +21,7 @@
 namespace gici {
 
 // I/O type
-enum StreamIOType {
+enum class StreamIOType {
   Input,
   Ouput,
   Log

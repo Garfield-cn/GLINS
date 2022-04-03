@@ -17,7 +17,7 @@
 
 namespace gici {
 
-enum StreamerType {
+enum class StreamerType {
   Serial = STR_SERIAL,
   TcpClient = STR_TCPCLI,
   TcpServer = STR_TCPSVR,
@@ -27,7 +27,7 @@ enum StreamerType {
   V4L2 = 10
 };
 
-enum StreamerRWType {
+enum class StreamerRWType {
   Read = STR_MODE_R,
   Write = STR_MODE_W,
   ReadAndWrite = STR_MODE_RW

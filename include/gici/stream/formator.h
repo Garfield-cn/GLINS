@@ -19,7 +19,7 @@
 namespace gici {
 
 // Formator types
-enum FormatorType {
+enum class FormatorType {
   RTCM2, 
   RTCM3,
   GNSSRaw, 
@@ -30,8 +30,8 @@ enum FormatorType {
 };
 
 // GNSS data types
-enum GNSSDataType {
-  NoGNSSData = 0,
+enum class GNSSDataType {
+  None = 0,
   Ephemeris = 2,
   Observation = 1,
   AntePos = 5,  // Antenna position
@@ -54,7 +54,7 @@ public:
     void init(void);
     void free(void);
 
-    std::vector<int> types;
+    std::vector<GNSSDataType> types;
     obs_t *observation;
     nav_t *ephemeris;
     sta_t *antenna;
@@ -94,7 +94,7 @@ public:
 };
 
 // Formats of FormatorType::GNSS_Raw
-enum GNSSRawFormats {
+enum class GNSSRawFormats {
   Ublox = STRFMT_UBX,
   Septentrio = STRFMT_SEPT
 };
