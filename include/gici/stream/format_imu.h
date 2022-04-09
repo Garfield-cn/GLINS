@@ -59,5 +59,4 @@ extern void free_imu(imu_t *imu);
 }
 #endif
 
-
 #endif

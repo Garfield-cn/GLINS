@@ -4,12 +4,12 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef IMAGE_TYPES_H
-#define IMAGE_TYPES_H
+#pragma once
 
 #include <iostream>
 #include <vector>
-#include <svo/svo.h>
+
+#include "gici/utility/svo.h"
 
 namespace gici {
 
@@ -24,11 +24,6 @@ enum class Role {
   Array
 };
 
-// Image epoch data
-using Frame = svo::Frame;
-
 }
 
 }
-
-#endif

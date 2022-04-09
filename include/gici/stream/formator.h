@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef FORMATOR_H
-#define FORMATOR_H
+#pragma once
 
 #include <iostream>
 #include <memory>
@@ -344,5 +343,3 @@ FormatorBase::Ptr makeFormator(YAML::Node& node);
 
 
 }
-
-#endif

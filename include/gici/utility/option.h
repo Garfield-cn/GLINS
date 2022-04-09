@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef OPTION_H
-#define OPTION_H
+#pragma once
 
 #include <iostream>
 #include <glog/logging.h>
@@ -32,5 +31,3 @@ SensorType sensorType(std::string in);
 }
 
 }
-
-#endif

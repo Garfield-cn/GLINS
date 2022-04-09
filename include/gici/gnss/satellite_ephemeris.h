@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef SATELLITE_EPHEMERIS_H
-#define SATELLITE_EPHEMERIS_H
+#pragma once
 
 #include <iostream>
 #include <memory>
@@ -54,5 +53,3 @@ protected:
 };
 
 }
-
-#endif

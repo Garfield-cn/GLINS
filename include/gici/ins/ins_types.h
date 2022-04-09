@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef INS_TYPES_H
-#define INS_TYPES_H
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -33,5 +32,3 @@ struct Epoch {
 }
 
 }
-
-#endif

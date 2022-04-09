@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef STREAMER_H
-#define STREAMER_H
+#pragma once
 
 #include <iostream>
 #include <memory>
@@ -287,5 +286,3 @@ MAKE_STREAMER(V4l2Streamer);
 StreamerBase::Ptr makeStreamer(YAML::Node& node);
 
 }
-
-#endif

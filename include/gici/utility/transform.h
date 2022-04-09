@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef TRANSFORM_H
-#define TRANSFORM_H
+#pragma once
 
 #include <iostream>
 #include <Eigen/Core>
@@ -20,4 +19,3 @@ Eigen::Vector3d lla2ecef(const Eigen::Vector3d& lla);
 
 }
 
-#endif

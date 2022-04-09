@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef STREAMING_H
-#define STREAMING_H
+#pragma once
 
 #include <iostream>
 #include <thread>
@@ -117,5 +116,3 @@ protected:
 };
 
 }
-
-#endif

@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef GNSS_TYPES_H
-#define GNSS_TYPES_H
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -25,13 +24,6 @@ enum class Role {
   Correction,
   Heading,
 };
-
-  // None = 0,
-  // Ephemeris = 2,
-  // Observation = 1,
-  // AntePos = 5,  // Antenna position
-  // IonPara = 9,  // Ionosphere parameters
-  // SSR = 10
 
 // Satellite ephemeris types
 enum class SatEphType {
@@ -102,5 +94,3 @@ struct Epoch {
 }
 
 }
-
-#endif

@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef GNSS_COMMON_H
-#define GNSS_COMMON_H
+#pragma once
 
 #include <iostream>
 #include <memory>
@@ -40,5 +39,3 @@ extern gtime_t double2gtime(double time);
 }
 
 }
-
-#endif

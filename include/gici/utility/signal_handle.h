@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef SIGNAL_HANDLE_H
-#define SIGNAL_HANDLE_H
+#pragma once
 
 #include <signal.h>
 
@@ -15,5 +14,3 @@ namespace gici {
 extern void initializeSignalHandles(void);
 
 }
-
-#endif

@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef SPIN_CONTROL_H
-#define SPIN_CONTROL_H
+#pragma once
 
 #include <iostream>
 #include <vikit/timer.h>
@@ -37,5 +36,3 @@ private:
 };
 
 }
-
-#endif

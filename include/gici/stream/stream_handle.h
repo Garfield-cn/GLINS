@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef STREAM_HANDLE_H
-#define STREAM_HANDLE_H
+#pragma once
 
 #include <iostream>
 #include <vector>
@@ -84,5 +83,3 @@ protected:
 };
 
 }
-
-#endif
