@@ -13,7 +13,7 @@
 
 namespace gici {
 
-namespace camera {
+namespace vision {
 
 // Role of formator
 enum class Role {

@@ -12,8 +12,8 @@
 #include "gici/stream/formator.h"
 #include "gici/stream/streaming.h"
 #include "gici/gnss/gnss_types.h"
-#include "gici/inertial/imu_types.h"
-#include "gici/visual/image_types.h"
+#include "gici/ins/ins_types.h"
+#include "gici/vision/image_types.h"
 
 namespace gici {
 
@@ -100,13 +100,13 @@ void convert<std::string, INS::Role>
 }
 
 template <>
-void convert<std::string, camera::Role>
-  (const std::string& in, camera::Role& out)
+void convert<std::string, vision::Role>
+  (const std::string& in, vision::Role& out)
 {
-  MAP_IN_OUT("mono", camera::Role::Mono);
-  MAP_IN_OUT("stereo-major", camera::Role::StereoMajor);
-  MAP_IN_OUT("stereo-minor", camera::Role::StereoMinor);
-  MAP_IN_OUT("array", camera::Role::Array);
+  MAP_IN_OUT("mono", vision::Role::Mono);
+  MAP_IN_OUT("stereo-major", vision::Role::StereoMajor);
+  MAP_IN_OUT("stereo-minor", vision::Role::StereoMinor);
+  MAP_IN_OUT("array", vision::Role::Array);
   LOG_INVALId;
 }
 

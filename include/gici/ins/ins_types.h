@@ -1,11 +1,11 @@
 /**
-* @Function: IMU types
+* @Function: INS types
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef IMU_TYPES_H
-#define IMU_TYPES_H
+#ifndef INS_TYPES_H
+#define INS_TYPES_H
 
 #include <iostream>
 #include <vector>

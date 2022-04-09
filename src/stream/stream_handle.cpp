@@ -313,12 +313,12 @@ void StreamHandle::handleImage(const std::string& tag,
     LOG(ERROR) << "Formator tag " << tag << " not registored!";
     return;
   }
-  std::vector<camera::Role> roles;
+  std::vector<vision::Role> roles;
   bool has_mono = false;
   for (size_t i = 0; i < behaviors_.at(tag).role.size(); i++) {
-    roles.push_back(camera::Role());
+    roles.push_back(vision::Role());
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
-    if (roles[i] != camera::Role::Mono) {
+    if (roles[i] != vision::Role::Mono) {
       LOG(WARNING) << "We do not support multiple Cameras currently!";
     }
     else has_mono = true;

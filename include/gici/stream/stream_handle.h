@@ -17,8 +17,8 @@
 
 #include "gici/stream/streaming.h"
 #include "gici/gnss/gnss_types.h"
-#include "gici/inertial/imu_types.h"
-#include "gici/visual/image_types.h"
+#include "gici/ins/ins_types.h"
+#include "gici/vision/image_types.h"
 
 namespace gici {
 
