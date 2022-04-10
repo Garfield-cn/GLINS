@@ -12,8 +12,6 @@
 
 namespace gici {
 
-namespace gnss {
-
 // Geodetic coordinate types
 enum class GeoType {
   ECEF,
@@ -90,6 +88,4 @@ private:
   bool lla_zero_setted_;
 };
 
-}
-
-}
+} // namespace gici

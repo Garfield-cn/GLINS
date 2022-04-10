@@ -12,7 +12,7 @@
 #include "gici/stream/formator.h"
 #include "gici/stream/streaming.h"
 #include "gici/gnss/gnss_types.h"
-#include "gici/ins/ins_types.h"
+#include "gici/imu/imu_types.h"
 #include "gici/vision/image_types.h"
 
 namespace gici {
@@ -79,34 +79,34 @@ void convert<std::string, StreamIOType>
 }
 
 template <>
-void convert<std::string, GNSS::Role>
-  (const std::string& in, GNSS::Role& out)
+void convert<std::string, GNSSRole>
+  (const std::string& in, GNSSRole& out)
 {
-  MAP_IN_OUT("rover", GNSS::Role::Rover);
-  MAP_IN_OUT("reference", GNSS::Role::Reference);
-  MAP_IN_OUT("ephemeris", GNSS::Role::Ephemeris);
-  MAP_IN_OUT("correction", GNSS::Role::Correction);
-  MAP_IN_OUT("heading", GNSS::Role::Heading);
+  MAP_IN_OUT("rover", GNSSRole::Rover);
+  MAP_IN_OUT("reference", GNSSRole::Reference);
+  MAP_IN_OUT("ephemeris", GNSSRole::Ephemeris);
+  MAP_IN_OUT("correction", GNSSRole::Correction);
+  MAP_IN_OUT("heading", GNSSRole::Heading);
   LOG_INVALId;
 }
 
 template <>
-void convert<std::string, INS::Role>
-  (const std::string& in, INS::Role& out)
+void convert<std::string, IMURole>
+  (const std::string& in, IMURole& out)
 {
-  MAP_IN_OUT("major", INS::Role::Major);
-  MAP_IN_OUT("minor", INS::Role::Minor);
+  MAP_IN_OUT("major", IMURole::Major);
+  MAP_IN_OUT("minor", IMURole::Minor);
   LOG_INVALId;
 }
 
 template <>
-void convert<std::string, vision::Role>
-  (const std::string& in, vision::Role& out)
+void convert<std::string, CameraRole>
+  (const std::string& in, CameraRole& out)
 {
-  MAP_IN_OUT("mono", vision::Role::Mono);
-  MAP_IN_OUT("stereo-major", vision::Role::StereoMajor);
-  MAP_IN_OUT("stereo-minor", vision::Role::StereoMinor);
-  MAP_IN_OUT("array", vision::Role::Array);
+  MAP_IN_OUT("mono", CameraRole::Mono);
+  MAP_IN_OUT("stereo-major", CameraRole::StereoMajor);
+  MAP_IN_OUT("stereo-minor", CameraRole::StereoMinor);
+  MAP_IN_OUT("array", CameraRole::Array);
   LOG_INVALId;
 }
 

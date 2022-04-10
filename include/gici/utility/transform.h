@@ -9,13 +9,39 @@
 #include <iostream>
 #include <Eigen/Core>
 
+#include <svo/vio_common/matrix.hpp>
+#include <svo/vio_common/matrix_operations.hpp>
+
 namespace gici {
 
-// Transform coordinate from ECEF to LLA
-Eigen::Vector3d ecef2lla(const Eigen::Vector3d& ecef);
+//! Skew symmetric matrix.
+inline Eigen::Matrix<double,3,3> skewSymmetric(const double w1,
+                             const double w2,
+                             const double w3)
+{ return svo::skewSymmetric(w1, w2, w3); }
 
-// Transform coordinate from LLA to ECEF
-Eigen::Vector3d lla2ecef(const Eigen::Vector3d& lla);
+inline Eigen::Matrix<double,3,3> skewSymmetric(
+    const Eigen::Ref<const Eigen::Matrix<double,3,1> >& w)
+{ return svo::skewSymmetric(w(0), w(1), w(2)); }
+
+// Right Jacobian for Exponential map in SO(3)
+inline Eigen::Matrix<double,3,3> expmapDerivativeSO3(
+    const Eigen::Matrix<double,3,1>& omega)
+{ return svo::expmapDerivativeSO3(omega); }
+
+// -----------------------------------------------------------------------------
+// Quaternion utils
+
+//! Plus matrix for a quaternion. q_AB x q_BC = plus(q_AB) * q_BC.coeffs().
+inline Eigen::Matrix<double,4,4> quaternionPlusMatrix(
+    const Eigen::Quaternion<double>& q_AB)
+{ return svo::quaternionPlusMatrix(q_AB); }
+
+//! Opposite-Plus matrix for a quaternion q_AB x q_BC = oplus(q_BC) * q_AB.coeffs().
+inline Eigen::Matrix<double,4,4> quaternionOplusMatrix(
+    const Eigen::Quaternion<double>& q_BC)
+{ return svo::quaternionOplusMatrix(q_BC); }
+
 
 }
 

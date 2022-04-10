@@ -1,0 +1,21 @@
+/**
+* @Function: GNSS parameter blocks for ceres backend
+*
+* @Author  : Cheng Chi
+* @Email   : chichengcn@sjtu.edu.cn
+**/
+#pragma once
+
+#include "gici/optimizer/common_parameter_block.h"
+
+namespace gici {
+
+// All the parameters used by GNSS positioning are common blocks
+using PositionParameterBlock = CommonParameterBlock<3, CommonParameterBlockType::Position>;
+using ClockParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Clock>;
+using FrequencyParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Frequency>;
+using AmbiguityParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Ambiguity>;
+using IonosphereParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Ionosphere>;
+using TroposphereParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Troposphere>;
+
+} 

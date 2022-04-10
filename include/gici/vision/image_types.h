@@ -13,10 +13,8 @@
 
 namespace gici {
 
-namespace vision {
-
 // Role of formator
-enum class Role {
+enum class CameraRole {
   None,
   Mono, 
   StereoMajor,
@@ -24,6 +22,66 @@ enum class Role {
   Array
 };
 
-}
+/// \brief Struct to define the behavior of the camera extrinsics.
+struct ExtrinsicsEstimationParameters
+{
+  // set to 0 in order to turn off
+  /// \brief Default Constructor -- fixed camera extrinsics.
+  ExtrinsicsEstimationParameters()
+      : sigma_absolute_translation(0.0),
+        sigma_absolute_orientation(0.0),
+        sigma_c_relative_translation(0.0),
+        sigma_c_relative_orientation(0.0)
+  {
+  }
+
+  /**
+   * @brief Constructor.
+   * @param sigma_absolute_translation Absolute translation stdev. [m]
+   * @param sigma_absolute_orientation Absolute orientation stdev. [rad]
+   * @param sigma_c_relative_translation Relative translation noise density. [m/sqrt(Hz)]
+   * @param sigma_c_relative_orientation Relative orientation noise density. [rad/sqrt(Hz)]
+   */
+  ExtrinsicsEstimationParameters(double sigma_absolute_translation,
+                                 double sigma_absolute_orientation,
+                                 double sigma_c_relative_translation,
+                                 double sigma_c_relative_orientation)
+      : sigma_absolute_translation(sigma_absolute_translation),
+        sigma_absolute_orientation(sigma_absolute_orientation),
+        sigma_c_relative_translation(sigma_c_relative_translation),
+        sigma_c_relative_orientation(sigma_c_relative_orientation)
+  {
+  }
+
+  inline bool isExtrinsicsFixed() const
+  {
+    return absoluteTranslationVar() < 1.0e-16 &&
+        absoluteRotationVar() < 1.0e-16;
+  }
+
+  inline double absoluteTranslationVar() const
+  {
+    return sigma_absolute_translation * sigma_absolute_translation;
+  }
+
+  inline double absoluteRotationVar() const
+  {
+    return sigma_absolute_orientation * sigma_absolute_orientation;
+  }
+
+  // absolute (prior) w.r.t frame S
+  double sigma_absolute_translation; ///< Absolute translation stdev. [m]
+  double sigma_absolute_orientation; ///< Absolute orientation stdev. [rad]
+
+  // relative (temporal)
+  double sigma_c_relative_translation;
+  ///< Relative translation noise density. [m/sqrt(Hz)]
+  double sigma_c_relative_orientation;
+  ///< Relative orientation noise density. [rad/sqrt(Hz)]
+};
+
+typedef std::vector<ExtrinsicsEstimationParameters,
+                    Eigen::aligned_allocator<ExtrinsicsEstimationParameters> >
+        ExtrinsicsEstimationParametersVec;
 
 }

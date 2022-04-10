@@ -13,10 +13,8 @@
 
 namespace gici {
 
-namespace GNSS {
-
 // Role of formator
-enum class Role {
+enum class GNSSRole {
   None,
   Rover,
   Reference,
@@ -82,15 +80,13 @@ struct Receiver {
 };
 
 // GNSS epoch data
-struct Epoch {
+struct GNSSMeasurement {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  using Ptr = std::shared_ptr<Epoch>;
+  using Ptr = std::shared_ptr<GNSSMeasurement>;
 
-  double time;
-  std::unordered_map<Role, Receiver> receivers;
+  double timestamp;
+  std::unordered_map<GNSSRole, Receiver> receivers;
 };
-
-}
 
 }

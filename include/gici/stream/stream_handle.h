@@ -16,7 +16,7 @@
 
 #include "gici/stream/streaming.h"
 #include "gici/gnss/gnss_types.h"
-#include "gici/ins/ins_types.h"
+#include "gici/imu/imu_types.h"
 #include "gici/vision/image_types.h"
 
 namespace gici {
@@ -25,8 +25,8 @@ class StreamHandle {
 public:
   using Ptr = std::shared_ptr<StreamHandle>;
 
-  using GNSSCallback = std::function<void(GNSS::Epoch&)>;
-  using IMUCallback = std::function<void(INS::Epoch&)>;
+  using GNSSCallback = std::function<void(GNSSMeasurement&)>;
+  using IMUCallback = std::function<void(ImuMeasurement&)>;
   using ImageCallback = std::function<void(double, cv::Mat&)>;
 
   // Behavior of a formator

@@ -10,8 +10,8 @@
 #include <memory>
 #include <map>
 #include <Eigen/Core>
-#include <rtklib.h>
 
+#include "gici/utility/rtklib_safe.h"
 #include "gici/stream/formator.h"
 
 namespace gici {

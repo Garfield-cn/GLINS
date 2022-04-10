@@ -120,13 +120,13 @@ void StreamHandle::handleGNSS(const std::string& tag,
     LOG(ERROR) << "Formator tag " << tag << " not registored!";
     return;
   }
-  std::vector<GNSS::Role> roles;
-  GNSS::Role role_out;
+  std::vector<GNSSRole> roles;
+  GNSSRole role_out;
   for (size_t i = 0; i < behaviors_.at(tag).role.size(); i++) {
-    roles.push_back(GNSS::Role());
+    roles.push_back(GNSSRole());
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
-    if (roles[i] == GNSS::Role::Rover || roles[i] == GNSS::Role::Reference ||
-        roles[i] == GNSS::Role::Heading) role_out = roles[i]; 
+    if (roles[i] == GNSSRole::Rover || roles[i] == GNSSRole::Reference ||
+        roles[i] == GNSSRole::Heading) role_out = roles[i]; 
   }
 
   // Update ephemeris and corrections
@@ -134,7 +134,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
     if (it == GNSSDataType::Ephemeris) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSS::Role::Ephemeris) 
+        if (it_role == GNSSRole::Ephemeris) 
         { found = true; break; }
       }
       if (!found) continue;
@@ -150,7 +150,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
     if (it == GNSSDataType::SSR) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSS::Role::Correction) 
+        if (it_role == GNSSRole::Correction) 
         { found = true; break; }
       }
       if (!found) continue;
@@ -160,7 +160,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
     if (it == GNSSDataType::AntePos) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSS::Role::Reference) 
+        if (it_role == GNSSRole::Reference) 
         { found = true; break; }
       }
       if (!found) continue;
@@ -170,7 +170,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
     if (it == GNSSDataType::IonPara) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSS::Role::Ephemeris) 
+        if (it_role == GNSSRole::Ephemeris) 
         { found = true; break; }
       }
       if (!found) continue;
@@ -185,8 +185,8 @@ void StreamHandle::handleGNSS(const std::string& tag,
   if (!has_observation) return;
 
   // Set to epoch data
-  GNSS::Epoch epoch;
-  epoch.time = rtklib::gtime2double(gnss->observation->data[0].time);
+  GNSSMeasurement epoch;
+  epoch.timestamp = rtklib::gtime2double(gnss->observation->data[0].time);
   double *rs, *dts, *var;
   double *rs_ssr, *dts_ssr, *var_ssr;
   auto obs = gnss->observation;
@@ -199,7 +199,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
   satposs(obs->data[0].time, obs->data, n,
       nav, EPHOPT_SSRAPC, rs_ssr, dts_ssr, var_ssr, svh_ssr);
   for (int i = 0; i < n; i++) {
-    GNSS::Satellite satellite;
+    Satellite satellite;
 
     // system and prn
     int prn = 0;
@@ -220,21 +220,21 @@ void StreamHandle::handleGNSS(const std::string& tag,
       satellite.sat_velocity = Eigen::Map<Eigen::Vector3d>(rs_ssr + 3 + i * 6);
       satellite.sat_clock = dts_ssr[i * 2] * CLIGHT;
       satellite.sat_frequency = dts_ssr[1 + i * 2] * CLIGHT;
-      satellite.sat_type = GNSS::SatEphType::Precise;
+      satellite.sat_type = SatEphType::Precise;
     }
     else if (svh[i] != -1) {
       satellite.sat_position = Eigen::Map<Eigen::Vector3d>(rs + i * 6);
       satellite.sat_velocity = Eigen::Map<Eigen::Vector3d>(rs + 3 + i * 6);
       satellite.sat_clock = dts[i * 2] * CLIGHT;
       satellite.sat_frequency = dts[1 + i * 2] * CLIGHT;
-      satellite.sat_type = GNSS::SatEphType::Broadcast;
+      satellite.sat_type = SatEphType::Broadcast;
     }
     else continue;
 
     // observations
     for (int j = 0; j < NFREQ + NEXOBS; j++) {
       if (obs->data[i].P[j] == 0.0) continue;
-      GNSS::Observation observation;
+      Observation observation;
       int freq_index;
       int code_type = obs->data[i].code[j];
       double freq = sat2freq(obs->data[i].sat, code_type, nav);
@@ -258,7 +258,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
   free(rs_ssr); free(dts_ssr); free(var_ssr);
 
   // // reference station position
-  if (role_out == GNSS::Role::Reference) {
+  if (role_out == GNSSRole::Reference) {
     if (gnss_local_->antenna->pos[0] == 0.0) {
       LOG(WARNING) << "Unable to get antenna position of reference station!";
       return;
@@ -280,25 +280,21 @@ void StreamHandle::handleIMU(const std::string& tag,
     LOG(ERROR) << "Formator tag " << tag << " not registored!";
     return;
   }
-  std::vector<INS::Role> roles;
+  std::vector<IMURole> roles;
   bool has_major = false;
   for (size_t i = 0; i < behaviors_.at(tag).role.size(); i++) {
-    roles.push_back(INS::Role());
+    roles.push_back(IMURole());
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
-    if (roles[i] == INS::Role::Minor) {
+    if (roles[i] == IMURole::Minor) {
       LOG(WARNING) << "We do not support multiple IMUs currently!";
     }
-    if (roles[i] == INS::Role::Major) has_major = true;
+    if (roles[i] == IMURole::Major) has_major = true;
   }
   if (!has_major) return;
 
   // Convert IMU data
-  INS::Epoch epoch;
-  epoch.time = imu->time;
-  for (int i = 0; i < 3; i++) {
-    epoch.acceleration[i] = imu->acceleration[i];
-    epoch.angular_velocity[i] = imu->angular_velocity[i];
-  }
+  ImuMeasurement epoch(imu->time, Eigen::Map<Eigen::Vector3d>
+    (imu->acceleration), Eigen::Map<Eigen::Vector3d>(imu->angular_velocity));
 
   // Call INS processor
   imu_callback_(epoch);
@@ -313,12 +309,12 @@ void StreamHandle::handleImage(const std::string& tag,
     LOG(ERROR) << "Formator tag " << tag << " not registored!";
     return;
   }
-  std::vector<vision::Role> roles;
+  std::vector<CameraRole> roles;
   bool has_mono = false;
   for (size_t i = 0; i < behaviors_.at(tag).role.size(); i++) {
-    roles.push_back(vision::Role());
+    roles.push_back(CameraRole());
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
-    if (roles[i] != vision::Role::Mono) {
+    if (roles[i] != CameraRole::Mono) {
       LOG(WARNING) << "We do not support multiple Cameras currently!";
     }
     else has_mono = true;

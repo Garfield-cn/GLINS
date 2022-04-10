@@ -9,24 +9,24 @@
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
 
-void gnssCallback(gici::GNSS::Epoch& data)
+void gnssCallback(gici::GNSSMeasurement& data)
 {
-  LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.time;
+  LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
   int n_data = 0, n_precise = 0;
   for (auto it_i : data.receivers) {
     for (auto it_j : it_i.second.satellites) {
       n_data++;
-      if (it_j.sat_type == gici::GNSS::SatEphType::Precise) n_precise++;
+      if (it_j.sat_type == gici::SatEphType::Precise) n_precise++;
     }
   }
   // LOG(INFO) << "n_data = " << n_data << ", n_precise = " << n_precise;
 }
 
-void imuCallback(gici::INS::Epoch& data)
+void imuCallback(gici::ImuMeasurement& data)
 {
   static int cnt = 0;
   if (cnt++ % 400 == 0)
-    LOG(INFO) << "^ Got IMU data at " << std::fixed << std::setprecision(9) << data.time;
+    LOG(INFO) << "^ Got IMU data at " << std::fixed << std::setprecision(9) << data.timestamp;
 }
 
 void imageCallback(double time, cv::Mat& image)

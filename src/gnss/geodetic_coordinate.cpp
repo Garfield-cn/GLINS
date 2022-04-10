@@ -10,8 +10,6 @@
 
 namespace gici {
 
-namespace gnss {
-
 GeoCoordinate::GeoCoordinate(const Eigen::Vector3d& position, 
                              const GeoType type) : GeoCoordinate()
 {
@@ -123,8 +121,6 @@ Eigen::Vector3d GeoCoordinate::convet(const Eigen::Vector3d& position,
   GeoCoordinate coord(position, in_type);
   coord.setZero(position, in_type);
   return coord.get(out_type);
-}
-
 }
 
 }
