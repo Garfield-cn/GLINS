@@ -34,13 +34,13 @@
  *********************************************************************************/
 
 /**
- * @file Map.cpp
- * @brief Source file for the Map class.
+ * @file Graph.cpp
+ * @brief Source file for the Graph class.
  * @author Stefan Leutenegger
  * @author Andreas Forster
  */
 
-#include "gici/optimizer/map.hpp"
+#include "gici/optimizer/graph.hpp"
 
 #include <ceres/ordered_groups.h>
 
@@ -51,7 +51,7 @@
 namespace gici {
 
 // Constructor.
-Map::Map()
+Graph::Graph()
     : residual_counter_(0)
 {
   ceres::Problem::Options problemOptions;
@@ -66,8 +66,8 @@ Map::Map()
   //options.linear_solver_ordering = new ceres::ParameterBlockOrdering;
 }
 
-// Check whether a certain parameter block is part of the map.
-bool Map::parameterBlockExists(uint64_t parameter_block_id) const
+// Check whether a certain parameter block is part of the graph.
+bool Graph::parameterBlockExists(uint64_t parameter_block_id) const
 {
   if (id_to_parameter_block_map_.find(parameter_block_id)
       == id_to_parameter_block_map_.end())
@@ -78,7 +78,7 @@ bool Map::parameterBlockExists(uint64_t parameter_block_id) const
 }
 
 // Log information on a parameter block.
-void Map::printParameterBlockInfo(uint64_t parameter_block_id) const
+void Graph::printParameterBlockInfo(uint64_t parameter_block_id) const
 {
   ResidualBlockCollection residualCollection = residuals(parameter_block_id);
   LOG(INFO) << "parameter info" << std::endl << "----------------------------"
@@ -98,7 +98,7 @@ void Map::printParameterBlockInfo(uint64_t parameter_block_id) const
 }
 
 // Log information on a residual block.
-void Map::printResidualBlockInfo(
+void Graph::printResidualBlockInfo(
     ceres::ResidualBlockId residual_block_id) const
 {
   LOG(INFO) << "   - id: " << residual_block_id << std::endl << "   - type: "
@@ -106,10 +106,10 @@ void Map::printResidualBlockInfo(
 }
 
 // Obtain the Hessian block for a specific parameter block.
-void Map::getLhs(uint64_t parameter_block_id, Eigen::MatrixXd& H)
+void Graph::getLhs(uint64_t parameter_block_id, Eigen::MatrixXd& H)
 {
   CHECK(parameterBlockExists(parameter_block_id))
-      << "parameter block not in map.";
+      << "parameter block not in graph.";
   ResidualBlockCollection res = residuals(parameter_block_id);
   H.setZero();
   for (size_t i = 0; i < res.size(); ++i)
@@ -168,7 +168,7 @@ void Map::getLhs(uint64_t parameter_block_id, Eigen::MatrixXd& H)
 }
 
 // Check a Jacobian with numeric differences.
-bool Map::isMinimalJacobianCorrect(ceres::ResidualBlockId residual_block_id,
+bool Graph::isMinimalJacobianCorrect(ceres::ResidualBlockId residual_block_id,
                                    double relTol) const
 {
   std::shared_ptr<const ErrorInterface> error_interface_ptr =
@@ -279,7 +279,7 @@ bool Map::isMinimalJacobianCorrect(ceres::ResidualBlockId residual_block_id,
 }
 
 // Add a parameter block to the map
-bool Map::addParameterBlock(
+bool Graph::addParameterBlock(
     std::shared_ptr<ParameterBlock> parameter_block,
     int parameterization, const int /*group*/)
 {
@@ -345,8 +345,8 @@ bool Map::addParameterBlock(
   return true;
 }
 
-// Remove a parameter block from the map.
-bool Map::removeParameterBlock(uint64_t parameter_block_id)
+// Remove a parameter block from the graph.
+bool Graph::removeParameterBlock(uint64_t parameter_block_id)
 {
   if (!parameterBlockExists(parameter_block_id))
   {
@@ -366,15 +366,15 @@ bool Map::removeParameterBlock(uint64_t parameter_block_id)
   return true;
 }
 
-// Remove a parameter block from the map.
-bool Map::removeParameterBlock(
+// Remove a parameter block from the graph.
+bool Graph::removeParameterBlock(
     std::shared_ptr<ParameterBlock> parameter_block)
 {
   return removeParameterBlock(parameter_block->id());
 }
 
 // Adds a residual block.
-ceres::ResidualBlockId Map::addResidualBlock(
+ceres::ResidualBlockId Graph::addResidualBlock(
     std::shared_ptr< ceres::CostFunction> cost_function,
     ceres::LossFunction* loss_function,
     std::vector<std::shared_ptr<ParameterBlock> >& parameter_block_ptrs)
@@ -442,7 +442,7 @@ ceres::ResidualBlockId Map::addResidualBlock(
 }
 
 // Add a residual block. See respective ceres docu. If more are needed, see other interface.
-ceres::ResidualBlockId Map::addResidualBlock(
+ceres::ResidualBlockId Graph::addResidualBlock(
     std::shared_ptr< ceres::CostFunction> cost_function,
     ceres::LossFunction* loss_function,
     std::shared_ptr<ParameterBlock> x0,
@@ -500,12 +500,12 @@ ceres::ResidualBlockId Map::addResidualBlock(
     parameter_block_ptrs.push_back(x9);
   }
 
-  return Map::addResidualBlock(cost_function, loss_function, parameter_block_ptrs);
+  return Graph::addResidualBlock(cost_function, loss_function, parameter_block_ptrs);
 
 }
 
 // Replace the parameters connected to a residual block ID.
-void Map::resetResidualBlock(
+void Graph::resetResidualBlock(
     ceres::ResidualBlockId residual_block_id,
     std::vector<std::shared_ptr<ParameterBlock> >& parameter_block_ptrs)
 {
@@ -516,7 +516,7 @@ void Map::resetResidualBlock(
   ResidualBlockIdToParameterBlockCollectionMap::iterator it =
       residual_block_id_to_parameter_block_collection_map_.find(residual_block_id);
   CHECK(it!=residual_block_id_to_parameter_block_collection_map_.end())
-      << "residual block not in map.";
+      << "residual block not in graph.";
   for (ParameterBlockCollection::iterator parameter_it = it->second.begin();
       parameter_it != it->second.end(); ++parameter_it)
   {
@@ -562,7 +562,7 @@ void Map::resetResidualBlock(
 }
 
 // Remove a residual block.
-bool Map::removeResidualBlock(ceres::ResidualBlockId residual_block_id)
+bool Graph::removeResidualBlock(ceres::ResidualBlockId residual_block_id)
 {
   VLOG(200) << "Removing residual block with ID " << residual_block_id;
   problem_->RemoveResidualBlock(residual_block_id);  // remove in ceres
@@ -603,7 +603,7 @@ bool Map::removeResidualBlock(ceres::ResidualBlockId residual_block_id)
 }
 
 // Do not optimise a certain parameter block.
-bool Map::setParameterBlockConstant(uint64_t parameter_block_id)
+bool Graph::setParameterBlockConstant(uint64_t parameter_block_id)
 {
   if (!parameterBlockExists(parameter_block_id))
   {
@@ -616,7 +616,7 @@ bool Map::setParameterBlockConstant(uint64_t parameter_block_id)
   return true;
 }
 
-bool Map::isParameterBlockConstant(uint64_t parameter_block_id)
+bool Graph::isParameterBlockConstant(uint64_t parameter_block_id)
 {
   if (!parameterBlockExists(parameter_block_id))
   {
@@ -630,7 +630,7 @@ bool Map::isParameterBlockConstant(uint64_t parameter_block_id)
 }
 
 // Optimise a certain parameter block (this is the default).
-bool Map::setParameterBlockVariable(uint64_t parameter_block_id)
+bool Graph::setParameterBlockVariable(uint64_t parameter_block_id)
 {
   if (!parameterBlockExists(parameter_block_id))
     return false;
@@ -642,7 +642,7 @@ bool Map::setParameterBlockVariable(uint64_t parameter_block_id)
 }
 
 // Reset the (local) parameterisation of a parameter block.
-bool Map::resetParameterization(uint64_t parameter_block_id,
+bool Graph::resetParameterization(uint64_t parameter_block_id,
                                 int parameterization)
 {
   if (!parameterBlockExists(parameter_block_id))
@@ -686,7 +686,7 @@ bool Map::resetParameterization(uint64_t parameter_block_id,
 }
 
 // Set the (local) parameterisation of a parameter block.
-bool Map::setParameterization(
+bool Graph::setParameterization(
     uint64_t parameter_block_id,
     ceres::LocalParameterization* local_parameterization)
 {
@@ -704,7 +704,7 @@ bool Map::setParameterization(
 
 // getters
 // Get a shared pointer to a parameter block.
-std::shared_ptr<ParameterBlock> Map::parameterBlockPtr(
+std::shared_ptr<ParameterBlock> Graph::parameterBlockPtr(
     uint64_t parameter_block_id)
 {
   // get a parameterBlock
@@ -719,7 +719,7 @@ std::shared_ptr<ParameterBlock> Map::parameterBlockPtr(
 }
 
 // Get a shared pointer to a parameter block.
-std::shared_ptr<const ParameterBlock> Map::parameterBlockPtr(
+std::shared_ptr<const ParameterBlock> Graph::parameterBlockPtr(
     uint64_t parameter_block_id) const
 {
   // get a parameterBlock
@@ -731,13 +731,13 @@ std::shared_ptr<const ParameterBlock> Map::parameterBlockPtr(
 }
 
 // Get the residual blocks of a parameter block.
-Map::ResidualBlockCollection Map::residuals(uint64_t parameter_block_id) const
+Graph::ResidualBlockCollection Graph::residuals(uint64_t parameter_block_id) const
 {
   // get the residual blocks of a parameter block
   IdToResidualBlockMultimap::const_iterator it1 = id_to_residual_block_multimap_
       .find(parameter_block_id);
   if (it1 == id_to_residual_block_multimap_.end())
-    return Map::ResidualBlockCollection();  // empty
+    return Graph::ResidualBlockCollection();  // empty
   ResidualBlockCollection returnResiduals;
   std::pair<IdToResidualBlockMultimap::const_iterator,
       IdToResidualBlockMultimap::const_iterator> range =
@@ -751,7 +751,7 @@ Map::ResidualBlockCollection Map::residuals(uint64_t parameter_block_id) const
 }
 
 // Get a shared pointer to an error term.
-std::shared_ptr<ErrorInterface> Map::errorInterfacePtr(
+std::shared_ptr<ErrorInterface> Graph::errorInterfacePtr(
     ceres::ResidualBlockId residual_block_id)
 {  // get a vertex
   ResidualBlockIdToResidualBlockSpecMap::iterator it =
@@ -764,7 +764,7 @@ std::shared_ptr<ErrorInterface> Map::errorInterfacePtr(
 }
 
 // Get a shared pointer to an error term.
-std::shared_ptr<const ErrorInterface> Map::errorInterfacePtr(
+std::shared_ptr<const ErrorInterface> Graph::errorInterfacePtr(
     ceres::ResidualBlockId residual_block_id) const
 {  // get a vertex
   ResidualBlockIdToResidualBlockSpecMap::const_iterator it =
@@ -777,7 +777,7 @@ std::shared_ptr<const ErrorInterface> Map::errorInterfacePtr(
 }
 
 // Get the parameters of a residual block.
-Map::ParameterBlockCollection Map::parameters(
+Graph::ParameterBlockCollection Graph::parameters(
     ceres::ResidualBlockId residual_block_id) const
 {
   // get the parameter blocks connected

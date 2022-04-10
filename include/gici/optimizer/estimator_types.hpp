@@ -29,6 +29,7 @@
  *
  *  Created on: Jul 6, 2016
  *      Author: Zurich Eye
+ *      Modified: Cheng Chi
  *********************************************************************************/
 
 #pragma once
@@ -53,14 +54,21 @@ namespace gici {
 // IDs
 enum class IdType : uint8_t
 {
-  NFrame = 0,
-  Landmark = 1,
+  cNFrame = 0,
+  cLandmark = 1,
   ImuStates = 2,
-  Extrinsics = 3
+  cExtrinsics = 3,
+  gPosition = 4,
+  gClock = 5, 
+  gFrequency = 6,
+  gTroposphere = 7,
+  gExtrinsics = 8,
+  gAmbiguity = 9,
+  gIonosphere = 10
 };
 
 //! The Backend ID for multiple types.
-//! Memory layout for types {Frame, IMU state}:
+//! Memory layout for types {Frame, IMU state, GNSS position}:
 //! Byte 0: IdType
 //! Byte 1: zero
 //! Byte 2-5: BundleID
@@ -76,6 +84,12 @@ enum class IdType : uint8_t
 //! Byte 0: IdType
 //! Byte 1-3: zero
 //! Byte 4-7: 32 bit Track ID
+//!
+//! For GNSS clock
+//! Byte 0: IdType
+//! Byte 1: GNSS system
+//! Byte 2-5: BundleID
+//! Byte 6-7: zero
 class BackendId
 {
 public:
@@ -95,7 +109,7 @@ public:
 
   int32_t bundleId() const
   {
-    CHECK(type() != IdType::Landmark)
+    CHECK(type() != IdType::cLandmark)
         << "Landmarks do not have a bundle ID.";
     // The bundle ID is byte 2 -> 6 in id.
     return static_cast<int32_t>((id_ >> 16) & 0xFFFFFFFF);
@@ -103,23 +117,23 @@ public:
 
   uint32_t trackId() const
   {
-    CHECK(type() == IdType::Landmark);
+    CHECK(type() == IdType::cLandmark);
     // In case of a landmark, the last 4 bytes are the track ID.
     return static_cast<uint32_t>(id_ & 0xFFFFFFFF);
   }
 
   uint16_t nFrameHandle() const
   {
-    CHECK(type() == IdType::NFrame ||
+    CHECK(type() == IdType::cNFrame ||
                 type() == IdType::ImuStates ||
-                type() == IdType::Extrinsics);
+                type() == IdType::cExtrinsics);
     // In case of an NFrame, the last 2 bytes are the handle.
     return static_cast<uint16_t>(id_ & 0xFFFF);
   }
 
   uint8_t cameraIndex() const
   {
-    CHECK(type() == IdType::Extrinsics);
+    CHECK(type() == IdType::cExtrinsics);
    // The second byte is the camara index.
     return static_cast<uint8_t>((id_ >> 48) & 0x00000FF);
   }
@@ -137,14 +151,31 @@ private:
 inline BackendId createLandmarkId(int track_id)
 {
   return BackendId(static_cast<uint64_t>(track_id) |
-                   (static_cast<uint64_t>(IdType::Landmark) << 56));
+                   (static_cast<uint64_t>(IdType::cLandmark) << 56));
 }
 
 inline BackendId createNFrameId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
   return BackendId((static_cast<uint64_t>(bundle_id) << 16) |
-                   (static_cast<uint64_t>(IdType::NFrame) << 56));
+                   (static_cast<uint64_t>(IdType::cNFrame) << 56));
+}
+
+inline BackendId createGNSSPositionId(int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  return BackendId((static_cast<uint64_t>(bundle_id) << 16) |
+                   (static_cast<uint64_t>(IdType::gPosition) << 56));
+}
+
+inline BackendId createGNSSClockId(char system,
+                                   int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  return BackendId((static_cast<uint64_t>(
+                      static_cast<uint32_t>(bundle_id)) << 16) |
+                   (static_cast<uint64_t>(system) << 48) |
+                   (static_cast<uint64_t>(IdType::cExtrinsics) << 56));
 }
 
 inline BackendId createExtrinsicsId(uint8_t camera_index,
@@ -152,7 +183,7 @@ inline BackendId createExtrinsicsId(uint8_t camera_index,
   return BackendId((static_cast<uint64_t>(
                       static_cast<uint32_t>(bundle_id)) << 16) |
                    (static_cast<uint64_t>(camera_index) << 48) |
-                   (static_cast<uint64_t>(IdType::Extrinsics) << 56));
+                   (static_cast<uint64_t>(IdType::cExtrinsics) << 56));
 }
 
 inline BackendId createImuStateId(int32_t bundle_id)
@@ -164,12 +195,21 @@ inline BackendId createImuStateId(int32_t bundle_id)
 
 inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
 {
-  CHECK(id.type() != IdType::Landmark);
-  CHECK(type != IdType::Landmark);
-  CHECK(cam_index == 0 || type == IdType::Extrinsics);
+  CHECK(id.type() != IdType::cLandmark);
+  CHECK(type != IdType::cLandmark);
+  CHECK(cam_index == 0 || type == IdType::cExtrinsics);
   // Last 6 bytes remain the same.
   return BackendId((id.asInteger() & 0xFFFFFFFFFFFF) |
                    (static_cast<uint64_t>(cam_index) << 48) |
+                   (static_cast<uint64_t>(type) << 56));
+}
+
+inline BackendId changeIdType(BackendId id, IdType type, const char system)
+{
+  CHECK(id.type() != IdType::gPosition);
+  // Last 6 bytes remain the same.
+  return BackendId((id.asInteger() & 0xFFFFFFFFFFFF) |
+                   (static_cast<uint64_t>(system) << 48) |
                    (static_cast<uint64_t>(type) << 56));
 }
 
@@ -202,7 +242,7 @@ inline std::ostream& operator<<(std::ostream& out, const BackendId& id)
 
 //------------------------------------------------------------------------------
 /**
- * @brief A type to store information about a point in the world map.
+ * @brief A type to store information about a point in the world graph.
  */
 struct MapPoint
 {

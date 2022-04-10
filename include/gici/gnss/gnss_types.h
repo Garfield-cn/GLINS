@@ -25,8 +25,9 @@ enum class GNSSRole {
 
 // Satellite ephemeris types
 enum class SatEphType {
-  Broadcast,
-  Precise
+  None = 0, 
+  Broadcast = 1,
+  Precise = 2
 };
 
 // One code type measurement
@@ -47,7 +48,7 @@ struct Satellite {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 	std::string prn;
 	std::unordered_map<int, Observation> observations;
-  SatEphType sat_type;
+  SatEphType sat_type = SatEphType::None;
   Eigen::Vector3d sat_position;
   Eigen::Vector3d sat_velocity;
   double sat_clock;
@@ -59,16 +60,7 @@ struct Satellite {
   // in RTK, we donot use GLONASS code and disable its AR
 
   // Get satellite system
-  char getSystem(void) { return prn[0]; }
-
-  // Compute satellite to receiver distance
-  double getRho(const Eigen::Vector3d& xyz);
-
-  // Compute satellite elevation angle
-  double getElevation(const Eigen::Vector3d& xyz);
-
-  // Compute satellite azimuth angle
-  double getAzimuth(const Eigen::Vector3d& xyz);
+  inline char getSystem(void) const { return prn[0]; }
 };
 
 using Satellites = std::vector<Satellite, Eigen::aligned_allocator<Satellite>>;
@@ -76,13 +68,19 @@ using Satellites = std::vector<Satellite, Eigen::aligned_allocator<Satellite>>;
 // GNSS epoch data
 struct GNSSMeasurement {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  GNSSMeasurement() : id(++epoch_cnt_) {}
+
   double timestamp;
   GNSSRole role;
   std::string mount_id;
+  int32_t id;  // ID for bundle adjustment
   Satellites satellites;
   Eigen::Vector3d position;  // for reference station
   Eigen::VectorXd ionosphere_parameters;  // GPS broadcast ionosphere parameters
   double troposphere;  // from augmentation
+
+  static int32_t epoch_cnt_;
 };
 
 using GNSSMeasurements = std::vector<GNSSMeasurement, 

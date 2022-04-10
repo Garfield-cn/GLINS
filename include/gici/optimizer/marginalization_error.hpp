@@ -54,7 +54,7 @@
 #include "gici/optimizer/error_interface.hpp"
 #include "gici/optimizer/homogeneous_point_parameter_block.hpp"
 #include "gici/optimizer/homogeneous_point_local_parameterization.hpp"
-#include "gici/optimizer/map.hpp"
+#include "gici/optimizer/graph.hpp"
 #include "gici/optimizer/pose_parameter_block.hpp"
 #include "gici/optimizer/speed_and_bias_parameter_block.hpp"
 
@@ -72,29 +72,29 @@ class MarginalizationError : public ceres::CostFunction, public ErrorInterface
   /// \brief Trivial destructor.
   virtual ~MarginalizationError() = default;
 
-  /// \brief Default constructor. Initialises a new Map.
+  /// \brief Default constructor. Initialises a new Graph.
   MarginalizationError();
 
-  /// \brief Constructor from Map.
-  /// @param[in] map The underlying Map.
-  MarginalizationError(Map& map);
+  /// \brief Constructor from Graph.
+  /// @param[in] map The underlying Graph.
+  MarginalizationError(Graph& map);
 
-  /// \brief Constructor from Map and directly add some residuals
-  /// @param[in] map The underlying Map.
+  /// \brief Constructor from Graph and directly add some residuals
+  /// @param[in] map The underlying Graph.
   /// @param[in] residual_block_ids Residual block IDs to be added directly
   ///            (\see addResidualBlocks)
   MarginalizationError(
-      Map& map, std::vector< ceres::ResidualBlockId >& residual_block_ids);
+      Graph& map, std::vector< ceres::ResidualBlockId >& residual_block_ids);
 
   // initialization
-  /// \brief Set the underlying Map.
-  /// @param[in] map The underlying Map.
-  void setMap(Map& map);
+  /// \brief Set the underlying Graph.
+  /// @param[in] map The underlying Graph.
+  void setMap(Graph& map);
 
   /// \brief Add some residuals to this marginalisation error. This means, they
   ///        will get linearised.
   /// \warning Note that once added here, they will be removed from the
-  ///          Map and stay linerised at exactly the points passed here.
+  ///          Graph and stay linerised at exactly the points passed here.
   /// @param[in] residual_block_ids Vector of residual block ids, the
   ///            corresponding terms of which will be added.
   /// @param[in] keep_residual_blocks Currently not in use.
@@ -105,7 +105,7 @@ class MarginalizationError : public ceres::CostFunction, public ErrorInterface
   /// \brief Add one residual to this marginalisation error. This means, it will
   ///        get linearised.
   /// \warning Note that once added here, it will be removed from the
-  ///          Map and stay linearised at exactly the point passed here.
+  ///          Graph and stay linearised at exactly the point passed here.
   /// @param[in] residual_block_id Residual block id, the corresponding term of
   ///            which will be added.
   /// @param[in] keep Currently not in use.
@@ -277,7 +277,7 @@ class MarginalizationError : public ceres::CostFunction, public ErrorInterface
   }
 
  protected:
-  Map* map_ptr_; ///< The underlying map.
+  Graph* map_ptr_; ///< The underlying graph.
   ceres::ResidualBlockId residual_block_id_; ///< The residual block id of this.
 
   /// \brief Checks the internal datastructure (debug)

@@ -76,7 +76,7 @@ inline void conservativeResize(Eigen::VectorXd& vectorXd, int size)
   }
 }
 
-// Default constructor. Initialises a new Map.
+// Default constructor. Initialises a new Graph.
 MarginalizationError::MarginalizationError()
 {
   map_ptr_ = 0;
@@ -85,8 +85,8 @@ MarginalizationError::MarginalizationError()
   error_computation_valid_ = false;
 }
 
-// Default constructor from Map.
-MarginalizationError::MarginalizationError(Map& map)
+// Default constructor from Graph.
+MarginalizationError::MarginalizationError(Graph& map)
 {
   setMap(map);
   dense_indices_ = 0;
@@ -95,7 +95,7 @@ MarginalizationError::MarginalizationError(Map& map)
 }
 
 MarginalizationError::MarginalizationError(
-    Map& map, std::vector< ceres::ResidualBlockId> & residual_block_ids)
+    Graph& map, std::vector< ceres::ResidualBlockId> & residual_block_ids)
 {
   setMap(map);
   dense_indices_ = 0;
@@ -106,8 +106,8 @@ MarginalizationError::MarginalizationError(
       << "residual blocks supplied or their connected parameter blocks were not properly added to the map";
 }
 
-// Set the underlying Map.
-void MarginalizationError::setMap(Map& map)
+// Set the underlying Graph.
+void MarginalizationError::setMap(Graph& map)
 {
   map_ptr_ = &map;
   residual_block_id_ = 0;  // reset.
@@ -151,12 +151,12 @@ bool MarginalizationError::addResidualBlock(
   error_computation_valid_ = false;  // flag that the error computation is invalid
 
   // get the parameter blocks
-  Map::ParameterBlockCollection parameters = map_ptr_->parameters(residual_block_id);
+  Graph::ParameterBlockCollection parameters = map_ptr_->parameters(residual_block_id);
 
   // insert into parameter block ordering book-keeping
   for (size_t i = 0; i < parameters.size(); ++i)
   {
-    Map::ParameterBlockSpec parameter_block_spec = parameters[i];
+    Graph::ParameterBlockSpec parameter_block_spec = parameters[i];
 
     // does it already exist as a parameter block connected?
     ParameterBlockInfo info;
@@ -481,7 +481,7 @@ bool MarginalizationError::addResidualBlock(
 bool MarginalizationError::isParameterBlockConnected(
     uint64_t parameter_block_id) {
   CHECK(map_ptr_->parameterBlockExists(parameter_block_id))
-      << "this parameter block does not even exist in the map...";
+      << "this parameter block does not even exist in the graph...";
   std::map<uint64_t, size_t>::iterator it =
       parameter_block_id_to_parameter_block_info_idx_.find(parameter_block_id);
   if (it == parameter_block_id_to_parameter_block_info_idx_.end())
@@ -541,7 +541,7 @@ void MarginalizationError::check() {
 void MarginalizationError::getParameterBlockPtrs(
     std::vector<std::shared_ptr<ParameterBlock> >& parameter_block_ptrs)
 {
-  CHECK(map_ptr_!=0) << "no Map object passed ever!";
+  CHECK(map_ptr_!=0) << "no Graph object passed ever!";
   for (size_t i = 0; i < parameter_block_infos_.size(); ++i)
   {
     parameter_block_ptrs.push_back(parameter_block_infos_[i].parameter_block_ptr);
@@ -860,7 +860,7 @@ bool MarginalizationError::marginalizeOut(
   // check if the removal is safe
   for (size_t i = 0; i < parameter_block_ids_copy.size(); ++i)
   {
-    Map::ResidualBlockCollection residuals = map_ptr_->residuals(
+    Graph::ResidualBlockCollection residuals = map_ptr_->residuals(
         parameter_block_ids_copy[i]);
     if (residuals.size() != 0
         && parameter_block_ptrs.at(parameter_block_ids_copy[i]) == false)

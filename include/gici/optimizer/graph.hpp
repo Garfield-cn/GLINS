@@ -33,8 +33,8 @@
  *********************************************************************************/
 
 /**
- * @file Map.hpp
- * @brief Header file for the Map class. This essentially encapsulates the ceres::Problem.
+ * @file Graph.hpp
+ * @brief Header file for the Graph class. This essentially encapsulates the ceres::Problem.
  * @author Stefan Leutenegger
  */
 
@@ -57,17 +57,17 @@
 
 namespace gici {
 
-/// @brief The Map class. This keeps track of how parameter blocks are connected
+/// @brief The Graph class. This keeps track of how parameter blocks are connected
 ///        to residual blocks. In essence, it encapsulates the ceres::Problem.
 ///        This way, we can easily manipulate the optimisation problem.
 ///        You could argue why not use cere's internal mechanisms to do that.
 ///        We found that our implementation was faster...
-class Map
+class Graph
 {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   /// @brief Constructor.
-  Map();
+  Graph();
 
   // definitions
   /// @brief Struct to store some infos about a residual.
@@ -112,9 +112,9 @@ class Map
   };
 
   /**
-   * @brief Check whether a certain parameter block is part of the map.
+   * @brief Check whether a certain parameter block is part of the graph.
    * @param parameter_block_id ID of parameter block to find.
-   * @return True if parameter block is part of map.
+   * @return True if parameter block is part of graph.
    */
   bool parameterBlockExists(uint64_t parameter_block_id) const;
 
@@ -141,7 +141,7 @@ class Map
   /// @{
 
   /**
-   * @brief Add a parameter block to the map.
+   * @brief Add a parameter block to the graph.
    * @param parameter_block    Parameter block to insert.
    * @param parameterization  Parameterization to tell how to do the local
    *                          parameterisation.
@@ -153,14 +153,14 @@ class Map
       int parameterization = Parameterization::Trivial, const int group = -1);
 
   /**
-   * @brief Remove a parameter block from the map.
+   * @brief Remove a parameter block from the graph.
    * @param parameter_block_id ID of block to remove.
    * @return True if successful.
    */
   bool removeParameterBlock(uint64_t parameter_block_id);
 
   /**
-   * @brief Remove a parameter block from the map.
+   * @brief Remove a parameter block from the graph.
    * @param parameter_block Pointer to the block to remove.
    * @return True if successful.
    */

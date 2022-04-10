@@ -17,11 +17,11 @@ PseudorangeErrorSole::PseudorangeErrorSole(
                        const int code_type, 
                        const GNSSErrorParameter& error_parameter)
 {
-  CHECK(measurement.satellites.size() <= satellite_index);
+  CHECK(measurement.satellites.size() > satellite_index);
   satellite_ = measurement.satellites.at(satellite_index);
 
   auto obs = satellite_.observations.find(code_type);
-  CHECK(obs == satellite_.observations.end());
+  CHECK(obs != satellite_.observations.end());
   observation_ = obs->second;
 
   setMeasurement(measurement);
@@ -71,6 +71,10 @@ bool PseudorangeErrorSole::EvaluateWithMinimalJacobians(
   double ratio = error_parameter_.code_to_phase_ratio;
   double variance = (pow(factor(0), 2) + pow(factor(1) / sin(elevation), 2)) * ratio;
   double square_root_information = sqrt(1.0 / variance);
+
+  // check quality
+  if (satellite_.sat_type == SatEphType::None) square_root_information = 0.0;
+
   weighted_error = square_root_information * error;
 
   // compute Jacobian

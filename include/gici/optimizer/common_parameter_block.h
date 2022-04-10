@@ -26,7 +26,7 @@ class CommonParameterBlock : public ParameterBlock
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  typedef Eigen::Matrix<double, Dim_, 1> estimate_t;
+  typedef Eigen::VectorXd estimate_t;
 
   static constexpr size_t c_dimension = Dim_;
   static constexpr size_t c_minimal_dimension = Dim_;
@@ -39,7 +39,7 @@ class CommonParameterBlock : public ParameterBlock
   /// \brief Constructor with estimate and id.
   /// @param[in] parameter The parameter estimate.
   /// @param[in] id The (unique) ID of this block.
-  CommonParameterBlock(const Eigen::Matrix<double, Dim_, 1>& parameter, uint64_t id) {
+  CommonParameterBlock(const Eigen::VectorXd& parameter, uint64_t id) {
     setEstimate(parameter);
     setId(id);
     setFixed(false);
@@ -50,7 +50,7 @@ class CommonParameterBlock : public ParameterBlock
   // ---------------------------------------------------------------------------
   // Setters
 
-  virtual void setEstimate(const Eigen::Matrix<double, Dim_, 1>& parameter)
+  virtual void setEstimate(const Eigen::VectorXd& parameter)
   {
     estimate_ = parameter;
   }
@@ -58,7 +58,7 @@ class CommonParameterBlock : public ParameterBlock
   // ---------------------------------------------------------------------------
   // Getters
 
-  virtual const Eigen::Matrix<double, Dim_, 1>& estimate() const { return estimate_; }
+  virtual const Eigen::VectorXd& estimate() const { return estimate_; }
 
   virtual double* parameters() { return estimate_.data(); }
 
@@ -79,9 +79,9 @@ class CommonParameterBlock : public ParameterBlock
   virtual void plus(const double* x0, const double* Delta_Chi,
                     double* x0_plus_Delta) const
   {
-    Eigen::Map<const Eigen::Matrix<double, Dim_, 1>> x0_(x0, Dim_);
-    Eigen::Map<const Eigen::Matrix<double, Dim_, 1>> Delta_Chi_(Delta_Chi, Dim_);
-    Eigen::Map<Eigen::Matrix<double, Dim_, 1>> x0_plus_Delta_(x0_plus_Delta, Dim_);
+    Eigen::Map<const Eigen::VectorXd> x0_(x0, Dim_);
+    Eigen::Map<const Eigen::VectorXd> Delta_Chi_(Delta_Chi, Dim_);
+    Eigen::Map<Eigen::VectorXd> x0_plus_Delta_(x0_plus_Delta, Dim_);
     x0_plus_Delta_ = x0_ + Delta_Chi_;
   }
 
@@ -91,7 +91,8 @@ class CommonParameterBlock : public ParameterBlock
   virtual void plusJacobian(const double* /*unused: x*/,
                             double* jacobian) const
   {
-    Eigen::Map<Eigen::Matrix<double, Dim_, Dim_, Eigen::RowMajor> > identity(jacobian);
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 
+      Eigen::Dynamic, Eigen::RowMajor>> identity(jacobian, Dim_, Dim_);
     identity.setIdentity();
   }
 
@@ -105,9 +106,9 @@ class CommonParameterBlock : public ParameterBlock
   virtual void minus(const double* x0, const double* x0_plus_Delta,
                      double* Delta_Chi) const
   {
-    Eigen::Map<const Eigen::Matrix<double, Dim_, Dim_>> x0_(x0);
-    Eigen::Map<Eigen::Matrix<double, Dim_, Dim_>> Delta_Chi_(Delta_Chi);
-    Eigen::Map<const Eigen::Matrix<double, Dim_, Dim_>> x0_plus_Delta_(x0_plus_Delta);
+    Eigen::Map<const Eigen::VectorXd> x0_(x0, Dim_);
+    Eigen::Map<Eigen::VectorXd> Delta_Chi_(Delta_Chi, Dim_);
+    Eigen::Map<const Eigen::VectorXd> x0_plus_Delta_(x0_plus_Delta, Dim_);
     Delta_Chi_ = x0_plus_Delta_ - x0_;
   }
 
@@ -118,7 +119,8 @@ class CommonParameterBlock : public ParameterBlock
   virtual void liftJacobian(const double* /*unused: x*/,
                             double* jacobian) const
   {
-    Eigen::Map<Eigen::Matrix<double, Dim_, Dim_, Eigen::RowMajor> > identity(jacobian);
+    Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 
+      Eigen::Dynamic, Eigen::RowMajor>> identity(jacobian, Dim_, Dim_);
     identity.setIdentity();
   }
 
@@ -137,7 +139,7 @@ class CommonParameterBlock : public ParameterBlock
   }
 
  private:
-  Eigen::Matrix<double, Dim_, Dim_> estimate_;
+  Eigen::VectorXd estimate_;
 };
 
 } 
