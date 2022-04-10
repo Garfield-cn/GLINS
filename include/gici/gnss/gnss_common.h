@@ -16,25 +16,52 @@
 
 namespace gici {
 
-namespace rtklib {
+namespace gnss_common {
 
+// ----------------------------------------------------------
 // Convert char system to int system
-extern int sys2sys(char sys);
+int sys2sys(char sys);
 
 // Convert int system to char system
-extern char sys2sys(int sys);
+char sys2sys(int sys);
 
 // Convert PRN string to RTKLIB sat
-extern int prn2sat(std::string prn);
+int prn2sat(std::string prn);
 
 // Convert RTKLIB sat to PRN string
-extern std::string sat2prn(int sat);
+std::string sat2prn(int sat);
 
 // Convert gtime to double
-extern double gtime2double(gtime_t time);
+double gtime2double(gtime_t time);
 
 // Convert double to gtime
-extern gtime_t double2gtime(double time);
+gtime_t double2gtime(double time);
+
+// ----------------------------------------------------------
+// Saastamoinen troposphere delay model
+double troposphereSaastamoinen(double time, 
+  const Eigen::Vector3d& ecef, double elevation, double humi = 0.0);
+
+// GMF troposphere delay model
+void troposphereGMF(double time, 
+  const Eigen::Vector3d& ecef, double elevation, double* gmfh, double* gmfw);
+
+// Broadcast ionosphere model
+double ionosphereBroadcast(double time,
+  const Eigen::Vector3d& ecef, double azimuth, double elevation, 
+  const Eigen::VectorXd& parameters = Eigen::VectorXd::Zero(8));
+
+// Receiver to satellite distance considering the earth rotation effect
+double satelliteToReceiverDistance(
+  const Eigen::Vector3d satellite_ecef, const Eigen::Vector3d receiver_ecef);
+
+// Satellite elevation angle
+double satelliteElevation(
+  const Eigen::Vector3d satellite_ecef, const Eigen::Vector3d receiver_ecef);
+
+// Satellite azimuth angle
+double satelliteAzimuth(
+  const Eigen::Vector3d satellite_ecef, const Eigen::Vector3d receiver_ecef);
 
 }
 

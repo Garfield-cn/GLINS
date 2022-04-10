@@ -31,7 +31,7 @@ int SatEphemeris::getSatPosition(double time,
           const std::vector<std::string>& prns, 
           std::vector<SatPosition>& sat_positions)
 {
-  gtime_t gtime = rtklib::double2gtime(time);
+  gtime_t gtime = gnss_common::double2gtime(time);
   double *rs, *dts, *var;
   double *rs_ssr, *dts_ssr, *var_ssr;
   int svh[MAXOBS], svh_ssr[MAXOBS], n;
@@ -43,7 +43,7 @@ int SatEphemeris::getSatPosition(double time,
   for (size_t i = 0; i < prns.size(); i++) {
     obs_tmp.data[obs_tmp.n].P[0] = 1.0;
     obs_tmp.data[obs_tmp.n].time = gtime;
-    obs_tmp.data[obs_tmp.n].sat = rtklib::prn2sat(prns[i]);
+    obs_tmp.data[obs_tmp.n].sat = gnss_common::prn2sat(prns[i]);
     obs_tmp.n++;
   }
   n = obs_tmp.n;

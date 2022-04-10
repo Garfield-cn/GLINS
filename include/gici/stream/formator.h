@@ -108,7 +108,7 @@ struct MaxDataSize {
 };
 
 // Tools for RTKLIB types
-namespace rtklib {
+namespace gnss_common {
 
 // Update observation data
 extern void updateObservation(

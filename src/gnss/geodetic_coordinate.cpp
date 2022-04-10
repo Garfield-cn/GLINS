@@ -51,7 +51,7 @@ Eigen::Vector3d GeoCoordinate::getLLA(void)
 Eigen::Vector3d GeoCoordinate::getECEF(void)
 {
   double r[3];
-  pos2ecef(degToRad(lla_).data(), r);
+  pos2ecef(lla_.data(), r);
   return Eigen::Vector3d(r);
 }
 
@@ -64,10 +64,10 @@ Eigen::Vector3d GeoCoordinate::getENU(void)
   }
 
   double r[3], r0[3], dr[3], enu[3];
-  pos2ecef(degToRad(lla_).data(), r);
-  pos2ecef(degToRad(lla_zero_).data(), r0);
+  pos2ecef(lla_.data(), r);
+  pos2ecef(lla_zero_.data(), r0);
   for (int i = 0; i < 3; i++) dr[i] = r[i] - r0[i];
-  ecef2enu(degToRad(lla_zero_).data(), dr, enu);
+  ecef2enu(lla_zero_.data(), dr, enu);
   return Eigen::Vector3d(enu);
 }
 
@@ -87,8 +87,7 @@ Eigen::Vector3d GeoCoordinate::convertToLLA(
   if (type == GeoType::ECEF) {
     double pos[3];
     ecef2pos(position.data(), pos);
-    Eigen::Vector3d rad = Eigen::Vector3d(pos);
-    lla = radToDeg(rad);
+    lla = Eigen::Vector3d(pos);
   }
   else if (type == GeoType::LLA) {
     lla = position;

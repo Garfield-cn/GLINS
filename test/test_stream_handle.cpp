@@ -13,11 +13,9 @@ void gnssCallback(gici::GNSSMeasurement& data)
 {
   LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
   int n_data = 0, n_precise = 0;
-  for (auto it_i : data.receivers) {
-    for (auto it_j : it_i.second.satellites) {
-      n_data++;
-      if (it_j.sat_type == gici::SatEphType::Precise) n_precise++;
-    }
+  for (auto it_j : data.satellites) {
+    n_data++;
+    if (it_j.sat_type == gici::SatEphType::Precise) n_precise++;
   }
   // LOG(INFO) << "n_data = " << n_data << ", n_precise = " << n_precise;
 }

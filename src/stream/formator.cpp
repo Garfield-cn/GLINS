@@ -94,7 +94,7 @@ void DataFormat::Image::free(void)
   ::free(image);
 }
 
-namespace rtklib {
+namespace gnss_common {
 
 // Update observation data
 extern void updateObservation(
@@ -263,7 +263,7 @@ RTCM2Formator::RTCM2Formator(Config& config)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
-  rtcm_.time = rtklib::double2gtime(config.start_time);
+  rtcm_.time = gnss_common::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
@@ -279,7 +279,7 @@ RTCM2Formator::RTCM2Formator(YAML::Node& node)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
-  rtcm_.time = rtklib::double2gtime(config.start_time);
+  rtcm_.time = gnss_common::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
@@ -313,7 +313,7 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
     sta_t *sta = &rtcm_.sta;
     ssr_t *ssr = rtcm_.ssr;
     int sat = rtcm_.ephsat;
-    rtklib::updateStreamData(
+    gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
     GNSSDataType type = static_cast<GNSSDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
@@ -353,7 +353,7 @@ RTCM3Formator::RTCM3Formator(Config& config)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
-  rtcm_.time = rtklib::double2gtime(config.start_time);
+  rtcm_.time = gnss_common::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
@@ -369,7 +369,7 @@ RTCM3Formator::RTCM3Formator(YAML::Node& node)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
-  rtcm_.time = rtklib::double2gtime(config.start_time);
+  rtcm_.time = gnss_common::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
@@ -403,7 +403,7 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
     sta_t *sta = &rtcm_.sta;
     ssr_t *ssr = rtcm_.ssr;
     int sat = rtcm_.ephsat;
-    rtklib::updateStreamData(
+    gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
     GNSSDataType type = static_cast<GNSSDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
@@ -489,7 +489,7 @@ GNSSRawFormator::GNSSRawFormator(Config& config)
   option_tools::convert(config.sub_type, format_);
 
   init_raw(&raw_, static_cast<int>(format_));
-  raw_.time = rtklib::double2gtime(config.start_time);
+  raw_.time = gnss_common::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::GNSSRaw; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
@@ -506,7 +506,7 @@ GNSSRawFormator::GNSSRawFormator(YAML::Node& node)
   option_tools::convert(config.sub_type, format_);
 
   init_raw(&raw_, static_cast<int>(format_));
-  raw_.time = rtklib::double2gtime(config.start_time);
+  raw_.time = gnss_common::double2gtime(config.start_time);
   for (int i = 0; i < MaxDataSize::GNSSRaw; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
@@ -539,7 +539,7 @@ int GNSSRawFormator::decode(const uint8_t *buf, int size,
     nav_t *nav = &raw_.nav;
     sta_t *sta = &raw_.sta;
     int sat = raw_.ephsat;
-    rtklib::updateStreamData(
+    gnss_common::updateStreamData(
         ret, obs, nav, sta, NULL, iobs, sat, gnss_data);
     GNSSDataType type = static_cast<GNSSDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
@@ -662,7 +662,7 @@ int ImagePackFormator::decode(const uint8_t *buf, int size,
     int ret = input_image(&image_, buf[i]);
     if (ret <= 0) continue;
 
-    data_[iobs]->image->time = rtklib::gtime2double(image_.time);
+    data_[iobs]->image->time = gnss_common::gtime2double(image_.time);
     // TODO: This memcpy may increase memory occupation, according to
     // https://bbs.csdn.net/topics/390705325, maybe it is caused by the
     // convertion between physical and vitural memory, and this is not 
@@ -687,7 +687,7 @@ int ImagePackFormator::encode(
 {
   img_t *image;
   init_img(image, data->image->width, data->image->height);
-  image->time = rtklib::double2gtime(data->image->time);
+  image->time = gnss_common::double2gtime(data->image->time);
   memcpy(image->image, data->image->image, 
        data->image->width * data->image->height);
 
@@ -732,7 +732,7 @@ int IMUPackFormator::decode(const uint8_t *buf, int size,
 
     DataFormat::Ptr data_ptr;
     data_ptr = std::make_shared<DataFormat>(FormatorType::IMUPack);
-    data_ptr->imu->time = rtklib::gtime2double(imu_.time);
+    data_ptr->imu->time = gnss_common::gtime2double(imu_.time);
     for (int k = 0; k < 3; k++) {
       data_ptr->imu->acceleration[k] = imu_.acc[k];
       data_ptr->imu->angular_velocity[k] = imu_.gyro[k];
@@ -753,7 +753,7 @@ int IMUPackFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
 {
   imu_t *imu;
   init_imu(imu);
-  imu->time = rtklib::double2gtime(data->imu->time);
+  imu->time = gnss_common::double2gtime(data->imu->time);
   for (int i = 0; i < 3; i++) {
     imu->acc[i] = data->imu->acceleration[i];
     imu->gyro[i] = data->imu->angular_velocity[i];

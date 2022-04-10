@@ -7,6 +7,7 @@
 #pragma once
 
 #include <Eigen/Core>
+#include <memory>
 
 #include "gici/utility/rtklib_safe.h"
 
@@ -46,14 +47,38 @@ public:
   // Get position in LLA coordinate
   Eigen::Vector3d getLLA(void);
 
+  inline Eigen::Vector3d getLLA(
+    const Eigen::Vector3d& position, const GeoType type) {
+    setPosition(position, type);
+    return getLLA();
+  }
+
   // Get position in ECEF coordinate
   Eigen::Vector3d getECEF(void);
+
+  inline Eigen::Vector3d getECEF(
+    const Eigen::Vector3d& position, const GeoType type) {
+    setPosition(position, type);
+    return getECEF();
+  }
 
   // Get position in ENU coordinate
   Eigen::Vector3d getENU(void);
 
+  inline Eigen::Vector3d getENU(
+    const Eigen::Vector3d& position, const GeoType type) {
+    setPosition(position, type);
+    return getENU();
+  }
+
   // Get position in NED coordinate
   Eigen::Vector3d getNED(void);
+
+  inline Eigen::Vector3d getNED(
+    const Eigen::Vector3d& position, const GeoType type) {
+    setPosition(position, type);
+    return getNED();
+  }
 
   // Convert coordinate
   static Eigen::Vector3d convet(const Eigen::Vector3d& position,
@@ -83,9 +108,12 @@ private:
   static Eigen::Vector3d convertToLLA(const Eigen::Vector3d& position, 
                                       const GeoType type);
 
+  // Latitude, Longitude and Altitude stored in rad
   Eigen::Vector3d lla_;
   Eigen::Vector3d lla_zero_;
   bool lla_zero_setted_;
 };
+
+using GeoCoordinatePtr = std::shared_ptr<GeoCoordinate>;
 
 } // namespace gici

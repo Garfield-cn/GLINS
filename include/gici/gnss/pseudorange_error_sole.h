@@ -16,24 +16,24 @@
 
 #include "gici/optimizer/error_interface.hpp"
 #include "gici/gnss/geodetic_coordinate.h"
+#include "gici/gnss/gnss_types.h"
 
 namespace gici {
 
 /// \brief Pseudorange error, position in ECEF coordinate is used as parameter
 // to apply single point positioning
-class PseudorangeError :
+class PseudorangeErrorSole :
     public ceres::SizedCostFunction<
     1 /* number of residuals */,
-    7, /* size of first parameter: body pose in world frame */
-    3, /* size of second parameter: position difference between body and receiver in body frame */
-    1 /* size of second parameter: receiver clock */>,
+    3, /* size of first parameter: GNSSMeasurement position in ECEF frame */
+    1 /* size of second parameter: GNSSMeasurement clock */>,
     public ErrorInterface
 {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
-  typedef ceres::SizedCostFunction<1, 7, 3, 1> base_t;
+  typedef ceres::SizedCostFunction<1, 3, 1> base_t;
 
   /// \brief Number of residuals (1).
   static const int kNumResiduals = 1;
@@ -45,45 +45,32 @@ class PseudorangeError :
   typedef double covariance_t;
 
   /// \brief Default constructor.
-  PseudorangeError();
+  PseudorangeErrorSole();
 
   /// \brief Construct with measurement and information matrix
   /// @param[in] measurement The measurement.
-  /// @param[in] information The information (weight) matrix.
-  /// @param[in] coordinate  GNSS coordinate convertor.
-  PseudorangeError(const double& measurement,
-                   const double& information,
-                   const GeoCoordinatePtr& coordinate);
+  /// @param[in] index Index of current satellite.
+  /// @param[in] error_parameter To compute GNSS information matrix.
+  PseudorangeErrorSole(const GNSSMeasurement& measurement,
+                       const size_t satellite_index,
+                       const int code_type, 
+                       const GNSSErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
-  virtual ~PseudorangeError() {}
+  virtual ~PseudorangeErrorSole() {}
 
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const double& measurement)
+  void setMeasurement(const GNSSMeasurement& measurement)
   {
     measurement_ = measurement;
   }
 
-  // setters
-  /// \brief Set the information.
-  /// @param[in] information The information (weight) matrix.
-  void setInformation(const information_t & information);
-
   // getters
   /// \brief Get the measurement.
   /// \return The measurement vector.
-  const double& measurement() const { return measurement_; }
-
-  // getters
-  /// \brief Get the information matrix.
-  /// \return The information (weight) matrix.
-  const information_t& information() const { return information_; }
-
-  /// \brief Get the covariance matrix.
-  /// \return The inverse information (covariance) matrix.
-  const information_t& covariance() const { return covariance_; }
+  const GNSSMeasurement& measurement() const { return measurement_; }
 
   // error term and Jacobian implementation
   /**
@@ -129,15 +116,12 @@ class PseudorangeError :
   }
 
  protected:
-  double measurement_; ///< The measurement.
+  GNSSMeasurement measurement_; ///< The measurement.
+  Satellite satellite_;
+  Observation observation_;
 
   // weighting related
-  information_t information_; ///< The 1x1 information matrix.
-  information_t square_root_information_; ///< The 1x1 square root information matrix.
-  covariance_t covariance_; ///< The 1x1 covariance matrix.
-
-  // GNSS coordinate
-  GeoCoordinatePtr coordinate_;
+  GNSSErrorParameter error_parameter_;
 };
 
 }  

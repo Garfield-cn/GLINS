@@ -54,7 +54,8 @@ enum class ErrorType: uint8_t
   kMarginalizationError,
   kPoseError,
   kIMUError,
-  kRelativePoseError
+  kRelativePoseError,
+  kPseudorangeError
 };
 
 extern const std::map<ErrorType, std::string> kErrorToStr;

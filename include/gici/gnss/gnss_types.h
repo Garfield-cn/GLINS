@@ -71,22 +71,33 @@ struct Satellite {
   double getAzimuth(const Eigen::Vector3d& xyz);
 };
 
-// One receiver data
-struct Receiver {
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-  std::vector<Satellite> satellites;
-  Eigen::Vector3d position;  // for reference station
-  double troposphere;  // from augmentation
-};
+using Satellites = std::vector<Satellite, Eigen::aligned_allocator<Satellite>>;
 
 // GNSS epoch data
 struct GNSSMeasurement {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  using Ptr = std::shared_ptr<GNSSMeasurement>;
-
   double timestamp;
-  std::unordered_map<GNSSRole, Receiver> receivers;
+  GNSSRole role;
+  std::string mount_id;
+  Satellites satellites;
+  Eigen::Vector3d position;  // for reference station
+  Eigen::VectorXd ionosphere_parameters;  // GPS broadcast ionosphere parameters
+  double troposphere;  // from augmentation
+};
+
+using GNSSMeasurements = std::vector<GNSSMeasurement, 
+  Eigen::aligned_allocator<GNSSMeasurement>>;
+
+// GNSS error factors
+struct GNSSErrorParameter {
+  // code noise = phase noise * ratio
+  double code_to_phase_ratio = 100.0;
+
+  // Error factor according to RTKLIB
+  double phase_error_factor[3] = {0.003, 0.003, 0.0};
+
+  // Doppler frequency error
+  double doppler_frequency = 0.2;
 };
 
 }

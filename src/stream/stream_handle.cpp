@@ -139,7 +139,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
       }
       if (!found) continue;
       // for (int i = 0; i < MAXSAT; i++) {
-      //   rtklib::updateEphemeris(gnss->ephemeris, i, gnss_local_);
+      //   gnss_common::updateEphemeris(gnss->ephemeris, i, gnss_local_);
       // }
       memcpy(gnss_local_->ephemeris->eph, 
         gnss->ephemeris->eph, sizeof(eph_t) * 2 * MAXSAT);
@@ -154,7 +154,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
         { found = true; break; }
       }
       if (!found) continue;
-      rtklib::updateSSR(gnss->ephemeris->ssr, gnss_local_);
+      gnss_common::updateSSR(gnss->ephemeris->ssr, gnss_local_);
     }
 
     if (it == GNSSDataType::AntePos) {
@@ -164,7 +164,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
         { found = true; break; }
       }
       if (!found) continue;
-      rtklib::updateAntennaPosition(gnss->antenna, gnss_local_);
+      gnss_common::updateAntennaPosition(gnss->antenna, gnss_local_);
     }
 
     if (it == GNSSDataType::IonPara) {
@@ -174,7 +174,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
         { found = true; break; }
       }
       if (!found) continue;
-      rtklib::updateIonAndUTC(gnss->ephemeris, gnss_local_);
+      gnss_common::updateIonAndUTC(gnss->ephemeris, gnss_local_);
     }
   }
   
@@ -186,7 +186,9 @@ void StreamHandle::handleGNSS(const std::string& tag,
 
   // Set to epoch data
   GNSSMeasurement epoch;
-  epoch.timestamp = rtklib::gtime2double(gnss->observation->data[0].time);
+  epoch.timestamp = gnss_common::gtime2double(gnss->observation->data[0].time);
+  epoch.role = role_out;
+  epoch.mount_id = tag;
   double *rs, *dts, *var;
   double *rs_ssr, *dts_ssr, *var_ssr;
   auto obs = gnss->observation;
@@ -252,20 +254,24 @@ void StreamHandle::handleGNSS(const std::string& tag,
       satellite.observations.insert(std::make_pair(code_type, observation));
     }
     
-    epoch.receivers[role_out].satellites.push_back(satellite);
+    epoch.satellites.push_back(satellite);
   }
   free(rs); free(dts); free(var);
   free(rs_ssr); free(dts_ssr); free(var_ssr);
 
-  // // reference station position
+  // reference station position
   if (role_out == GNSSRole::Reference) {
     if (gnss_local_->antenna->pos[0] == 0.0) {
       LOG(WARNING) << "Unable to get antenna position of reference station!";
       return;
     }
-    epoch.receivers[role_out].position = 
+    epoch.position = 
       Eigen::Map<Eigen::Vector3d>(gnss_local_->antenna->pos);
   }
+
+  // GPS ionosphere parameters
+  epoch.ionosphere_parameters = 
+    Eigen::Map<Eigen::VectorXd>(gnss_local_->ephemeris->ion_gps, 8);
 
   // Call GNSS observation processor
   gnss_callback_(epoch);
