@@ -1,6 +1,6 @@
 /**
 * @Function: Pseudorange residual block for ceres backend
-*            Parameters are in ECEF coordinate. Observations are zero-differenced.
+*            Parameters are in ECEF coordinate. Observations are single-differenced (between stations).
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -23,7 +23,7 @@ namespace gici {
 
 /// \brief Pseudorange error, position in ECEF coordinate is used as parameter
 // to apply single point positioning
-class PseudorangeErrorSole :
+class PseudorangeErrorSoleSD :
     public ceres::SizedCostFunction<
     1 /* number of residuals */,
     3, /* size of first parameter: GNSSMeasurement position in ECEF frame */
@@ -46,31 +46,30 @@ class PseudorangeErrorSole :
   typedef double covariance_t;
 
   /// \brief Default constructor.
-  PseudorangeErrorSole();
+  PseudorangeErrorSoleSD();
 
   /// \brief Construct with measurement and information matrix
-  /// @param[in] measurement The measurement.
-  /// @param[in] index Index of current satellite.
+  /// @param[in] measurement_1 The measurement of rover.
+  /// @param[in] measurement_2 The measurement of reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeErrorSole(const GNSSMeasurement& measurement,
-                       const GNSSMeasurementIndex index,
-                       const GNSSErrorParameter& error_parameter);
+  PseudorangeErrorSoleSD(const GNSSMeasurement& measurement_1,
+                         const GNSSMeasurement& measurement_2,
+                         const GNSSMeasurementIndex index_1,
+                         const GNSSMeasurementIndex index_2,
+                         const GNSSErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
-  virtual ~PseudorangeErrorSole() {}
+  virtual ~PseudorangeErrorSoleSD() {}
 
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement)
+  void setMeasurement(const GNSSMeasurement& measurement_1,
+                      const GNSSMeasurement& measurement_2)
   {
-    measurement_ = measurement;
+    measurement_1_ = measurement_1;
+    measurement_2_ = measurement_2;
   }
-
-  // getters
-  /// \brief Get the measurement.
-  /// \return The measurement vector.
-  const GNSSMeasurement& measurement() const { return measurement_; }
 
   // error term and Jacobian implementation
   /**
@@ -116,9 +115,9 @@ class PseudorangeErrorSole :
   }
 
  protected:
-  GNSSMeasurement measurement_; ///< The measurement.
-  Satellite satellite_;
-  Observation observation_;
+  GNSSMeasurement measurement_1_, measurement_2_; ///< The measurement.
+  Satellite satellite_1_, satellite_2_;;
+  Observation observation_1_, observation_2_;
 
   // weighting related
   GNSSErrorParameter error_parameter_;

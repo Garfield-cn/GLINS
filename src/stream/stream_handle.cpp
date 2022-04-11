@@ -186,13 +186,13 @@ void StreamHandle::handleGNSS(const std::string& tag,
 
   // Set to epoch data
   GNSSMeasurement epoch;
-  epoch.timestamp = gnss_common::gtime2double(gnss->observation->data[0].time);
+  epoch.timestamp = gnss_common::gtimeToDouble(gnss->observation->data[0].time);
   epoch.role = role_out;
   epoch.mount_id = tag;
   double *rs, *dts, *var;
   double *rs_ssr, *dts_ssr, *var_ssr;
-  auto obs = gnss->observation;
-  auto nav = gnss_local_->ephemeris;
+  auto& obs = gnss->observation;
+  auto& nav = gnss_local_->ephemeris;
   int svh[MAXOBS], svh_ssr[MAXOBS], n = obs->n;
   rs = mat(6, n); dts = mat(2, n); var = mat(1, n);
   rs_ssr = mat(6, n); dts_ssr = mat(2, n); var_ssr = mat(1, n);
@@ -232,6 +232,9 @@ void StreamHandle::handleGNSS(const std::string& tag,
       satellite.sat_type = SatEphType::Broadcast;
     }
     else continue;
+
+    // ionosphere
+    satellite.ionosphere = 0.0;
 
     // observations
     for (int j = 0; j < NFREQ + NEXOBS; j++) {

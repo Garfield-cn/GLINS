@@ -14,7 +14,7 @@ namespace gnss_common {
 
 // ----------------------------------------------------------
 // Convert char system to int system
-int sys2sys(char sys)
+int systemConvert(char sys)
 {
   switch (sys) {
   case 'G': return SYS_GPS;
@@ -26,7 +26,7 @@ int sys2sys(char sys)
 }
 
 // Convert int system to char system
-char sys2sys(int sys)
+char systemConvert(int sys)
 {
   switch (sys) {
   case SYS_GPS: return 'G';
@@ -38,31 +38,31 @@ char sys2sys(int sys)
 }
 
 // Convert PRN string to RTKLIB sat
-int prn2sat(std::string prn)
+int prnToSat(std::string prn)
 {
-  int system = sys2sys(prn[0]);
+  int system = systemConvert(prn[0]);
   int prnnum = atoi(prn.substr(1, 2).data());
   return satno(system, prnnum);
 }
 
 // Convert RTKLIB sat to PRN string
-std::string sat2prn(int sat)
+std::string satToPrn(int sat)
 {
   int prnnum;
-  char system = sys2sys(satsys(sat, &prnnum));
+  char system = systemConvert(satsys(sat, &prnnum));
   char prnbuf[10];
   sprintf(prnbuf, "%c%02d", system, prnnum);
   return std::string(prnbuf);
 }
 
 // Convert gtime to double
-double gtime2double(gtime_t time)
+double gtimeToDouble(gtime_t time)
 {
   return (static_cast<double>(time.time) + time.sec);
 }
 
 // Convert double to gtime
-gtime_t double2gtime(double time)
+gtime_t doubleToGtime(double time)
 {
   gtime_t gtime;
   gtime.time = floor(time);
@@ -71,11 +71,61 @@ gtime_t double2gtime(double time)
 }
 
 // ----------------------------------------------------------
+// Check whether the system is used
+bool useSystem(GNSSCommonOptions options, const char system)
+{
+  auto it = std::find(options.system_exclude.begin(), 
+    options.system_exclude.end(), system);
+  if (it == options.system_exclude.end()) return true;
+  else return false;
+}
+
+// Check whether the satellite is used
+bool useSatellite(GNSSCommonOptions options, const std::string prn)
+{
+  auto it = std::find(options.satellite_exclude.begin(), 
+    options.satellite_exclude.end(), prn);
+  if (it == options.satellite_exclude.end()) return true;
+  else return false;
+}
+
+// Check whether the code type is used
+bool useCode(GNSSCommonOptions options, const int code_type)
+{
+  auto it = std::find(options.code_exclude.begin(), 
+    options.code_exclude.end(), code_type);
+  if (it == options.code_exclude.end()) return true;
+  else return false;
+}
+
+// Check elevation threshold
+bool checkElevation(GNSSCommonOptions options, 
+  const GNSSMeasurement& measurement, size_t satellite_index)
+{
+  CHECK(measurement.satellites.size() > satellite_index);
+
+  if (checkZero(measurement.position)) {
+    // we do not know whether to use this satellite
+    return true;
+  }
+
+  if (measurement.satellites[satellite_index].sat_position == 
+      Eigen::Vector3d::Zero()) {
+    return false;
+  }
+
+  double elevation = satelliteElevation(
+    measurement.satellites[satellite_index].sat_position, measurement.position);
+  if (radToDegree(elevation) > options.min_elevation) return true;
+  else return false;
+}
+
+// ----------------------------------------------------------
 // Saastamoinen troposphere delay model
 double troposphereSaastamoinen(double time, 
   const Eigen::Vector3d& ecef, double elevation, double humi)
 {
-  gtime_t gtime = double2gtime(time);
+  gtime_t gtime = doubleToGtime(time);
   double azel[2];
   azel[0] = 0.0; azel[1] = elevation;
   Eigen::Vector3d lla;
@@ -85,7 +135,8 @@ double troposphereSaastamoinen(double time,
 
 // GMF troposphere delay model
 void troposphereGMF(double time, 
-  const Eigen::Vector3d& ecef, double elevation, double* gmfh, double* gmfw)
+  const Eigen::Vector3d& ecef, double elevation, 
+  double* gmfh, double* gmfw)
 {
   double dfac[20], P[10][10], aP[55], bP[55], t;
 
@@ -98,7 +149,7 @@ void troposphereGMF(double time,
   double sine, beta, gamma, topcon;
   double hs_km, ht_corr, ht_corr_coef;
 
-  gtime_t gtime = double2gtime(time);
+  gtime_t gtime = doubleToGtime(time);
   Eigen::Vector3d lla;
   ecef2pos(ecef.data(), lla.data());
 
@@ -370,18 +421,27 @@ void troposphereGMF(double time,
 }
 
 // Broadcast ionosphere model
-double ionosphereBroadcast(double time,
-  const Eigen::Vector3d& ecef, double azimuth, double elevation, 
+double ionosphereBroadcast(double time, const Eigen::Vector3d& ecef, 
+  double azimuth, double elevation, double wavelength, 
   const Eigen::VectorXd& parameters)
 {
-  gtime_t gtime = double2gtime(time);
+  gtime_t gtime = doubleToGtime(time);
   double azel[2];
   azel[0] = azimuth; azel[1] = elevation;
   Eigen::Vector3d lla;
   ecef2pos(ecef.data(), lla.data());
   Eigen::VectorXd parameters_local = parameters;
   if (parameters.size() < 8) parameters_local = Eigen::VectorXd::Zero(8);
-  return ionmodel(gtime, parameters_local.data(), lla.data(), azel);
+  double ion_l1 = ionmodel(gtime, parameters_local.data(), lla.data(), azel);
+  return ion_l1 * square(wavelength / (CLIGHT / FREQ1));
+}
+
+// Dual-frequenct ionosphere model
+double ionosphereDualFrequency(
+  const Observation& obs_1, const Observation& obs_2)
+{
+  return (obs_1.pesudorange - obs_2.pesudorange) / 
+         (1 - square(obs_2.wavelength / obs_1.wavelength));
 }
 
 // Compute Receiver to satellite distance considering the earth rotation effect

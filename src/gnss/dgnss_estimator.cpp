@@ -1,38 +1,47 @@
 /**
-* @Function: Single Point positioning implementation
+* @Function: Single differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/gnss/spp_estimator.h"
+#include "gici/gnss/dgnss_estimator.h"
 
-#include "gici/gnss/pseudorange_error_sole.h"
+#include "gici/gnss/pseudorange_error_sole_sd.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
 
 namespace gici {
 
 // The default constructor
-SPPEstimator::SPPEstimator(const SPPEstimatorOptions& options) :
+DGNSSEstimator::DGNSSEstimator(const DGNSSEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1))
 {}
 
 // The default destructor
-SPPEstimator::~SPPEstimator()
+DGNSSEstimator::~DGNSSEstimator()
 {}
 
 // Add GNSS measurements and state
-bool SPPEstimator::addGNSSMeasurementAndState(
-    const GNSSMeasurement& measurement)
+bool DGNSSEstimator::addGNSSMeasurementAndState(
+                    const GNSSMeasurement& measurement_1, 
+                    const GNSSMeasurement& measurement_2)
 {
+  // Check timestamp
+  if (!checkEqual(measurement_1.timestamp, measurement_2.timestamp, 
+    options_.max_age)) {
+    LOG(WARNING) << "Max age between two measurements exceeded! "
+      << "age = " << fabs(measurement_1.timestamp - measurement_2.timestamp)
+      << "max_age = " << options_.max_age;
+    return false;
+  }
+
   // Get last estimate
   Eigen::Vector3d last_position = getPositionEstimate();
 
   // Add parameter blocks in current timestamp
-  double timestamp = measurement.timestamp;
-  GNSSMeasurement measurement_local = measurement;
+  double timestamp = measurement_1.timestamp;
 
   // Erase all parameters
   for (auto id : parameter_ids_) {
@@ -41,7 +50,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   parameter_ids_.clear();
 
   // position block
-  BackendId position_id = createGNSSPositionId(measurement_local.id);
+  BackendId position_id = createGNSSPositionId(measurement_1.id);
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
     std::make_shared<PositionParameterBlock>(last_position, position_id.asInteger());
   if (!graph_ptr_->addParameterBlock(position_parameter_block)) {
@@ -49,30 +58,30 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   }
   parameter_ids_.push_back(position_id);
 
+  // select single difference pairs
+  GNSSMeasurementIndexPairs index_pairs = 
+    formMeasurementPair(measurement_1, measurement_2);
+
   // check if any system does not have vaild satellite
   std::map<char, int> system_observation_cnt;
-  for (size_t i = 0; i < measurement_local.satellites.size(); i++) 
+  for (auto index_pair : index_pairs) 
   {
-    auto& satellite = measurement_local.satellites[i];
+    GNSSMeasurementIndex& index = index_pair.first;
+    auto& satellite = measurement_1.satellites[index.satellite_index];
     char system = satellite.getSystem();
-    if (!gnss_common::useSystem(options_.common, system)) continue;
     if (system_observation_cnt.find(system) == system_observation_cnt.end()) 
       system_observation_cnt.insert(std::make_pair(system, 0));
-    for (auto observation : satellite.observations) {
-      if (checkObservationValid(measurement_local, 
-          GNSSMeasurementIndex(i, observation.first))) {
-        system_observation_cnt.at(system)++;
-      }
-    }
+    system_observation_cnt.at(system)++;
   }
 
   // clock blocks
   int num_clock_blocks = 0;
-  for (auto satellite : measurement_local.satellites) 
+  for (auto index_pair : index_pairs) 
   {
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_local.id);
-    if (gnss_common::useSystem(options_.common, satellite.getSystem()) && 
-        system_observation_cnt.at(satellite.getSystem()) > 0 &&
+    GNSSMeasurementIndex& index = index_pair.first;
+    auto& satellite = measurement_1.satellites[index.satellite_index];
+    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_1.id);
+    if (system_observation_cnt.at(satellite.getSystem()) > 0 &&
         !graph_ptr_->parameterBlockExists(clock_id.asInteger())) 
     {
       Eigen::Matrix<double, 1, 1> clock_init;
@@ -92,41 +101,27 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   current_state_.timestamp = timestamp;
 
   // Add residual blocks
-  int num_residual_block = 0;
+  int num_residual_block = index_pairs.size();
   int num_satellites = 0;
-  for (size_t i = 0; i < measurement_local.satellites.size(); i++) 
+  std::string last_prn = "";
+  for (auto index_pair : index_pairs) 
   {
-    auto& satellite = measurement_local.satellites[i];
-    std::vector<Observation> observations_frequency;
+    GNSSMeasurementIndex& index = index_pair.first;
+    auto& satellite = measurement_1.satellites[index.satellite_index];
 
-    if (!gnss_common::useSystem(options_.common, satellite.getSystem()) || 
-        !gnss_common::useSatellite(options_.common, satellite.prn)) continue;
+    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_1.id);
+    std::shared_ptr<PseudorangeErrorSoleSD> pseudorange_error = 
+      std::make_shared<PseudorangeErrorSoleSD>(measurement_1, measurement_2,
+      index_pair.first, index_pair.second, options_.error_parameter);
+    graph_ptr_->addResidualBlock(pseudorange_error, 
+      huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
+      graph_ptr_->parameterBlockPtr(position_id.asInteger()),
+      graph_ptr_->parameterBlockPtr(clock_id.asInteger()));
 
-    for (auto observation : satellite.observations) {
-      if (!checkObservationValid(measurement_local, 
-        GNSSMeasurementIndex(i, observation.first))) continue;
-
-      BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_local.id);
-      std::shared_ptr<PseudorangeErrorSole> pseudorange_error = 
-        std::make_shared<PseudorangeErrorSole>(measurement_local, 
-        GNSSMeasurementIndex(i, observation.first), options_.error_parameter);
-      graph_ptr_->addResidualBlock(pseudorange_error, 
-        huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-        graph_ptr_->parameterBlockPtr(position_id.asInteger()),
-        graph_ptr_->parameterBlockPtr(clock_id.asInteger()));
-        
-      observations_frequency.push_back(observation.second);
-      num_residual_block++;
-    }
-    if (observations_frequency.size()) num_satellites++;
-    // compute ionosphere delay using dual-frequency observation
-    if (observations_frequency.size() > 1 && satellite.ionosphere == 0.0) 
-    {
-      double ionosphere = gnss_common::ionosphereDualFrequency(
-        observations_frequency[0], observations_frequency[1]);
-      satellite.ionosphere = gnss_common::ionosphereConvertToBase(
-        ionosphere, observations_frequency[0].wavelength);
-      satellite.ionosphere_type = IonoType::DualFrequency;
+    // get number of satellites
+    if (last_prn != satellite.prn) {
+      num_satellites++;
+      last_prn = satellite.prn;
     }
   }
 
@@ -145,7 +140,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
 }
 
 // Start ceres optimization
-void SPPEstimator::optimize()
+void DGNSSEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
@@ -169,7 +164,7 @@ void SPPEstimator::optimize()
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d SPPEstimator::getPositionEstimate()
+Eigen::Vector3d DGNSSEstimator::getPositionEstimate()
 {
   if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
     return Eigen::Vector3d::Zero();
@@ -188,7 +183,7 @@ Eigen::Vector3d SPPEstimator::getPositionEstimate()
 }
 
 // Get Satellite clock
-double SPPEstimator::getClockEstimate(const char system, double& clock)
+double DGNSSEstimator::getClockEstimate(const char system, double& dclock)
 {
   BackendId id = changeIdType(current_state_.id, IdType::gClock, system);
   if (!graph_ptr_->parameterBlockExists(id.asInteger())) {
@@ -208,7 +203,7 @@ double SPPEstimator::getClockEstimate(const char system, double& clock)
 }
 
 // Check observation valid
-bool SPPEstimator::checkObservationValid(
+bool DGNSSEstimator::checkObservationValid(
                             const GNSSMeasurement& measurement,
                             const GNSSMeasurementIndex& index)
 {
@@ -257,23 +252,46 @@ bool SPPEstimator::checkObservationValid(
   return true;
 }
 
-// Compute and set coarse position on measurement
-bool SPPEstimator::setCoarsePosition(GNSSMeasurement& measurement)
+// Form single difference pair
+GNSSMeasurementIndexPairs DGNSSEstimator::formMeasurementPair(
+  const GNSSMeasurement& measurement_1, const GNSSMeasurement& measurement_2)
 {
-  // Already has a position
-  if (!checkZero(measurement.position)) return true;
+  GNSSMeasurementIndexPairs index_pairs;
 
-  SPPEstimatorOptions options;
-  options.common.min_elevation = 0.0;
-  SPPEstimatorPtr estimator = std::make_shared<SPPEstimator>(options);
-
-  if (!estimator->addGNSSMeasurementAndState(measurement)) {
-    return false;
+  // Find valid observations in measurement_1
+  std::vector<GNSSMeasurementIndex> indexes_1;
+  for (size_t i = 0; i < measurement_1.satellites.size(); i++) 
+  {
+    auto& satellite = measurement_1.satellites[i];
+    char system = satellite.getSystem();
+    if (!gnss_common::useSystem(options_.common, system)) continue;
+    for (auto observation : satellite.observations) {
+      GNSSMeasurementIndex index_1(i, observation.first);
+      if (checkObservationValid(measurement_1, index_1)) {
+        indexes_1.push_back(index_1);
+      }
+    }
   }
 
-  estimator->optimize();
-  measurement.position = estimator->getPositionEstimate();
-  return true;
+  // Find valid matches in measurement_2
+  for (auto index : indexes_1) 
+  {
+    auto& satellite = measurement_1.satellites[index.satellite_index];
+    auto& observation = satellite.observations.at(index.code_type);
+    for (size_t i = 0; i < measurement_2.satellites.size(); i++) {
+      if (measurement_2.satellites[i].prn != satellite.prn) continue;
+      auto& satellite_2 = measurement_2.satellites[i];
+
+      auto it_obs_2 = satellite_2.observations.find(index.code_type);
+      if (it_obs_2 != satellite_2.observations.end() && 
+          it_obs_2->second.wavelength != 0.0 && it_obs_2->second.pesudorange != 0.0) {
+        index_pairs.push_back(
+          std::make_pair(index, GNSSMeasurementIndex(i, it_obs_2->first)));
+      }
+    }
+  }
+
+  return index_pairs;
 }
 
-};
+}

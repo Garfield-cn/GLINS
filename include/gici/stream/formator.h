@@ -100,11 +100,11 @@ enum class GNSSRawFormats {
 
 // Max number of output data buffers for decoders
 struct MaxDataSize {
-  static const int RTCM2 = 10;
+  static const int RTCM2 = 30;
   static const int RTCM3 = RTCM2;
   static const int GNSSRaw = RTCM2;
   static const int ImagePack = 2;
-  static const int IMUPack = 100;
+  static const int IMUPack = 500;
 };
 
 // Tools for RTKLIB types

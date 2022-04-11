@@ -36,7 +36,7 @@ void imageCallback(double time, cv::Mat& image)
 
 int main(void)
 {
-  google::InitGoogleLogging("feature_estimator");
+  google::InitGoogleLogging("test");
   // FLAGS_log_dir = log_dir; 
   FLAGS_minloglevel = 0;
   FLAGS_logtostderr = true;

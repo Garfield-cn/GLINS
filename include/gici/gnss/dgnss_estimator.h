@@ -1,5 +1,5 @@
 /**
-* @Function: Single Point positioning implementation
+* @Function: Single differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -15,7 +15,7 @@
 namespace gici {
 
 // SPP options
-struct SPPEstimatorOptions {
+struct DGNSSEstimatorOptions {
   // Max iteration number for ceres optimization
   int max_iteration = 15;
 
@@ -25,6 +25,9 @@ struct SPPEstimatorOptions {
   // Verbose optimization output
   bool verbose = false;
 
+  // Max age to apply difference
+  double max_age = 30.0;
+
   // GNSS common options
   GNSSCommonOptions common;
 
@@ -33,7 +36,7 @@ struct SPPEstimatorOptions {
 };
 
 // SPP estimator
-class SPPEstimator {
+class DGNSSEstimator {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -43,11 +46,13 @@ public:
     double timestamp = 0.0;
   };
 
-  SPPEstimator(const SPPEstimatorOptions& options);
-  ~SPPEstimator();
+  DGNSSEstimator(const DGNSSEstimatorOptions& options);
+  ~DGNSSEstimator();
 
   // Add GNSS measurements and state
-  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement);
+  // measurement_2 should from the reference station
+  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement_1, 
+                                  const GNSSMeasurement& measurement_2);
 
   // Start ceres optimization
   void optimize();
@@ -56,21 +61,22 @@ public:
   Eigen::Vector3d getPositionEstimate();
 
   // Get Satellite clock
-  double getClockEstimate(const char system, double& clock);
-
-  // Compute and set coarse position on measurement
-  static bool setCoarsePosition(GNSSMeasurement& measurement);
+  double getClockEstimate(const char system, double& dclock);
 
 private:
   // Check observation valid
   bool checkObservationValid(const GNSSMeasurement& measurement,
                              const GNSSMeasurementIndex& index);
 
+  // Form single difference pair
+  GNSSMeasurementIndexPairs formMeasurementPair(
+    const GNSSMeasurement& measurement_1, const GNSSMeasurement& measurement_2);
+
   // Graph that handles residuals and states
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
-  SPPEstimatorOptions options_;
+  DGNSSEstimatorOptions options_;
 
   // loss function for reprojection errors
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
@@ -80,7 +86,5 @@ private:
   State current_state_;
   std::vector<BackendId> parameter_ids_;
 };
-
-using SPPEstimatorPtr = std::shared_ptr<SPPEstimator>;
 
 }

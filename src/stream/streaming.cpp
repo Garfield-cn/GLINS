@@ -289,8 +289,6 @@ void Streaming::processInput(void)
   buf_size_input_ = streamer_->read(buf_input_, max_buf_size_);
   if (buf_size_input_ == 0) return;
 
-  // LOG(INFO) << "Get " << buf_size_input_ << " data from " << tag_;
-
   // Decode stream
   for (size_t i = 0; i < formators_.size(); i++) {
     if (formators_[i].type != StreamIOType::Input) continue;

@@ -1,5 +1,6 @@
 /**
 * @Function: Pseudorange residual block for ceres backend
+*            Parameters are in ECEF coordinate. Observations are zero-differenced.
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -13,14 +14,13 @@ namespace gici {
 // Construct with measurement and information matrix
 PseudorangeErrorSole::PseudorangeErrorSole(
                        const GNSSMeasurement& measurement,
-                       const size_t satellite_index,
-                       const int code_type, 
+                       const GNSSMeasurementIndex index,
                        const GNSSErrorParameter& error_parameter)
 {
-  CHECK(measurement.satellites.size() > satellite_index);
-  satellite_ = measurement.satellites.at(satellite_index);
+  CHECK(measurement.satellites.size() > index.satellite_index);
+  satellite_ = measurement.satellites.at(index.satellite_index);
 
-  auto obs = satellite_.observations.find(code_type);
+  auto obs = satellite_.observations.find(index.code_type);
   CHECK(obs != satellite_.observations.end());
   observation_ = obs->second;
 
@@ -52,10 +52,36 @@ bool PseudorangeErrorSole::EvaluateWithMinimalJacobians(
   double rho = gnss_common::satelliteToReceiverDistance(satellite_.sat_position, t_WR_ECEF);
   double elevation = gnss_common::satelliteElevation(satellite_.sat_position, t_WR_ECEF);
   double azimuth = gnss_common::satelliteAzimuth(satellite_.sat_position, t_WR_ECEF);
+
   double troposphere_delay = gnss_common::troposphereSaastamoinen(
     timestamp, t_WR_ECEF, elevation);
-  double ionosphere_delay = gnss_common::ionosphereBroadcast(
-    timestamp, t_WR_ECEF, azimuth, elevation, measurement_.ionosphere_parameters);
+  double troposphere_var = square(
+    error_parameter_.troposphere_model_factor * troposphere_delay);
+
+  double ionosphere_delay = 0.0, ionosphere_var = 0.0;
+  if (satellite_.ionosphere != 0.0) {
+    ionosphere_delay = satellite_.ionosphere;
+    if (satellite_.ionosphere_type == IonoType::Augmentation) {
+      ionosphere_var = square(error_parameter_.ionosphere_augment);
+    }
+    else if (satellite_.ionosphere_type == IonoType::DualFrequency) {
+      ionosphere_var = square(error_parameter_.ionosphere_dual_frequency);
+    }
+  }
+  else {
+    ionosphere_delay = gnss_common::ionosphereBroadcast(timestamp, t_WR_ECEF, 
+        azimuth, elevation, observation_.wavelength, measurement_.ionosphere_parameters);
+    ionosphere_var = square(
+      error_parameter_.ionosphere_broadcast_factor * ionosphere_delay);
+  }
+
+  double ephemeris_var = 0.0;
+  if (satellite_.sat_type == SatEphType::Broadcast) {
+    ephemeris_var = square(error_parameter_.ephemeris_broadcast);
+  }
+  else if (satellite_.sat_type == SatEphType::Precise) {
+    ephemeris_var = square(error_parameter_.ephemeris_precise);
+  }
 
   double pseudorange_estimate = rho + clock(0) - 
     satellite_.sat_clock + troposphere_delay + ionosphere_delay;
@@ -68,12 +94,10 @@ bool PseudorangeErrorSole::EvaluateWithMinimalJacobians(
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
   Eigen::Vector3d factor(error_parameter_.phase_error_factor);
-  double ratio = error_parameter_.code_to_phase_ratio;
-  double variance = (pow(factor(0), 2) + pow(factor(1) / sin(elevation), 2)) * ratio;
+  double ratio = square(error_parameter_.code_to_phase_ratio);
+  double variance = (square(factor(0)) + square(factor(1) / sin(elevation))) * ratio + 
+    ephemeris_var + ionosphere_var + troposphere_var;
   double square_root_information = sqrt(1.0 / variance);
-
-  // check quality
-  if (satellite_.sat_type == SatEphType::None) square_root_information = 0.0;
 
   weighted_error = square_root_information * error;
 

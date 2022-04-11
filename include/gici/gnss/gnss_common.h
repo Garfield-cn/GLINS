@@ -13,6 +13,8 @@
 
 #include "gici/utility/rtklib_safe.h"
 #include "gici/stream/formator.h"
+#include "gici/gnss/gnss_types.h"
+#include "gici/utility/common.h"
 
 namespace gici {
 
@@ -20,22 +22,46 @@ namespace gnss_common {
 
 // ----------------------------------------------------------
 // Convert char system to int system
-int sys2sys(char sys);
+int systemConvert(char sys);
 
 // Convert int system to char system
-char sys2sys(int sys);
+char systemConvert(int sys);
 
 // Convert PRN string to RTKLIB sat
-int prn2sat(std::string prn);
+int prnToSat(std::string prn);
 
 // Convert RTKLIB sat to PRN string
-std::string sat2prn(int sat);
+std::string satToPrn(int sat);
 
 // Convert gtime to double
-double gtime2double(gtime_t time);
+double gtimeToDouble(gtime_t time);
 
 // Convert double to gtime
-gtime_t double2gtime(double time);
+gtime_t doubleToGtime(double time);
+
+// Degree to Rad
+inline double degreeToRad(double degree) {
+  return degree * D2R;
+}
+
+// Rad to Degree
+inline double radToDegree(double rad) {
+  return rad * R2D;
+}
+
+// ----------------------------------------------------------
+// Check whether the system is used
+bool useSystem(GNSSCommonOptions options, const char system);
+
+// Check whether the satellite is used
+bool useSatellite(GNSSCommonOptions options, const std::string prn);
+
+// Check whether the code type is used
+bool useCode(GNSSCommonOptions options, const int code_type);
+
+// Check elevation threshold
+bool checkElevation(GNSSCommonOptions options, 
+  const GNSSMeasurement& measurement, size_t satellite_index);
 
 // ----------------------------------------------------------
 // Saastamoinen troposphere delay model
@@ -44,12 +70,30 @@ double troposphereSaastamoinen(double time,
 
 // GMF troposphere delay model
 void troposphereGMF(double time, 
-  const Eigen::Vector3d& ecef, double elevation, double* gmfh, double* gmfw);
+  const Eigen::Vector3d& ecef, double elevation, 
+  double* gmfh, double* gmfw);
 
 // Broadcast ionosphere model
-double ionosphereBroadcast(double time,
-  const Eigen::Vector3d& ecef, double azimuth, double elevation, 
+double ionosphereBroadcast(double time, const Eigen::Vector3d& ecef, 
+  double azimuth, double elevation, double wavelength, 
   const Eigen::VectorXd& parameters = Eigen::VectorXd::Zero(8));
+
+// Dual-frequenct ionosphere model
+// output ionosphere is in meter at obs_1 frequency
+double ionosphereDualFrequency(
+  const Observation& obs_1, const Observation& obs_2);
+
+// Convert ionosphere delay to 1575.42 MHz
+inline double ionosphereConvertToBase(
+  double ionosphere, double wavelength) {
+  return ionosphere * square(CLIGHT / FREQ1 / wavelength);
+}
+
+// Convert ionosphere delay from 1575.42 MHz to given wavelength
+inline double ionosphereConvertFromBase(
+  double ionosphere, double wavelength) {
+  return ionosphere * square(wavelength / (CLIGHT / FREQ1));
+}
 
 // Receiver to satellite distance considering the earth rotation effect
 double satelliteToReceiverDistance(
