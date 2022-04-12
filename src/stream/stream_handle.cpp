@@ -276,6 +276,9 @@ void StreamHandle::handleGNSS(const std::string& tag,
   epoch.ionosphere_parameters = 
     Eigen::Map<Eigen::VectorXd>(gnss_local_->ephemeris->ion_gps, 8);
 
+  // Troposphere
+  epoch.troposphere_wet = 0.0;
+
   // Call GNSS observation processor
   gnss_callback_(epoch);
 }

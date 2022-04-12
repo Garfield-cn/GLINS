@@ -4,7 +4,7 @@ stream:
   - streamer:
       tag: str-log-brux0
       type: file
-      path: /home/cc/linux/softwares/gici/data/brux0.rtcm3
+      path: /home/cc/datasets/ntrip/20220411/brux0.rtcm3
       enable_time_tag: true
       swap_interval: 0
       loop-duration: 0.01
@@ -12,7 +12,7 @@ stream:
   - streamer:
       tag: str-log-bkg0
       type: file
-      path: /home/cc/linux/softwares/gici/data/bkg0.rtcm3
+      path: /home/cc/datasets/ntrip/20220324/bkg0.rtcm3
       enable_time_tag: true
       swap_interval: 0
       loop-duration: 0.01
@@ -20,7 +20,7 @@ stream:
   - streamer:
       tag: str-log-ssr
       type: file
-      path: /home/cc/linux/softwares/gici/data/ssr.rtcm3
+      path: /home/cc/datasets/ntrip/20220324/ssr.rtcm3
       enable_time_tag: true
       swap_interval: 0
       loop-duration: 0.01
@@ -31,19 +31,22 @@ stream:
       io: input
       tag: gnss-brux0
       type: gnss-rtcm-3
+      start_time: 1649642793
       role: [rover]
   - formator:
       io: input
       tag: gnss-bkg0
       type: gnss-rtcm-3
+      start_time: 1649642793
       role: [ephemeris]
   - formator:
       io: input
       tag: gnss-ssr
       type: gnss-rtcm-3
+      start_time: 1649642793
       role: [correction]
 
   replay:
     enable: true
-    speed: 1.0
+    speed: 10.0
     start-offset: 0.0

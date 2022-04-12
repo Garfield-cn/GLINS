@@ -4,7 +4,7 @@ stream:
   - streamer:
       tag: str-rov
       type: file
-      path: /home/cc/linux/softwares/SJTU_multisensor_processer/data/raw/store/22.1.30 校园路测/rov.rtcm3
+      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/rov.rtcm3
       enable_time_tag: true
       swap_interval: 0
       buffer-length: 32768
@@ -13,39 +13,39 @@ stream:
   - streamer:
       tag: str-ref
       type: file
-      path: /home/cc/linux/softwares/SJTU_multisensor_processer/data/raw/store/22.1.30 校园路测/ref.rtcm3
+      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref.rtcm3
       enable_time_tag: true
       swap_interval: 0
       buffer-length: 32768
       loop-duration: 1e-2
       formator-tags: [gnss-ref]
-  - streamer:
-      tag: str-head
-      type: file
-      path: /home/cc/linux/softwares/SJTU_multisensor_processer/data/raw/store/22.1.30 校园路测/head.rtcm3
-      enable_time_tag: true
-      swap_interval: 0
-      buffer-length: 32768
-      loop-duration: 1e-2
-      formator-tags: [gnss-head]
-  - streamer:
-      tag: str-imu
-      type: file
-      path: /home/cc/linux/softwares/SJTU_multisensor_processer/data/raw/store/22.1.30 校园路测/imu.bin
-      enable_time_tag: true
-      swap_interval: 0
-      buffer-length: 32768
-      loop-duration: 1e-3
-      formator-tags: [imu]
-  - streamer:
-      tag: str-camera
-      type: file
-      path: /home/cc/linux/softwares/SJTU_multisensor_processer/data/raw/store/22.1.30 校园路测/camera.bin
-      enable_time_tag: true
-      swap_interval: 0
-      buffer-length: 361472  # 752 * 480 + 512
-      loop-duration: 1e-2
-      formator-tags: [camera]
+#   - streamer:
+#       tag: str-head
+#       type: file
+#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/head.rtcm3
+#       enable_time_tag: true
+#       swap_interval: 0
+#       buffer-length: 32768
+#       loop-duration: 1e-2
+#       formator-tags: [gnss-head]
+#   - streamer:
+#       tag: str-imu
+#       type: file
+#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/imu.bin
+#       enable_time_tag: true
+#       swap_interval: 0
+#       buffer-length: 32768
+#       loop-duration: 1e-3
+#       formator-tags: [imu]
+#   - streamer:
+#       tag: str-camera
+#       type: file
+#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/camera.bin
+#       enable_time_tag: true
+#       swap_interval: 0
+#       buffer-length: 361472  # 752 * 480 + 512
+#       loop-duration: 1e-2
+#       formator-tags: [camera]
 
 
   formators:
@@ -53,16 +53,19 @@ stream:
       io: input
       tag: gnss-rov
       type: gnss-rtcm-3
+      start_time: 1643508393
       role: [rover, ephemeris]
   - formator:
       io: input
       tag: gnss-ref
       type: gnss-rtcm-3
+      start_time: 1643508393
       role: [reference]
   - formator:
       io: input
       tag: gnss-head
       type: gnss-rtcm-3
+      start_time: 1643508393
       role: [heading]
   - formator:
       io: input
@@ -79,5 +82,5 @@ stream:
 
   replay:
     enable: true
-    speed: 1.0
+    speed: 20.0
     start-offset: 0.0

@@ -37,12 +37,6 @@ enum class IonoType {
   Augmentation
 };
 
-// Troposhere type
-enum class TropoType {
-  Model,
-  Augmentation
-};
-
 // One code type measurement
 struct Observation {
   double wavelength;
@@ -92,8 +86,7 @@ struct GNSSMeasurement {
   Satellites satellites;
   Eigen::Vector3d position;  // for reference station
   Eigen::VectorXd ionosphere_parameters;  // GPS broadcast ionosphere parameters
-  double troposphere;  // from augmentation
-  TropoType troposphere_type;
+  double troposphere_wet;  // Wet ZTD from augmentation
 
   static int32_t epoch_cnt_;
 };

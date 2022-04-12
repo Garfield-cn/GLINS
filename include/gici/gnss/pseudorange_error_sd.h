@@ -1,6 +1,5 @@
 /**
-* @Function: Pseudorange residual block for ceres backend
-*            Parameters are in ECEF coordinate. Observations are single-differenced (between stations).
+* @Function: Single-differenced (between stations) pseudorange residual block for ceres backend
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -21,20 +20,26 @@
 
 namespace gici {
 
-/// \brief Pseudorange error, position in ECEF coordinate is used as parameter
-// to apply single point positioning
-class PseudorangeErrorSoleSD :
+// Single-differenced pesudorange error
+// The parameter blocks Ns are indefinite, which enables user to flexibly estimate 
+// different groups of parameters, including:
+// Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
+// Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
+//          in body frame (3), P3. receiver clock (1)
+// Group 3: Group 1 + P3. troposphere delay (1), P4. ionosphere delay (1)
+// Group 4: Group 2 + P4. troposphere delay (1), P5. ionosphere delay (1)
+template<int... Ns>
+class PseudorangeErrorSD :
     public ceres::SizedCostFunction<
     1 /* number of residuals */,
-    3, /* size of first parameter: GNSSMeasurement position in ECEF frame */
-    1 /* size of second parameter: GNSSMeasurement clock */>,
+    Ns ... /* parameter blocks */>,
     public ErrorInterface
 {
  public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
-  typedef ceres::SizedCostFunction<1, 3, 1> base_t;
+  typedef ceres::SizedCostFunction<1, Ns ...> base_t;
 
   /// \brief Number of residuals (1).
   static const int kNumResiduals = 1;
@@ -46,20 +51,20 @@ class PseudorangeErrorSoleSD :
   typedef double covariance_t;
 
   /// \brief Default constructor.
-  PseudorangeErrorSoleSD();
+  PseudorangeErrorSD();
 
   /// \brief Construct with measurement and information matrix
   /// @param[in] measurement_1 The measurement of rover.
   /// @param[in] measurement_2 The measurement of reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeErrorSoleSD(const GNSSMeasurement& measurement_1,
-                         const GNSSMeasurement& measurement_2,
-                         const GNSSMeasurementIndex index_1,
-                         const GNSSMeasurementIndex index_2,
-                         const GNSSErrorParameter& error_parameter);
+  PseudorangeErrorSD(const GNSSMeasurement& measurement_1,
+                    const GNSSMeasurement& measurement_2,
+                    const GNSSMeasurementIndex index_1,
+                    const GNSSMeasurementIndex index_2,
+                    const GNSSErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
-  virtual ~PseudorangeErrorSoleSD() {}
+  virtual ~PseudorangeErrorSD() {}
 
   // setters
   /// \brief Set the measurement.
@@ -69,6 +74,11 @@ class PseudorangeErrorSoleSD :
   {
     measurement_1_ = measurement_1;
     measurement_2_ = measurement_2;
+  }
+
+  // Set coordinate for ENU to ECEF convertion
+  void setCoordinate(const GeoCoordinatePtr& coordinate) {
+    coordinate_ = coordinate;
   }
 
   // error term and Jacobian implementation
@@ -100,18 +110,18 @@ class PseudorangeErrorSoleSD :
   size_t residualDim() const { return kNumResiduals; }
 
   /// \brief Number of parameter blocks.
-  size_t parameterBlocks() const { return parameter_block_sizes().size(); }
+  size_t parameterBlocks() const { return dims_.kNumParameterBlocks; }
 
   /// \brief Dimension of an individual parameter block.
   size_t parameterBlockDim(size_t parameter_block_idx) const
   {
-    return base_t::parameter_block_sizes().at(parameter_block_idx);
+    return dims_.GetDim(parameter_block_idx);
   }
 
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const
   {
-    return ErrorType::kPseudorangeError;
+    return ErrorType::kPseudorangeErrorSD;
   }
 
  protected:
@@ -121,7 +131,24 @@ class PseudorangeErrorSoleSD :
 
   // weighting related
   GNSSErrorParameter error_parameter_;
+
+  // Parameter dimensions
+  ceres::internal::StaticParameterDims<Ns...> dims_;
+
+  // Geodetic coordinate
+  GeoCoordinatePtr coordinate_;
+
+  // parameter types
+  bool is_estimate_body_;
+  bool is_estimate_atmosphere_;
+  int parameter_block_group_;
 };
+
+// Explicitly instantiate template classes
+template class PseudorangeErrorSD<3, 1>;  // Block 1
+template class PseudorangeErrorSD<7, 3, 1>;  // Block 2
+template class PseudorangeErrorSD<3, 1, 1, 1>;  // Block 3
+template class PseudorangeErrorSD<7, 3, 1, 1, 1>;  // Block 4
 
 }  
 

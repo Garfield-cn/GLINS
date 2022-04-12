@@ -7,6 +7,7 @@
 #include "gici/gnss/geodetic_coordinate.h"
 
 #include <glog/logging.h>
+#include <Eigen/Geometry>
 
 namespace gici {
 
@@ -76,6 +77,55 @@ Eigen::Vector3d GeoCoordinate::getNED(void)
 {
   Eigen::Vector3d enu = getENU();
   return Eigen::Vector3d(enu(1), enu(0), -enu(2));
+}
+
+// ECEF to ENU rotation matrix
+Eigen::Matrix3d GeoCoordinate::rotationMatrix(GeoType from, GeoType to)
+{
+  if (!lla_zero_setted_) {
+    LOG(ERROR) << "Inital position not setted!";
+    return Eigen::Matrix3d::Identity();
+  }
+
+  if (from == GeoType::ECEF) {
+    if (to == GeoType::ENU) {
+      double E[9];
+      xyz2enu(lla_zero_.data(), E);
+      return Eigen::Map<Eigen::Matrix<double, 3, 3, Eigen::ColMajor>>(E);
+    }
+    if (to == GeoType::NED) {
+      Eigen::Matrix3d R_ECEF_ENU = rotationMatrix(GeoType::ECEF, GeoType::ENU);
+      Eigen::Matrix3d R_ENU_NED = rotationMatrix(GeoType::ENU, GeoType::NED);
+      return R_ECEF_ENU * R_ENU_NED;
+    }
+  }
+
+  if (from == GeoType::ENU) {
+    if (to == GeoType::ECEF) {
+      return rotationMatrix(GeoType::ECEF, GeoType::ENU).transpose();
+    }
+    if (to == GeoType::NED) {
+      Eigen::AngleAxisd x(PI, Eigen::Vector3d::UnitX());
+      Eigen::AngleAxisd y(0.0, Eigen::Vector3d::UnitY());
+      Eigen::AngleAxisd z(PI / 2.0, Eigen::Vector3d::UnitZ());
+      Eigen::Quaterniond q_ENU_NED = z * y * x;
+      return q_ENU_NED.toRotationMatrix();
+    }
+  }
+
+  if (from == GeoType::NED) {
+    if (to == GeoType::ECEF) {
+      Eigen::Matrix3d R_NED_ENU = rotationMatrix(GeoType::NED, GeoType::ENU);
+      Eigen::Matrix3d R_ENU_ECEF = rotationMatrix(GeoType::ENU, GeoType::ECEF);
+      return R_NED_ENU * R_ENU_ECEF;
+    }
+    if (to == GeoType::ENU) {
+      return rotationMatrix(GeoType::ENU, GeoType::NED).transpose();
+    }
+  }
+
+  LOG(ERROR) << "Invalid rotation matrix type!";
+  return Eigen::Matrix3d::Identity();
 }
 
 // Convert any coordinate to LLA

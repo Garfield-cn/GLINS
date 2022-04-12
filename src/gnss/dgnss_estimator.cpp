@@ -6,7 +6,7 @@
 **/
 #include "gici/gnss/dgnss_estimator.h"
 
-#include "gici/gnss/pseudorange_error_sole_sd.h"
+#include "gici/gnss/pseudorange_error_sd.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
 
@@ -110,8 +110,8 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
     auto& satellite = measurement_1.satellites[index.satellite_index];
 
     BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_1.id);
-    std::shared_ptr<PseudorangeErrorSoleSD> pseudorange_error = 
-      std::make_shared<PseudorangeErrorSoleSD>(measurement_1, measurement_2,
+    std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
+      std::make_shared<PseudorangeErrorSD<3, 1>>(measurement_1, measurement_2,
       index_pair.first, index_pair.second, options_.error_parameter);
     graph_ptr_->addResidualBlock(pseudorange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,

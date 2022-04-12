@@ -80,6 +80,9 @@ public:
     return getNED();
   }
 
+  // Rotation matrix
+  Eigen::Matrix3d rotationMatrix(GeoType from, GeoType to);
+
   // Convert coordinate
   static Eigen::Vector3d convet(const Eigen::Vector3d& position,
               const GeoType in_type, const GeoType out_type);

@@ -386,7 +386,7 @@ void troposphereGMF(double time,
   beta = bh / (sine + ch);
   gamma = ah / (sine + beta);
   topcon = (1.0 + ah / (1.0 + bh / (1.0 + ch)));
-  *gmfh = topcon / (sine + gamma);
+  if (gmfh) *gmfh = topcon / (sine + gamma);
 
   a_ht = 2.53e-5;	//2.53 from http://maia.usno.navy.mil/conv2010/chapter9/GMF.F
 
@@ -399,7 +399,7 @@ void troposphereGMF(double time,
   topcon = (1.0 + a_ht / (1.0 + b_ht / (1.0 + c_ht)));
   ht_corr_coef = 1.0 / sine - topcon / (sine + gamma);
   ht_corr = ht_corr_coef * hs_km;
-  *gmfh = *gmfh + ht_corr;
+  if (gmfh) *gmfh = *gmfh + ht_corr;
 
   //wet
   bw = 0.00146;
@@ -417,7 +417,7 @@ void troposphereGMF(double time,
   beta = bw / (sine + cw);
   gamma = aw / (sine + beta);
   topcon = (1.0 + aw / (1.0 + bw / (1.0 + cw)));
-  *gmfw = topcon / (sine + gamma);
+  if (gmfw) *gmfw = topcon / (sine + gamma);
 }
 
 // Broadcast ionosphere model

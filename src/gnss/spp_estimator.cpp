@@ -6,7 +6,7 @@
 **/
 #include "gici/gnss/spp_estimator.h"
 
-#include "gici/gnss/pseudorange_error_sole.h"
+#include "gici/gnss/pseudorange_error.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
 
@@ -107,8 +107,8 @@ bool SPPEstimator::addGNSSMeasurementAndState(
         GNSSMeasurementIndex(i, observation.first))) continue;
 
       BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_local.id);
-      std::shared_ptr<PseudorangeErrorSole> pseudorange_error = 
-        std::make_shared<PseudorangeErrorSole>(measurement_local, 
+      std::shared_ptr<PseudorangeError<3, 1>> pseudorange_error = 
+        std::make_shared<PseudorangeError<3, 1>>(measurement_local, 
         GNSSMeasurementIndex(i, observation.first), options_.error_parameter);
       graph_ptr_->addResidualBlock(pseudorange_error, 
         huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
@@ -149,7 +149,7 @@ void SPPEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-  graph_ptr_->options.num_threads = options_.num_threads;
+  // graph_ptr_->options.num_threads = options_.num_threads;
   graph_ptr_->options.max_num_iterations = options_.max_iteration;
 
   if (options_.verbose) {
