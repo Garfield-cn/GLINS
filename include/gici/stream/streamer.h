@@ -124,7 +124,7 @@ class FileStreamer : public StreamerBase {
 public:
   struct Config {
     std::string path;
-    bool enable_time_tag = false;
+    bool enable_time_tag = true;
     int swap_interval = 0;  // output swap interval (hr) (0: no swap)
   };
 

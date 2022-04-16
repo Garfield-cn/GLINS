@@ -14,7 +14,7 @@
 
 namespace gici {
 
-// SPP options
+// DGNSS options
 struct DGNSSEstimatorOptions {
   // Max iteration number for ceres optimization
   int max_iteration = 15;
@@ -50,9 +50,9 @@ public:
   ~DGNSSEstimator();
 
   // Add GNSS measurements and state
-  // measurement_2 should from the reference station
-  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement_1, 
-                                  const GNSSMeasurement& measurement_2);
+  // measurement_ref should from the reference station
+  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement_rov, 
+                                  const GNSSMeasurement& measurement_ref);
 
   // Start ceres optimization
   void optimize();
@@ -60,27 +60,20 @@ public:
   // Get position in ECEF coordinate
   Eigen::Vector3d getPositionEstimate();
 
-  // Get Satellite clock
-  double getClockEstimate(const char system, double& dclock);
-
 private:
-  // Check observation valid
-  bool checkObservationValid(const GNSSMeasurement& measurement,
-                             const GNSSMeasurementIndex& index);
-
-  // Form single difference pair
-  GNSSMeasurementIndexPairs formMeasurementPair(
-    const GNSSMeasurement& measurement_1, const GNSSMeasurement& measurement_2);
-
   // Graph that handles residuals and states
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
   DGNSSEstimatorOptions options_;
 
-  // loss function for reprojection errors
+  // loss function
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
   std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+
+  // Measurement
+  GNSSMeasurement measurement_rov_;
+  GNSSMeasurement measurement_ref_;
 
   // States
   State current_state_;

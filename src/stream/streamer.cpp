@@ -20,12 +20,12 @@ std::vector<StreamerBase *> StreamerBase::static_this_;
 
 // Load option with info
 #define LOAD_COMMON(opt) \
-  if (!YAML::safeGet(node, #opt, &config_.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &config_.opt)) { \
   LOG(ERROR) << __FUNCTION__ << ": Unable to load " << #opt \
          << ". Using default instead."; }
 // Load option with fatal error
 #define LOAD_REQUIRED(opt) \
-  if (!YAML::safeGet(node, #opt, &config_.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &config_.opt)) { \
   LOG(FATAL) << __FUNCTION__ << ": Unable to load " << #opt << "!"; }
 
 // Enable replay mode

@@ -24,7 +24,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
     return;
   }
   YAML::Node streamer_node = node["streamers"][istreamer]["streamer"];
-  if (!YAML::safeGet(streamer_node, "tag", &tag_)) {
+  if (!option_tools::safeGet(streamer_node, "tag", &tag_)) {
     LOG(ERROR) << "Unable to load streamer tag!";
     return;
   }
@@ -37,7 +37,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   std::vector<YAML::Node> formator_nodes; 
   bool any_option_got = false;
   // Get formator option
-  if (YAML::safeGet(streamer_node, "formator-tags", &formator_tags)) {
+  if (option_tools::safeGet(streamer_node, "formator-tags", &formator_tags)) {
     any_option_got = true;
     if (!node["formators"].IsDefined()) {
       LOG(ERROR) << "Unable to load formators!";
@@ -51,7 +51,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
           continue;
         }
         std::string formator_tag;
-        if (!YAML::safeGet(it["formator"], "tag", &formator_tag)) {
+        if (!option_tools::safeGet(it["formator"], "tag", &formator_tag)) {
           LOG(ERROR) << "Unable to load formator tag!";
           continue;
         }
@@ -68,7 +68,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
     // Initialize formators
     for (auto it : formator_nodes) {
       std::string type_str;
-      if (!YAML::safeGet(it, "io", &type_str)) {
+      if (!option_tools::safeGet(it, "io", &type_str)) {
         LOG(ERROR) << "Unable to load formator I/O type!";
         continue;
       }
@@ -82,7 +82,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
       formator_ctrl.type = type;
       // If logging stream, find and handle corresponding input stream as well
       if (type == StreamIOType::Log) {
-        if (!YAML::safeGet(it, "input-tag", &formator_ctrl.input_tag)) {
+        if (!option_tools::safeGet(it, "input-tag", &formator_ctrl.input_tag)) {
           LOG(ERROR) << "Unable to load formator input-tag!";
           continue;
         }
@@ -97,7 +97,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   }
 
   // Get input-tag option for direct logging
-  if (YAML::safeGet(streamer_node, "input-tag", &input_tag_)) {
+  if (option_tools::safeGet(streamer_node, "input-tag", &input_tag_)) {
     any_option_got = true;
     has_logging_ = true;
   }
@@ -108,7 +108,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   }
 
   // Initialize buffer
-  if (!YAML::safeGet(streamer_node, "buffer-length", &max_buf_size_)) {
+  if (!option_tools::safeGet(streamer_node, "buffer-length", &max_buf_size_)) {
     LOG(INFO) << "Unable to load buffer length! Using default instead.";
     max_buf_size_ = 32768;
   }
@@ -123,7 +123,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   }
 
   // Get loop rate
-  if (!YAML::safeGet(streamer_node, "loop-duration", &loop_duration_)) {
+  if (!option_tools::safeGet(streamer_node, "loop-duration", &loop_duration_)) {
     LOG(INFO) << "Unable to load loop duration! Using default instead.";
     loop_duration_ = 0.001;
   }

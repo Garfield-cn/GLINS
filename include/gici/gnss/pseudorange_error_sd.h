@@ -20,7 +20,7 @@
 
 namespace gici {
 
-// Single-differenced pesudorange error
+// Single-differenced pseudorange error
 // The parameter blocks Ns are indefinite, which enables user to flexibly estimate 
 // different groups of parameters, including:
 // Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
@@ -54,13 +54,13 @@ class PseudorangeErrorSD :
   PseudorangeErrorSD();
 
   /// \brief Construct with measurement and information matrix
-  /// @param[in] measurement_1 The measurement of rover.
-  /// @param[in] measurement_2 The measurement of reference.
+  /// @param[in] measurement_rov The measurement of rover.
+  /// @param[in] measurement_ref The measurement of reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeErrorSD(const GNSSMeasurement& measurement_1,
-                    const GNSSMeasurement& measurement_2,
-                    const GNSSMeasurementIndex index_1,
-                    const GNSSMeasurementIndex index_2,
+  PseudorangeErrorSD(const GNSSMeasurement& measurement_rov,
+                    const GNSSMeasurement& measurement_ref,
+                    const GNSSMeasurementIndex index_rov,
+                    const GNSSMeasurementIndex index_ref,
                     const GNSSErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
@@ -69,11 +69,11 @@ class PseudorangeErrorSD :
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement_1,
-                      const GNSSMeasurement& measurement_2)
+  void setMeasurement(const GNSSMeasurement& measurement_rov,
+                      const GNSSMeasurement& measurement_ref)
   {
-    measurement_1_ = measurement_1;
-    measurement_2_ = measurement_2;
+    measurement_rov_ = measurement_rov;
+    measurement_ref_ = measurement_ref;
   }
 
   // Set coordinate for ENU to ECEF convertion
@@ -125,9 +125,9 @@ class PseudorangeErrorSD :
   }
 
  protected:
-  GNSSMeasurement measurement_1_, measurement_2_; ///< The measurement.
-  Satellite satellite_1_, satellite_2_;;
-  Observation observation_1_, observation_2_;
+  GNSSMeasurement measurement_rov_, measurement_ref_; ///< The measurement.
+  Satellite satellite_rov_, satellite_ref_;;
+  Observation observation_rov_, observation_ref_;
 
   // weighting related
   GNSSErrorParameter error_parameter_;
@@ -145,10 +145,10 @@ class PseudorangeErrorSD :
 };
 
 // Explicitly instantiate template classes
-template class PseudorangeErrorSD<3, 1>;  // Block 1
-template class PseudorangeErrorSD<7, 3, 1>;  // Block 2
-template class PseudorangeErrorSD<3, 1, 1, 1>;  // Block 3
-template class PseudorangeErrorSD<7, 3, 1, 1, 1>;  // Block 4
+template class PseudorangeErrorSD<3, 1>;  // Group 1
+template class PseudorangeErrorSD<7, 3, 1>;  // Group 2
+template class PseudorangeErrorSD<3, 1, 1, 1>;  // Group 3
+template class PseudorangeErrorSD<7, 3, 1, 1, 1>;  // Group 4
 
 }  
 

@@ -19,14 +19,10 @@ PseudorangeError<Ns ...>::PseudorangeError(
                        const GNSSMeasurementIndex index,
                        const GNSSErrorParameter& error_parameter)
 {
-  CHECK(measurement.satellites.size() > index.satellite_index);
-  satellite_ = measurement.satellites.at(index.satellite_index);
-
-  auto obs = satellite_.observations.find(index.code_type);
-  CHECK(obs != satellite_.observations.end());
-  observation_ = obs->second;
-
   setMeasurement(measurement);
+  satellite_ = measurement_.getSat(index);
+  observation_ = measurement_.getObs(index);
+
   error_parameter_ = error_parameter;
 
   // Check parameter block types
@@ -39,7 +35,7 @@ PseudorangeError<Ns ...>::PseudorangeError(
   }
   // Group 2
   else if (dims_.kNumParameterBlocks == 3 &&
-      dims_.GetDim(0) == 6 && dims_.GetDim(1) == 3 &&
+      dims_.GetDim(0) == 7 && dims_.GetDim(1) == 3 &&
       dims_.GetDim(2) == 1) {
     is_estimate_body_ = true;
     is_estimate_atmosphere_ = false;
@@ -55,7 +51,7 @@ PseudorangeError<Ns ...>::PseudorangeError(
   }
   // Group 4
   else if (dims_.kNumParameterBlocks == 5 && 
-      dims_.GetDim(0) == 6 && dims_.GetDim(1) == 3 &&
+      dims_.GetDim(0) == 7 && dims_.GetDim(1) == 3 &&
       dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 &&
       dims_.GetDim(4) == 1) {
     is_estimate_body_ = true;
@@ -198,7 +194,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
     satellite_.sat_clock + troposphere_delay + ionosphere_delay;
 
   // Compute error
-  double pseudorange = observation_.pesudorange;
+  double pseudorange = observation_.pseudorange;
   Eigen::Matrix<double, 1, 1> error = 
     Eigen::Matrix<double, 1, 1>(pseudorange - pseudorange_estimate);
 

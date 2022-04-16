@@ -1,5 +1,5 @@
 /**
-* @Function: Pseudorange residual block for ceres backend
+* @Function: Ambiguity measurement from ambiguity resolution
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -20,16 +20,9 @@
 
 namespace gici {
 
-// pseudorange error
-// The parameter blocks Ns are indefinite, which enables user to flexibly estimate 
-// different groups of parameters, including:
-// Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
-// Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
-//          in body frame (3), P3. receiver clock (1)
-// Group 3: Group 1 + P3. troposphere delay (1), P4. ionosphere delay (1)
-// Group 4: Group 2 + P4. troposphere delay (1), P5. ionosphere delay (1)
+// Ambiguity measurement from any combination
 template<int... Ns>
-class PseudorangeError :
+class AmbiguityError :
     public ceres::SizedCostFunction<
     1 /* number of residuals */,
     Ns ... /* parameter blocks */>,
@@ -51,36 +44,30 @@ class PseudorangeError :
   typedef double covariance_t;
 
   /// \brief Default constructor.
-  PseudorangeError();
+  AmbiguityError();
 
   /// \brief Construct with measurement and information matrix
-  /// @param[in] measurement The measurement.
-  /// @param[in] index Index of current satellite.
-  /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeError(const GNSSMeasurement& measurement,
-                   const GNSSMeasurementIndex index,
-                   const GNSSErrorParameter& error_parameter);
+  /// The sequency should be consistant with template parameter blocks
+  AmbiguityError(const double measurement, 
+                 const double information,
+                 const std::vector<double>& coefficients);
 
   /// \brief Trivial destructor.
-  virtual ~PseudorangeError() {}
+  virtual ~AmbiguityError() {}
 
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement)
+  void setMeasurement(const double measurement)
   {
-    measurement_ = measurement;
+    ambiguity_ = measurement;
   }
 
-  // Set coordinate for ENU to ECEF convertion
-  void setCoordinate(const GeoCoordinatePtr& coordinate) {
-    coordinate_ = coordinate;
+  // Set information
+  void setInformation(const double information)
+  {
+    information_ = information;
   }
-
-  // getters
-  /// \brief Get the measurement.
-  /// \return The measurement vector.
-  const GNSSMeasurement& measurement() const { return measurement_; }
 
   // error term and Jacobian implementation
   /**
@@ -122,34 +109,35 @@ class PseudorangeError :
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const
   {
-    return ErrorType::kPseudorangeError;
+    return ErrorType::kAmbiguityError;
   }
 
  protected:
-  GNSSMeasurement measurement_; ///< The measurement.
-  Satellite satellite_;
-  Observation observation_;
-
-  // weighting related
-  GNSSErrorParameter error_parameter_;
+  double ambiguity_;
+  double information_;
+  std::vector<double> coefficients_;
 
   // Parameter dimensions
   ceres::internal::StaticParameterDims<Ns...> dims_;
-
-  // Geodetic coordinate
-  GeoCoordinatePtr coordinate_;
-
-  // parameter types
-  bool is_estimate_body_;
-  bool is_estimate_atmosphere_;
-  int parameter_block_group_;
 };
 
 // Explicitly instantiate template classes
-template class PseudorangeError<3, 1>;  // Group 1
-template class PseudorangeError<7, 3, 1>;  // Group 2
-template class PseudorangeError<3, 1, 1, 1>;  // Group 3
-template class PseudorangeError<7, 3, 1, 1, 1>;  // Group 4
+template class AmbiguityError<1>; 
+template class AmbiguityError<1, 1>;  
+template class AmbiguityError<1, 1, 1>;  
+template class AmbiguityError<1, 1, 1, 1>;
+template class AmbiguityError<1, 1, 1, 1, 1>;
+template class AmbiguityError<1, 1, 1, 1, 1, 1>;
+template class AmbiguityError<1, 1, 1, 1, 1, 1, 1>;
+template class AmbiguityError<1, 1, 1, 1, 1, 1, 1, 1>;
+using AmbiguityError1Coef = AmbiguityError<1>;
+using AmbiguityError2Coef = AmbiguityError<1, 1>;  
+using AmbiguityError3Coef = AmbiguityError<1, 1, 1>;  
+using AmbiguityError4Coef = AmbiguityError<1, 1, 1, 1>;
+using AmbiguityError5Coef = AmbiguityError<1, 1, 1, 1, 1>;
+using AmbiguityError6Coef = AmbiguityError<1, 1, 1, 1, 1, 1>;
+using AmbiguityError7Coef = AmbiguityError<1, 1, 1, 1, 1, 1, 1>;
+using AmbiguityError8Coef = AmbiguityError<1, 1, 1, 1, 1, 1, 1, 1>;
 
 }  
 

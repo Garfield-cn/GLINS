@@ -1,10 +1,10 @@
 /**
-* @Function: Single-differenced (between stations) pseudorange residual block for ceres backend
+* @Function: Single-differenced (between stations) phase-range residual block for ceres backend
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/gnss/pseudorange_error_sd.h"
+#include "gici/gnss/phaserange_error_sd.h"
 
 #include "gici/gnss/gnss_common.h"
 #include "gici/utility/transform.h"
@@ -14,7 +14,7 @@ namespace gici {
 
 // Construct with measurement and information matrix
 template<int... Ns>
-PseudorangeErrorSD<Ns ...>::PseudorangeErrorSD(
+PhaserangeErrorSD<Ns ...>::PhaserangeErrorSD(
                     const GNSSMeasurement& measurement_rov,
                     const GNSSMeasurement& measurement_ref,
                     const GNSSMeasurementIndex index_rov,
@@ -36,45 +36,47 @@ PseudorangeErrorSD<Ns ...>::PseudorangeErrorSD(
 
   // Check parameter block types
   // Group 1
-  if (dims_.kNumParameterBlocks == 2 && 
-      dims_.GetDim(0) == 3 && dims_.GetDim(1) == 1) {
+  if (dims_.kNumParameterBlocks == 3 && 
+      dims_.GetDim(0) == 3 && dims_.GetDim(1) == 1 &&
+      dims_.GetDim(2) == 1) {
     is_estimate_body_ = false;
     is_estimate_atmosphere_ = false;
     parameter_block_group_ = 1;
   }
   // Group 2
-  else if (dims_.kNumParameterBlocks == 3 &&
+  else if (dims_.kNumParameterBlocks == 4 &&
       dims_.GetDim(0) == 7 && dims_.GetDim(1) == 3 &&
-      dims_.GetDim(2) == 1) {
+      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1) {
     is_estimate_body_ = true;
     is_estimate_atmosphere_ = false;
     parameter_block_group_ = 2;
   }
   // Group 3
-  else if (dims_.kNumParameterBlocks == 4 && 
+  else if (dims_.kNumParameterBlocks == 5 && 
       dims_.GetDim(0) == 3 && dims_.GetDim(1) == 1 &&
-      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1) {
+      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 &&
+      dims_.GetDim(4) == 1) {
     is_estimate_body_ = false;
     is_estimate_atmosphere_ = true;
     parameter_block_group_ = 3;
   }
   // Group 4
-  else if (dims_.kNumParameterBlocks == 5 && 
+  else if (dims_.kNumParameterBlocks == 6 && 
       dims_.GetDim(0) == 7 && dims_.GetDim(1) == 3 &&
       dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 &&
-      dims_.GetDim(4) == 1) {
+      dims_.GetDim(4) == 1 && dims_.GetDim(5) == 1) {
     is_estimate_body_ = true;
     is_estimate_atmosphere_ = true;
     parameter_block_group_ = 4;
   }
   else {
-    LOG(FATAL) << "PseudorangeErrorSD parameter blocks setup invalid!";
+    LOG(FATAL) << "PhaserangeErrorSD parameter blocks setup invalid!";
   }
 }
 
 // This evaluates the error term and additionally computes the Jacobians.
 template<int... Ns>
-bool PseudorangeErrorSD<Ns ...>::Evaluate(double const* const * parameters,
+bool PhaserangeErrorSD<Ns ...>::Evaluate(double const* const * parameters,
                                  double* residuals, double** jacobians) const
 {
   return EvaluateWithMinimalJacobians(parameters, residuals, jacobians, nullptr);
@@ -83,7 +85,7 @@ bool PseudorangeErrorSD<Ns ...>::Evaluate(double const* const * parameters,
 // This evaluates the error term and additionally computes
 // the Jacobians in the minimal internal representation.
 template<int... Ns>
-bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
+bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     double const* const * parameters, double* residuals, double** jacobians,
     double** jacobians_minimal) const
 {
@@ -91,6 +93,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   Eigen::Quaterniond q_WS;
   double dclock;
   double dtroposphere_delay = 0.0, dionosphere_delay = 0.0;
+  double dambiguity;
   double gmf_wet;
   
   // Position and clock
@@ -98,6 +101,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   {
     t_WR_ECEF = Eigen::Map<const Eigen::Vector3d>(parameters[0]);
     dclock = parameters[1][0];
+    dambiguity = parameters[2][0];
   }
   else 
   {
@@ -110,6 +114,9 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
 
     // clock
     dclock = parameters[2][0];
+
+    // ambiguity
+    dambiguity = parameters[3][0];
 
     // receiver position
     Eigen::Vector3d t_WR_W = t_WS_W + q_WS * t_SR_S;
@@ -144,12 +151,12 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     // use estimated atomspheric delays
     double dtroposphere_wet = 0.0;
     if (!is_estimate_body_) {
-      dtroposphere_wet = parameters[2][0];
-      dionosphere_delay = parameters[3][0];
-    }
-    else {
       dtroposphere_wet = parameters[3][0];
       dionosphere_delay = parameters[4][0];
+    }
+    else {
+      dtroposphere_wet = parameters[4][0];
+      dionosphere_delay = parameters[5][0];
     }
 
     // troposphere hydro-static delay
@@ -164,19 +171,18 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   }
 
   // Get estimate derivated measurement
-  double dpseudorange_estimate = rho_1 - rho_2 + dclock
-   + dtroposphere_delay + dionosphere_delay;
+  double dphaserange_estimate = rho_1 - rho_2 + dclock
+   + dtroposphere_delay + dionosphere_delay + dambiguity;
 
   // Compute error
-  double dpseudorange = observation_rov_.pseudorange - observation_ref_.pseudorange;
+  double dphaserange = observation_rov_.phaserange - observation_ref_.phaserange;
   Eigen::Matrix<double, 1, 1> error = 
-    Eigen::Matrix<double, 1, 1>(dpseudorange - dpseudorange_estimate);
+    Eigen::Matrix<double, 1, 1>(dphaserange - dphaserange_estimate);
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
   Eigen::Vector3d factor(error_parameter_.phase_error_factor);
-  double ratio = square(error_parameter_.code_to_phase_ratio);
-  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_1))) * ratio * 2.0;
+  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_1))) * 2.0;
   double square_root_information = sqrt(1.0 / variance);
   weighted_error = square_root_information * error;
 
@@ -211,6 +217,9 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     // Clock
     Eigen::Matrix<double, 1, 1> J_clock = -Eigen::MatrixXd::Identity(1, 1);
 
+    // Ambiguity
+    Eigen::Matrix<double, 1, 1> J_amb = -Eigen::MatrixXd::Identity(1, 1);
+
     // Troposphere
     Eigen::Matrix<double, 1, 1> J_trop = -gmf_wet * Eigen::MatrixXd::Identity(1, 1);
 
@@ -242,10 +251,10 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J1_minimal_mapped = J1;
         }
       }
-      // Troposphere
-      if (is_estimate_atmosphere_ && jacobians[2] != nullptr) {
+      // Ambiguity
+      if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_trop;
+        J2 = square_root_information * J_amb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -253,15 +262,26 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J2_minimal_mapped = J2;
         }
       }
-      // Ionosphere
+      // Troposphere
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_iono;
+        J3 = square_root_information * J_trop;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
               J3_minimal_mapped(jacobians_minimal[3]);
           J3_minimal_mapped = J3;
+        }
+      }
+      // Ionosphere
+      if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
+        Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
+        J4 = square_root_information * J_iono;
+
+        if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
+          Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
+              J4_minimal_mapped(jacobians_minimal[4]);
+          J4_minimal_mapped = J4;
         }
       }
     }
@@ -308,10 +328,10 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J2_minimal_mapped = J2;
         }
       }
-      // Troposphere
-      if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
+      // Ambiguity
+      if (jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_trop;
+        J3 = square_root_information * J_amb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -319,15 +339,26 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J3_minimal_mapped = J3;
         }
       }
-      // Ionosphere
+      // Troposphere
       if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_iono;
+        J4 = square_root_information * J_trop;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
               J4_minimal_mapped(jacobians_minimal[4]);
           J4_minimal_mapped = J4;
+        }
+      }
+      // Ionosphere
+      if (is_estimate_atmosphere_ && jacobians[5] != nullptr) {
+        Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J5(jacobians[5]);
+        J5 = square_root_information * J_iono;
+
+        if (jacobians_minimal != nullptr && jacobians_minimal[5] != nullptr) {
+          Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
+              J5_minimal_mapped(jacobians_minimal[5]);
+          J5_minimal_mapped = J5;
         }
       }
     }

@@ -32,7 +32,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
 
   // Add parameter blocks in current timestamp
   double timestamp = measurement.timestamp;
-  GNSSMeasurement measurement_local = measurement;
+  measurement_ = measurement;
 
   // Erase all parameters
   for (auto id : parameter_ids_) {
@@ -41,7 +41,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   parameter_ids_.clear();
 
   // position block
-  BackendId position_id = createGNSSPositionId(measurement_local.id);
+  BackendId position_id = createGNSSPositionId(measurement_.id);
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
     std::make_shared<PositionParameterBlock>(last_position, position_id.asInteger());
   if (!graph_ptr_->addParameterBlock(position_parameter_block)) {
@@ -51,16 +51,17 @@ bool SPPEstimator::addGNSSMeasurementAndState(
 
   // check if any system does not have vaild satellite
   std::map<char, int> system_observation_cnt;
-  for (size_t i = 0; i < measurement_local.satellites.size(); i++) 
+  for (auto& sat : measurement_.satellites) 
   {
-    auto& satellite = measurement_local.satellites[i];
+    auto& satellite = sat.second;
     char system = satellite.getSystem();
     if (!gnss_common::useSystem(options_.common, system)) continue;
     if (system_observation_cnt.find(system) == system_observation_cnt.end()) 
       system_observation_cnt.insert(std::make_pair(system, 0));
-    for (auto observation : satellite.observations) {
-      if (checkObservationValid(measurement_local, 
-          GNSSMeasurementIndex(i, observation.first))) {
+    for (auto obs : satellite.observations) {
+      if (gnss_common::checkObservationValid(measurement_, 
+          GNSSMeasurementIndex(satellite.prn, obs.first), 
+          GNSSObservationType::Pseudorange, options_.common)) {
         system_observation_cnt.at(system)++;
       }
     }
@@ -68,9 +69,10 @@ bool SPPEstimator::addGNSSMeasurementAndState(
 
   // clock blocks
   int num_clock_blocks = 0;
-  for (auto satellite : measurement_local.satellites) 
+  for (auto& sat : measurement_.satellites) 
   {
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_local.id);
+    Satellite& satellite = sat.second;
+    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_.id);
     if (gnss_common::useSystem(options_.common, satellite.getSystem()) && 
         system_observation_cnt.at(satellite.getSystem()) > 0 &&
         !graph_ptr_->parameterBlockExists(clock_id.asInteger())) 
@@ -91,31 +93,35 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   current_state_.id = position_id;
   current_state_.timestamp = timestamp;
 
+  // Correct TGD
+  correctDCB(measurement_);
+
   // Add residual blocks
   int num_residual_block = 0;
   int num_satellites = 0;
-  for (size_t i = 0; i < measurement_local.satellites.size(); i++) 
+  for (auto& sat : measurement_.satellites) 
   {
-    auto& satellite = measurement_local.satellites[i];
+    Satellite& satellite = sat.second;
     std::vector<Observation> observations_frequency;
 
     if (!gnss_common::useSystem(options_.common, satellite.getSystem()) || 
         !gnss_common::useSatellite(options_.common, satellite.prn)) continue;
 
-    for (auto observation : satellite.observations) {
-      if (!checkObservationValid(measurement_local, 
-        GNSSMeasurementIndex(i, observation.first))) continue;
+    for (auto obs : satellite.observations) {
+      if (!gnss_common::checkObservationValid(measurement_, 
+        GNSSMeasurementIndex(satellite.prn, obs.first), 
+        GNSSObservationType::Pseudorange, options_.common)) continue;
 
-      BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_local.id);
+      BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_.id);
       std::shared_ptr<PseudorangeError<3, 1>> pseudorange_error = 
-        std::make_shared<PseudorangeError<3, 1>>(measurement_local, 
-        GNSSMeasurementIndex(i, observation.first), options_.error_parameter);
+        std::make_shared<PseudorangeError<3, 1>>(measurement_, 
+        GNSSMeasurementIndex(satellite.prn, obs.first), options_.error_parameter);
       graph_ptr_->addResidualBlock(pseudorange_error, 
         huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
         graph_ptr_->parameterBlockPtr(position_id.asInteger()),
         graph_ptr_->parameterBlockPtr(clock_id.asInteger()));
         
-      observations_frequency.push_back(observation.second);
+      observations_frequency.push_back(obs.second);
       num_residual_block++;
     }
     if (observations_frequency.size()) num_satellites++;
@@ -188,7 +194,7 @@ Eigen::Vector3d SPPEstimator::getPositionEstimate()
 }
 
 // Get Satellite clock
-double SPPEstimator::getClockEstimate(const char system, double& clock)
+double SPPEstimator::getClockEstimate(const char system)
 {
   BackendId id = changeIdType(current_state_.id, IdType::gClock, system);
   if (!graph_ptr_->parameterBlockExists(id.asInteger())) {
@@ -207,54 +213,10 @@ double SPPEstimator::getClockEstimate(const char system, double& clock)
   return 0.0;
 }
 
-// Check observation valid
-bool SPPEstimator::checkObservationValid(
-                            const GNSSMeasurement& measurement,
-                            const GNSSMeasurementIndex& index)
+// Correct DCB (or TGD)
+void SPPEstimator::correctDCB(GNSSMeasurement& measurement)
 {
-  GNSSCommonOptions options = options_.common;
-
-  // Satellite index invalid
-  if(!(measurement.satellites.size() > index.satellite_index)) return false;
-
-  auto& satellite = measurement.satellites.at(index.satellite_index);
-
-  // System not used 
-  if (!gnss_common::useSystem(options, satellite.getSystem())) return false;
-
-  // Satellite not used
-  if (!gnss_common::useSatellite(options, satellite.prn)) return false;
-
-  // Ephemeris invalid
-  if (satellite.sat_type == SatEphType::None ||
-      checkZero(satellite.sat_position) ||
-      satellite.sat_clock == 0.0) {
-    return false;
-  }
-
-  // Elevation mask
-  if (!gnss_common::checkElevation(options, measurement, 
-      index.satellite_index)) {
-    return false;
-  }
-
-  auto obs = satellite.observations.find(index.code_type);
-
-  // Cannot find given code type
-  if(obs == satellite.observations.end()) return false;
-
-  // Code type not used
-  if (!gnss_common::useCode(options, obs->first)) return false;
-
-  auto& observation = obs->second;
-  
-  // Observation invalid
-  if (observation.wavelength == 0.0 || 
-      observation.pesudorange == 0.0) {
-    return false;
-  }
-
-  return true;
+  // TODO
 }
 
 // Compute and set coarse position on measurement
@@ -263,6 +225,7 @@ bool SPPEstimator::setCoarsePosition(GNSSMeasurement& measurement)
   // Already has a position
   if (!checkZero(measurement.position)) return true;
 
+  // no elevation mask  
   SPPEstimatorOptions options;
   options.common.min_elevation = 0.0;
   SPPEstimatorPtr estimator = std::make_shared<SPPEstimator>(options);

@@ -8,6 +8,8 @@
 
 #include <glog/logging.h>
 
+#include "gici/utility/common.h"
+
 namespace gici {
 
 namespace gnss_common {
@@ -70,6 +72,44 @@ gtime_t doubleToGtime(double time)
   return gtime;
 }
 
+// Get a phase ID
+int getPhaseID(char system, int code, double wavelength)
+{
+  if (system == 'G') {
+    if (checkEqual(CLIGHT / wavelength, FREQ1)) return 0;
+    if (checkEqual(CLIGHT / wavelength, FREQ2) &&
+        code != CODE_L2C) return 1;
+    if (checkEqual(CLIGHT / wavelength, FREQ2) && 
+        code == CODE_L2C) return 2;
+    if (checkEqual(CLIGHT / wavelength, FREQ5)) return 3;
+  }
+  if (system == 'R') {
+    if (checkEqual(CLIGHT / wavelength, FREQ1_GLO, 8.2e6)) return 0;
+    if (checkEqual(CLIGHT / wavelength, FREQ2_GLO, 3.0e6)) return 1;
+    if (checkEqual(CLIGHT / wavelength, FREQ3_GLO)) return 2;
+    if (checkEqual(CLIGHT / wavelength, FREQ1a_GLO)) return 3;
+    if (checkEqual(CLIGHT / wavelength, FREQ2a_GLO)) return 4;
+  }
+  if (system == 'E') {
+    if (checkEqual(CLIGHT / wavelength, FREQ1)) return 0;
+    if (checkEqual(CLIGHT / wavelength, FREQ7)) return 1;
+    if (checkEqual(CLIGHT / wavelength, FREQ5)) return 2;
+    if (checkEqual(CLIGHT / wavelength, FREQ6)) return 3;
+    if (checkEqual(CLIGHT / wavelength, FREQ8)) return 4;
+  }
+  if (system == 'C') {
+    if (checkEqual(CLIGHT / wavelength, FREQ1)) return 0;
+    if (checkEqual(CLIGHT / wavelength, FREQ1_CMP)) return 1;
+    if (checkEqual(CLIGHT / wavelength, FREQ2_CMP)) return 2;
+    if (checkEqual(CLIGHT / wavelength, FREQ5)) return 3;
+    if (checkEqual(CLIGHT / wavelength, FREQ3_CMP)) return 4;
+    if (checkEqual(CLIGHT / wavelength, FREQ8)) return 5;
+  }
+
+  LOG(ERROR) << "Observation type invalid!";
+  return -1;
+}
+
 // ----------------------------------------------------------
 // Check whether the system is used
 bool useSystem(GNSSCommonOptions options, const char system)
@@ -90,35 +130,225 @@ bool useSatellite(GNSSCommonOptions options, const std::string prn)
 }
 
 // Check whether the code type is used
-bool useCode(GNSSCommonOptions options, const int code_type)
+bool useCode(GNSSCommonOptions options, char system, const int code_type)
 {
   auto it = std::find(options.code_exclude.begin(), 
-    options.code_exclude.end(), code_type);
+    options.code_exclude.end(), std::make_pair(system, code_type));
   if (it == options.code_exclude.end()) return true;
   else return false;
 }
 
 // Check elevation threshold
 bool checkElevation(GNSSCommonOptions options, 
-  const GNSSMeasurement& measurement, size_t satellite_index)
+  const GNSSMeasurement& measurement, std::string prn)
 {
-  CHECK(measurement.satellites.size() > satellite_index);
-
   if (checkZero(measurement.position)) {
     // we do not know whether to use this satellite
     return true;
   }
 
-  if (measurement.satellites[satellite_index].sat_position == 
-      Eigen::Vector3d::Zero()) {
+  auto satellite = measurement.satellites.at(prn);
+  if (satellite.sat_position == Eigen::Vector3d::Zero()) {
     return false;
   }
 
   double elevation = satelliteElevation(
-    measurement.satellites[satellite_index].sat_position, measurement.position);
+    satellite.sat_position, measurement.position);
   if (radToDegree(elevation) > options.min_elevation) return true;
   else return false;
 }
+
+// One phase corresponds to muitiple code type, so we need to delete
+// duplicated phases
+void deleteDuplicatePhases(GNSSMeasurement& measurement)
+{
+  for (auto& sat : measurement.satellites) {
+    std::map<double, int> wavelength_to_code;
+    Satellite& satellite = sat.second;
+    for (auto& obs : satellite.observations) {
+      // Delete phase without pseudorange
+      if (obs.second.pseudorange == 0.0) obs.second.phaserange = 0.0;
+
+      double wavelength = obs.second.wavelength;
+      auto it = wavelength_to_code.find(wavelength);
+      if (it == wavelength_to_code.end()) {
+        wavelength_to_code.insert(std::make_pair(wavelength, obs.first));
+        continue;
+      }
+
+      // Check if it is GPS L2C (L2C and other L2 codes has same frequencies, 
+      // but they are different carrier phases)
+      if (satellite.getSystem() == 'G' && obs.first == CODE_L2C) {
+        continue;
+      }
+
+      // Delete phase
+      obs.second.phaserange = 0.0;
+    }
+  }
+}
+
+// Check observation valid
+bool checkObservationValid(const GNSSMeasurement& measurement,
+                           const GNSSMeasurementIndex& index,
+                           const GNSSObservationType type, 
+                           const GNSSCommonOptions options)
+{
+  // Cannot find given satellite
+  auto sat = measurement.satellites.find(index.prn);
+  if (sat == measurement.satellites.end()) return false;
+
+  auto& satellite = sat->second;
+
+  // System not used 
+  if (!gnss_common::useSystem(options, satellite.getSystem())) return false;
+
+  // Satellite not used
+  if (!gnss_common::useSatellite(options, satellite.prn)) return false;
+
+  // Ephemeris invalid
+  if (satellite.sat_type == SatEphType::None ||
+      checkZero(satellite.sat_position) ||
+      satellite.sat_clock == 0.0) {
+    return false;
+  }
+
+  // Elevation mask
+  if (!gnss_common::checkElevation(options, measurement, index.prn)) {
+    return false;
+  }
+
+  auto obs = satellite.observations.find(index.code_type);
+
+  // Cannot find given code type
+  if(obs == satellite.observations.end()) return false;
+
+  // Code type not used
+  if (!gnss_common::useCode(options, satellite.getSystem(), obs->first)) 
+    return false;
+
+  auto& observation = obs->second;
+  
+  // Observation invalid
+  if (type == GNSSObservationType::Pseudorange) {
+    if (observation.wavelength == 0.0 || 
+        observation.pseudorange == 0.0) {
+      return false;
+    }
+  }
+  else if (type == GNSSObservationType::Phaserange) {
+    if (observation.wavelength == 0.0 || 
+        observation.phaserange == 0.0) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+// Form single difference pseudorange pair
+GNSSMeasurementIndexPairs formPseudorangePair(
+                            const GNSSMeasurement& measurement_rov, 
+                            const GNSSMeasurement& measurement_ref,
+                            const GNSSCommonOptions options)
+{
+  GNSSMeasurementIndexPairs index_pairs;
+
+  // Find valid observations in measurement_rov
+  std::vector<GNSSMeasurementIndex> indexes_1;
+  for (auto& sat : measurement_rov.satellites) 
+  {
+    auto& satellite = sat.second;
+    char system = satellite.getSystem();
+    if (!gnss_common::useSystem(options, system)) continue;
+    for (auto obs : satellite.observations) {
+      GNSSMeasurementIndex index_rov(satellite.prn, obs.first);
+      if (checkObservationValid(measurement_rov, index_rov,
+          GNSSObservationType::Pseudorange, options)) {
+        indexes_1.push_back(index_rov);
+      }
+    }
+  }
+
+  // Find valid matches in measurement_ref
+  for (auto index : indexes_1) 
+  {
+    auto& satellite = measurement_rov.satellites.at(index.prn);
+    auto observation = satellite.observations.at(index.code_type);
+    for (auto& sat : measurement_ref.satellites) {
+      auto& satellite_2 = sat.second;
+      if (satellite_2.prn != satellite.prn) continue;
+
+      if (!checkObservationValid(measurement_ref, 
+          GNSSMeasurementIndex(satellite.prn, index.code_type), 
+          GNSSObservationType::Pseudorange)) {
+        continue;
+      }
+
+      index_pairs.push_back(
+        std::make_pair(index, GNSSMeasurementIndex(satellite.prn, index.code_type)));
+    }
+  }
+
+  return index_pairs;
+}                            
+
+// Form single difference phaserange pair
+GNSSMeasurementIndexPairs formPhaserangePair(
+                            const GNSSMeasurement& measurement_rov, 
+                            const GNSSMeasurement& measurement_ref,
+                            const GNSSCommonOptions options)
+{
+  GNSSMeasurementIndexPairs index_pairs;
+
+  // Find valid observations in measurement_rov
+  std::vector<GNSSMeasurementIndex> indexes_1;
+  for (auto& sat : measurement_rov.satellites) 
+  {
+    auto& satellite = sat.second;
+    char system = satellite.getSystem();
+    if (!gnss_common::useSystem(options, system)) continue;
+    for (auto obs : satellite.observations) {
+      GNSSMeasurementIndex index_rov(satellite.prn, obs.first);
+      if (checkObservationValid(measurement_rov, index_rov,
+          GNSSObservationType::Phaserange, options) && 
+          checkObservationValid(measurement_rov, index_rov,
+          GNSSObservationType::Pseudorange, options)) {
+        indexes_1.push_back(index_rov);
+      }
+    }
+  }
+
+  // Find valid matches in measurement_ref
+  for (auto index : indexes_1) 
+  {
+    auto& satellite = measurement_rov.satellites.at(index.prn);
+    auto& observation = satellite.observations.at(index.code_type);
+    int phase_id = gnss_common::getPhaseID(
+      satellite.getSystem(), index.code_type, observation.wavelength);
+
+    for (auto& sat : measurement_ref.satellites) {
+      auto& satellite_2 = sat.second;
+      if (satellite_2.prn != satellite.prn) continue;
+
+      for (auto& obs_2 : satellite_2.observations) {
+        if (index.code_type != obs_2.first) continue;
+        auto& observation_2 = obs_2.second;
+        if (!checkObservationValid(measurement_ref, 
+            GNSSMeasurementIndex(satellite.prn, index.code_type), 
+            GNSSObservationType::Pseudorange)) continue;
+        if (!checkObservationValid(measurement_ref, 
+            GNSSMeasurementIndex(satellite.prn, index.code_type), 
+            GNSSObservationType::Phaserange)) continue;
+
+        index_pairs.push_back(
+          std::make_pair(index, GNSSMeasurementIndex(satellite.prn, index.code_type)));
+      }
+    }
+  }
+
+  return index_pairs;
+} 
 
 // ----------------------------------------------------------
 // Saastamoinen troposphere delay model
@@ -440,7 +670,7 @@ double ionosphereBroadcast(double time, const Eigen::Vector3d& ecef,
 double ionosphereDualFrequency(
   const Observation& obs_1, const Observation& obs_2)
 {
-  return (obs_1.pesudorange - obs_2.pesudorange) / 
+  return (obs_1.pseudorange - obs_2.pseudorange) / 
          (1 - square(obs_2.wavelength / obs_1.wavelength));
 }
 
@@ -490,6 +720,61 @@ double satelliteAzimuth(
   ecef2enu(pos, rr.data(), enu);
 
   return atan2(enu[0], enu[1]);
+}
+
+// Melbourne-Wubbena (MW) combination
+double combinationMW(const Observation& observation_1,
+                     const Observation& observation_2)
+{
+  double P1 = observation_1.pseudorange;
+  double P2 = observation_2.pseudorange;
+  double L1 = observation_1.phaserange;
+  double L2 = observation_2.phaserange;
+  double lam1 = observation_1.wavelength;
+  double lam2 = observation_2.wavelength;
+
+  double mw = (L1 * lam2 - L2 * lam1) / (lam2 - lam1) - 
+              (P1 * lam2 + P2 * lam1) / (lam2 + lam1);
+  return mw;
+}
+
+// Geometry Free (GF) combination
+double combinationGF(const Observation& observation_1,
+                     const Observation& observation_2)
+{
+  double L1 = observation_1.phaserange;
+  double L2 = observation_2.phaserange;
+
+  double gf = L1 - L2;
+  return gf;
+}
+
+// Solve integer ambiguity by LAMBDA
+bool solveAmbiguityLambda(const Eigen::VectorXd& float_ambiguities,
+                          const Eigen::MatrixXd& covariance, 
+                          const double ratio_threshold, 
+                          Eigen::VectorXd& fixed_ambiguities)
+{
+  CHECK(float_ambiguities.size() == covariance.cols());
+  CHECK(covariance.rows() == covariance.cols());
+
+  const int length = float_ambiguities.size();
+  fixed_ambiguities.resize(length);
+  fixed_ambiguities.setZero();
+  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> 
+    fixed_template = Eigen::MatrixXd::Zero(length, 2);
+  Eigen::Vector2d residuals;
+  // Lambda search
+  lambda(float_ambiguities.size(), 2, float_ambiguities.data(), 
+         covariance.data(), fixed_template.data(), residuals.data());
+  double ratio = residuals[0] > 0 ? (residuals[1] / residuals[0]) : 0.0;
+  
+  // Check ratio
+  if (ratio > ratio_threshold) {
+    fixed_ambiguities = fixed_template.leftCols(1);
+    return true;
+  }
+  else return false;
 }
 
 }

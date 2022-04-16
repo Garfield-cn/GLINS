@@ -35,7 +35,7 @@ StreamHandle::StreamHandle(YAML::Node& node)
     }
 
     std::string io_type_str;
-    if (!YAML::safeGet(it["formator"], "io", &io_type_str)) {
+    if (!option_tools::safeGet(it["formator"], "io", &io_type_str)) {
       LOG(ERROR) << "Unable to load formator I/O type!";
       continue;
     }
@@ -44,13 +44,13 @@ StreamHandle::StreamHandle(YAML::Node& node)
     if (io_type != StreamIOType::Input) continue;
 
     std::string formator_tag;
-    if (!YAML::safeGet(it["formator"], "tag", &formator_tag)) {
+    if (!option_tools::safeGet(it["formator"], "tag", &formator_tag)) {
       LOG(ERROR) << "Unable to load formator tag!";
       continue;
     }
 
     std::vector<std::string> formator_roles;
-    if (!YAML::safeGet(it["formator"], "role", &formator_roles)) {
+    if (!option_tools::safeGet(it["formator"], "role", &formator_roles)) {
       LOG(ERROR) << "Unable to load formator role!";
       continue;
     }
@@ -64,15 +64,15 @@ StreamHandle::StreamHandle(YAML::Node& node)
   bool enable_replay = false;
   StreamerReplayOptions replay_options;
   if (!node["replay"].IsDefined() || 
-      !YAML::safeGet(node["replay"], "enable", &enable_replay)) {
+      !option_tools::safeGet(node["replay"], "enable", &enable_replay)) {
     LOG(INFO) << "Unable to load replay options. Disable replay!";
   }
   if (enable_replay) {
-    if (!YAML::safeGet(node["replay"], "speed", &replay_options.speed)) {
+    if (!option_tools::safeGet(node["replay"], "speed", &replay_options.speed)) {
       LOG(INFO) << "Unable to load replay speed! Using default instead";
       replay_options.speed = 1.0;
     }
-    if (!YAML::safeGet(node["replay"], "start-offset", 
+    if (!option_tools::safeGet(node["replay"], "start-offset", 
         &replay_options.start_offset)) {
       LOG(INFO) << "Unable to load replay start offset! Using default instead";
       replay_options.start_offset = 0.0;
@@ -244,20 +244,54 @@ void StreamHandle::handleGNSS(const std::string& tag,
       int code_type = obs->data[i].code[j];
       double freq = sat2freq(obs->data[i].sat, code_type, nav);
       observation.wavelength = CLIGHT / freq;
-      observation.pesudorange = obs->data[i].P[j];
+      observation.pseudorange = obs->data[i].P[j];
       observation.phaserange = obs->data[i].L[j] * observation.wavelength;
       observation.doppler = -obs->data[i].D[j] * observation.wavelength;
       observation.SNR = obs->data[i].SNR[j] * 1.0e-3;
       observation.LLI = obs->data[i].LLI[j];
       observation.slip = observation.LLI;
-      double cbias = nav->ssr[obs->data[i].sat - 1].cbias[obs->data[i].code[j] - 1];
-      if (fabs(cbias) > 100.0) cbias = 0.0;
-      observation.code_bias = cbias;
-      observation.phase_bias = 0.0;
       satellite.observations.insert(std::make_pair(code_type, observation));
     }
+
+    // TODO: Read files to get DCBs
+
+    // Biases
+    for (int j = 0; j < MAXCODE; j++) {
+      // code bias
+      double cbias = nav->ssr[obs->data[i].sat - 1].cbias[j];
+      if (cbias != 0.0) {
+        // relative to a common reference
+        std::pair<int, int> code_pair = std::make_pair(0, i + 1);
+        satellite.DCBs.insert(std::make_pair(code_pair, cbias));
+      }
+
+      // phase bias
+      double pbias = nav->ssr[obs->data[i].sat - 1].pbias[j];
+      if (pbias != 0.0) {
+        std::pair<int, int> code_pair = std::make_pair(0, i + 1);
+        satellite.DPBs.insert(std::make_pair(code_pair, pbias));
+      }
+    }
+
+    // time group delay
+    if (satellite.getSystem() == 'R') {
+      for (int j = 0; j < nav->ng; j++) {
+        if (nav->geph[j].sat == obs->data[i].sat) {
+          satellite.TGDs[0] = -nav->geph[j].dtaun * CLIGHT;
+        }
+      }
+    }
+    else {
+      for (int j = 0; j < nav->n; j++) {
+        if (nav->eph[j].sat == obs->data[i].sat) {
+          for (int k = 0; k < 6; k++) {
+            satellite.TGDs[k] = nav->eph[j].tgd[k] * CLIGHT;
+          }
+        }
+      }
+    }
     
-    epoch.satellites.push_back(satellite);
+    epoch.satellites.insert(std::make_pair(satellite.prn, satellite));
   }
   free(rs); free(dts); free(var);
   free(rs_ssr); free(dts_ssr); free(var_ssr);
@@ -278,6 +312,9 @@ void StreamHandle::handleGNSS(const std::string& tag,
 
   // Troposphere
   epoch.troposphere_wet = 0.0;
+
+  // Delete duplicated phase observations
+  gnss_common::deleteDuplicatePhases(epoch);
 
   // Call GNSS observation processor
   gnss_callback_(epoch);

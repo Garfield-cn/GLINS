@@ -1,5 +1,5 @@
 /**
-* @Function: Pseudorange residual block for ceres backend
+* @Function: Single-differenced (between stations) phase-range residual block for ceres backend
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -20,16 +20,16 @@
 
 namespace gici {
 
-// pseudorange error
+// Single-differenced phase-range error
 // The parameter blocks Ns are indefinite, which enables user to flexibly estimate 
 // different groups of parameters, including:
-// Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
+// Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1), P3. ambiguity (1)
 // Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
-//          in body frame (3), P3. receiver clock (1)
-// Group 3: Group 1 + P3. troposphere delay (1), P4. ionosphere delay (1)
-// Group 4: Group 2 + P4. troposphere delay (1), P5. ionosphere delay (1)
+//          in body frame (3), P3. receiver clock (1), P4. ambiguity (1)
+// Group 3: Group 1 + P4. troposphere delay (1), P5. ionosphere delay (1)
+// Group 4: Group 2 + P5. troposphere delay (1), P6. ionosphere delay (1)
 template<int... Ns>
-class PseudorangeError :
+class PhaserangeErrorSD :
     public ceres::SizedCostFunction<
     1 /* number of residuals */,
     Ns ... /* parameter blocks */>,
@@ -51,36 +51,35 @@ class PseudorangeError :
   typedef double covariance_t;
 
   /// \brief Default constructor.
-  PseudorangeError();
+  PhaserangeErrorSD();
 
   /// \brief Construct with measurement and information matrix
-  /// @param[in] measurement The measurement.
-  /// @param[in] index Index of current satellite.
+  /// @param[in] measurement_rov The measurement of rover.
+  /// @param[in] measurement_ref The measurement of reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeError(const GNSSMeasurement& measurement,
-                   const GNSSMeasurementIndex index,
-                   const GNSSErrorParameter& error_parameter);
+  PhaserangeErrorSD(const GNSSMeasurement& measurement_rov,
+                    const GNSSMeasurement& measurement_ref,
+                    const GNSSMeasurementIndex index_rov,
+                    const GNSSMeasurementIndex index_ref,
+                    const GNSSErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
-  virtual ~PseudorangeError() {}
+  virtual ~PhaserangeErrorSD() {}
 
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement)
+  void setMeasurement(const GNSSMeasurement& measurement_rov,
+                      const GNSSMeasurement& measurement_ref)
   {
-    measurement_ = measurement;
+    measurement_rov_ = measurement_rov;
+    measurement_ref_ = measurement_ref;
   }
 
   // Set coordinate for ENU to ECEF convertion
   void setCoordinate(const GeoCoordinatePtr& coordinate) {
     coordinate_ = coordinate;
   }
-
-  // getters
-  /// \brief Get the measurement.
-  /// \return The measurement vector.
-  const GNSSMeasurement& measurement() const { return measurement_; }
 
   // error term and Jacobian implementation
   /**
@@ -122,13 +121,13 @@ class PseudorangeError :
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const
   {
-    return ErrorType::kPseudorangeError;
+    return ErrorType::kPhaserangeErrorSD;
   }
 
  protected:
-  GNSSMeasurement measurement_; ///< The measurement.
-  Satellite satellite_;
-  Observation observation_;
+  GNSSMeasurement measurement_rov_, measurement_ref_; ///< The measurement.
+  Satellite satellite_rov_, satellite_ref_;
+  Observation observation_rov_, observation_ref_;
 
   // weighting related
   GNSSErrorParameter error_parameter_;
@@ -146,10 +145,10 @@ class PseudorangeError :
 };
 
 // Explicitly instantiate template classes
-template class PseudorangeError<3, 1>;  // Group 1
-template class PseudorangeError<7, 3, 1>;  // Group 2
-template class PseudorangeError<3, 1, 1, 1>;  // Group 3
-template class PseudorangeError<7, 3, 1, 1, 1>;  // Group 4
+template class PhaserangeErrorSD<3, 1, 1>;  // Group 1
+template class PhaserangeErrorSD<7, 3, 1, 1>;  // Group 2
+template class PhaserangeErrorSD<3, 1, 1, 1, 1>;  // Group 3
+template class PhaserangeErrorSD<7, 3, 1, 1, 1, 1>;  // Group 4
 
 }  
 

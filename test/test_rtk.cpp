@@ -9,20 +9,25 @@
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
 #include "gici/gnss/spp_estimator.h"
+#include "gici/gnss/rtk_estimator.h"
 
 using namespace gici;
 
-GNSSMeasurement gnss_measurement_;
-bool measurement_updated_ = false;
+GNSSMeasurement gnss_measurement_rov_;
+GNSSMeasurement gnss_measurement_ref_;
+bool measurement_updated_rov_ = false;
+bool measurement_updated_ref_ = false;
 
 void gnssCallback(GNSSMeasurement& data)
 {
-  LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
-  
-  if (data.role != GNSSRole::Rover) return;
-  if (!measurement_updated_) {
-    gnss_measurement_ = data;
-    measurement_updated_ = true;
+  if (!measurement_updated_rov_ && data.role == GNSSRole::Rover) {
+    gnss_measurement_rov_ = data;
+    measurement_updated_rov_ = true;
+  }
+
+  if (!measurement_updated_ref_ && data.role == GNSSRole::Reference) {
+    gnss_measurement_ref_ = data;
+    measurement_updated_ref_ = true;
   }
 }
 
@@ -44,10 +49,10 @@ int main(void)
 
   initializeSignalHandles();
 
-  SPPEstimatorOptions spp_estimator_options;
-  spp_estimator_options.verbose = true;
-  // spp_estimator_options.system_exclude.push_back('C');
-  SPPEstimator estimator(spp_estimator_options);
+  RTKEstimatorOptions estimator_options;
+  estimator_options.verbose = true;
+  // estimator_options.system_exclude.push_back('C');
+  RTKEstimator estimator(estimator_options);
 
   YAML::Node stream_config = config["stream"];
   StreamHandle stream_handle(stream_config);
@@ -62,19 +67,27 @@ int main(void)
   SpinControl spin(1e-3);
   while (SpinControl::ok()) {
 
-    if (measurement_updated_) {
-      if (estimator.addGNSSMeasurementAndState(gnss_measurement_)) {
+    if (measurement_updated_rov_ && measurement_updated_ref_) {
+      // For the first epoch, we add a position prior
+      if (estimator.isFirstEpoch() && 
+          !SPPEstimator::setCoarsePosition(gnss_measurement_rov_)) {
+        measurement_updated_rov_ = false;
+        measurement_updated_ref_ = false;
+        continue;
+      }
+
+      if (estimator.addGNSSMeasurementAndState(
+          gnss_measurement_rov_, gnss_measurement_ref_)) {
         estimator.optimize();
         Eigen::Vector3d position = estimator.getPositionEstimate();
-        Eigen::Vector2d clock;
-        clock(0) = estimator.getClockEstimate('G');
-        clock(1) = estimator.getClockEstimate('C');
-        LOG(INFO) << std::fixed << position.transpose() << "  " << clock.transpose();
+        LOG(INFO) << std::fixed << std::setprecision(9) << gnss_measurement_rov_.timestamp 
+                  << " " << std::fixed << position.transpose() << std::endl;
         outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::app);
         outfile << std::fixed << position.transpose() << std::endl;
         outfile.close();
       }
-      measurement_updated_ = false;
+      measurement_updated_rov_ = false;
+      measurement_updated_ref_ = false;
     }
 
     spin.sleep();

@@ -31,6 +31,7 @@
  *      Author: Stefan Leutenegger (s.leutenegger@imperial.ac.uk)
  *    Modified: Andreas Forster (an.forster@gmail.com)
  *    Modified: Zurich Eye
+ *    Modified: Cheng Chi
  *********************************************************************************/
 
 /**
@@ -790,6 +791,66 @@ Graph::ParameterBlockCollection Graph::parameters(
   }
   return it->second;
 }
+
+// Get covariance estimation of given parameter blocks
+bool Graph::computeCovariance(
+    const std::vector<uint64_t>& parameter_block_ids,
+    Eigen::MatrixXd& covariance)
+{
+  // Get parameters
+  std::vector<const double*> parameters;
+  std::vector<size_t> parameter_block_sizes;
+  std::vector<size_t> parameter_block_starts;
+  size_t parameter_size = 0;
+  for (size_t i = 0; i < parameter_block_ids.size(); i++) {
+    auto it = id_to_parameter_block_map_.find(parameter_block_ids[i]);
+    if (it == id_to_parameter_block_map_.end()) {
+      LOG(ERROR) << "Parameter block does not exist!";
+      return false;
+    }
+    auto& parameter_block = it->second;
+    parameters.push_back(parameter_block->parameters());
+    parameter_block_sizes.push_back(parameter_block->dimension());
+    parameter_block_starts.push_back(parameter_size);
+    parameter_size += parameter_block->dimension();
+  }
+
+  // Make pairs
+  std::vector<std::pair<const double*, const double*> > covariance_blocks;
+  for (size_t i = 0; i < parameters.size(); i++) {
+    for (size_t j = i; j < parameters.size(); j++) {
+      covariance_blocks.push_back(std::make_pair(parameters[i], parameters[j]));
+    }
+  }
+
+  // Compute covariance
+  ceres::Covariance::Options options;
+  ceres::Covariance covariance_handle(options);
+  if (!covariance_handle.Compute(covariance_blocks, problem_.get())) {
+    LOG(ERROR) << "Failed to compute covariance!";
+    return false;
+  }
+
+  // Get covariance
+  covariance.resize(parameter_size, parameter_size);
+  for (size_t i = 0; i < parameters.size(); i++) {
+    for (size_t j = i; j < parameters.size(); j++) {
+      size_t size_i = parameter_block_sizes[i];
+      size_t size_j = parameter_block_sizes[j];
+      size_t start_i = parameter_block_starts[i];
+      size_t start_j = parameter_block_starts[j];
+      const double* para_i = parameters[i];
+      const double* para_j = parameters[j];
+      Eigen::MatrixXd cov_i_j = Eigen::MatrixXd::Zero(size_i, size_j);
+      covariance_handle.GetCovarianceBlock(para_i, para_j, cov_i_j.data());
+      covariance.block(start_i, start_j, size_i, size_j) = cov_i_j;
+      covariance.block(start_j, start_i, size_j, size_i) = cov_i_j.transpose();
+    }
+  }
+
+  return true;
+}
+
 
 }  //namespace gici
 

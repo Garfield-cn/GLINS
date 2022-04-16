@@ -15,7 +15,7 @@ void gnssCallback(gici::GNSSMeasurement& data)
   int n_data = 0, n_precise = 0;
   for (auto it_j : data.satellites) {
     n_data++;
-    if (it_j.sat_type == gici::SatEphType::Precise) n_precise++;
+    if (it_j.second.sat_type == gici::SatEphType::Precise) n_precise++;
   }
   // LOG(INFO) << "n_data = " << n_data << ", n_precise = " << n_precise;
 }

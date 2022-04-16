@@ -56,25 +56,27 @@ public:
   Eigen::Vector3d getPositionEstimate();
 
   // Get Satellite clock
-  double getClockEstimate(const char system, double& clock);
+  double getClockEstimate(const char system);
+
+  // Correct DCB (or TGD)
+  void correctDCB(GNSSMeasurement& measurement);
 
   // Compute and set coarse position on measurement
   static bool setCoarsePosition(GNSSMeasurement& measurement);
 
 private:
-  // Check observation valid
-  bool checkObservationValid(const GNSSMeasurement& measurement,
-                             const GNSSMeasurementIndex& index);
-
   // Graph that handles residuals and states
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
   SPPEstimatorOptions options_;
 
-  // loss function for reprojection errors
+  // loss function
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
   std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+
+  // Measurement
+  GNSSMeasurement measurement_;
 
   // States
   State current_state_;

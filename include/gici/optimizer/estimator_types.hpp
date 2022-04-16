@@ -47,6 +47,7 @@
 #include <glog/logging.h>
 
 #include "gici/utility/svo.h"
+#include "gici/utility/rtklib_safe.h"
 
 namespace gici {
 
@@ -67,79 +68,116 @@ enum class IdType : uint8_t
   gIonosphere = 10
 };
 
-//! The Backend ID for multiple types.
-//! Memory layout for types {Frame, IMU state, GNSS position}:
-//! Byte 0: IdType
-//! Byte 1: zero
-//! Byte 2-5: BundleID
-//! Byte 6-7: zero
-//!
-//! For Extrinsics
-//! Byte 0: IdType
-//! Byte 1: CameraIdx
-//! Byte 2-5: BundleID
-//! Byte 6-7: zero
-//!
-//! For Landmarks
-//! Byte 0: IdType
-//! Byte 1-3: zero
-//! Byte 4-7: 32 bit Track ID
-//!
-//! For GNSS clock
-//! Byte 0: IdType
-//! Byte 1: GNSS system
-//! Byte 2-5: BundleID
-//! Byte 6-7: zero
+// The BackendID for multiple types
+// bit 0-5:   IdType
+// bit 6-13:  CameraIdx, GNSS system
+// bit 14-21: GNSS PRN number
+// bit 22-49: BundleID
+// bit 50-55: GNSS PhaseID
+// bit 32-63: Landmark ID
+#define BITS_IDTYPE 0, 5
+#define BITS_CAMERA_IDX 6, 13
+#define BITS_GNSS_SYSTEM 6, 13
+#define BITS_GNSS_PRN 14, 21
+#define BITS_BUNDLEID 22, 49
+#define BITS_GNSS_PHASEID 50, 55
+#define BITS_LANDMARKID 32, 63
 class BackendId
 {
 public:
   BackendId() = default;
   explicit BackendId(uint64_t id) : id_(id) {}
 
-  uint64_t asInteger() const
-  {
+  // Get bits
+  inline static uint32_t getBits(uint64_t id, int start, int end) {
+    int length = end - start + 1;
+    uint8_t buffer[8];
+    for (int i = 0; i < 8; i++) {
+      buffer[i] = (id >> (8 * (7 - i))) & 0xFF;
+    }
+    return getbitu(buffer, start, length);
+  }
+
+  // Set bits
+  template<typename T> 
+  inline static uint64_t setBits(T data, int start, int end) {
+    int length = end - start + 1;
+    uint32_t bits = static_cast<uint32_t>(data);
+    uint64_t id = 0;
+    uint8_t buffer[8];
+    memset(buffer, 0, sizeof(uint8_t) * 8);
+    setbitu(buffer, start, length, bits);
+    for (int i = 0; i < 8; i++) {
+      uint64_t byte = static_cast<uint64_t>(buffer[i]) << (8 * (7 - i));
+      id += byte;
+    }
+    return id;
+  }
+
+  // Reset some bits
+  template<typename T> 
+  inline static uint64_t resetBits(
+    uint64_t id, T data, int start, int end) {
+    int length = end - start + 1;
+    uint32_t bits = static_cast<uint32_t>(data);
+    uint64_t out_id = 0;
+    uint8_t buffer[8];
+    for (int i = 0; i < 8; i++) {
+      buffer[i] = (id >> (8 * (7 - i))) & 0xFF;
+    }
+    setbitu(buffer, start, length, bits);
+    for (int i = 0; i < 8; i++) {
+      uint64_t byte = static_cast<uint64_t>(buffer[i]) << (8 * (7 - i));
+      out_id |= byte;
+    }
+    return out_id;
+  }
+
+  inline uint64_t asInteger() const {
     return id_;
   }
 
-  IdType type() const
-  {
-    // The first byte represents the type.
-    return static_cast<IdType>(id_ >> 56);
+  inline IdType type() const {
+    return static_cast<IdType>(getBits(id_, BITS_IDTYPE));
   }
 
-  int32_t bundleId() const
-  {
+  inline int32_t bundleId() const {
     CHECK(type() != IdType::cLandmark)
         << "Landmarks do not have a bundle ID.";
-    // The bundle ID is byte 2 -> 6 in id.
-    return static_cast<int32_t>((id_ >> 16) & 0xFFFFFFFF);
+    return static_cast<int32_t>(getBits(id_, BITS_BUNDLEID));
   }
 
-  uint32_t trackId() const
-  {
+  inline uint32_t trackId() const {
     CHECK(type() == IdType::cLandmark);
-    // In case of a landmark, the last 4 bytes are the track ID.
-    return static_cast<uint32_t>(id_ & 0xFFFFFFFF);
+    return static_cast<uint32_t>(getBits(id_, BITS_LANDMARKID));
   }
 
-  uint16_t nFrameHandle() const
-  {
-    CHECK(type() == IdType::cNFrame ||
-                type() == IdType::ImuStates ||
-                type() == IdType::cExtrinsics);
-    // In case of an NFrame, the last 2 bytes are the handle.
-    return static_cast<uint16_t>(id_ & 0xFFFF);
-  }
-
-  uint8_t cameraIndex() const
-  {
+  inline uint8_t cameraIndex() const {
     CHECK(type() == IdType::cExtrinsics);
-   // The second byte is the camara index.
-    return static_cast<uint8_t>((id_ >> 48) & 0x00000FF);
+    return static_cast<uint8_t>(getBits(id_, BITS_CAMERA_IDX));
   }
 
-  bool valid() const
-  {
+  inline char gSystem() const {
+    return static_cast<char>(getBits(id_, BITS_GNSS_SYSTEM));
+  }
+
+  inline int gPrnNumber() const {
+    return static_cast<int>(getBits(id_, BITS_GNSS_PRN));
+  }
+
+  inline std::string gPrn() const {
+    char system = gSystem();
+    int prn_number = gPrnNumber();
+    char prn_buf[4];
+    sprintf(prn_buf, "%c%02d", system, prn_number);
+    return std::string(prn_buf);
+  }
+
+  inline int gPhaseId() const {
+    return static_cast<int>(getBits(id_, BITS_GNSS_PHASEID));
+  }
+
+  inline bool valid() const {
     return id_ != 0;
   }
 
@@ -150,47 +188,65 @@ private:
 // Factories
 inline BackendId createLandmarkId(int track_id)
 {
-  return BackendId(static_cast<uint64_t>(track_id) |
-                   (static_cast<uint64_t>(IdType::cLandmark) << 56));
+  return BackendId(
+    BackendId::setBits(track_id, BITS_LANDMARKID) |
+    BackendId::setBits(IdType::cLandmark, BITS_IDTYPE));
 }
 
 inline BackendId createNFrameId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
-  return BackendId((static_cast<uint64_t>(bundle_id) << 16) |
-                   (static_cast<uint64_t>(IdType::cNFrame) << 56));
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(IdType::cNFrame, BITS_IDTYPE));
 }
 
 inline BackendId createGNSSPositionId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
-  return BackendId((static_cast<uint64_t>(bundle_id) << 16) |
-                   (static_cast<uint64_t>(IdType::gPosition) << 56));
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(IdType::gPosition, BITS_IDTYPE));
 }
 
 inline BackendId createGNSSClockId(char system,
                                    int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
-  return BackendId((static_cast<uint64_t>(
-                      static_cast<uint32_t>(bundle_id)) << 16) |
-                   (static_cast<uint64_t>(system) << 48) |
-                   (static_cast<uint64_t>(IdType::cExtrinsics) << 56));
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(system, BITS_GNSS_SYSTEM) |
+    BackendId::setBits(IdType::gClock, BITS_IDTYPE));
+}
+
+inline BackendId createGNSSAmbiguityId(std::string prn,
+                  int phase_id, int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  CHECK_GE(phase_id, 0);
+  char system = prn[0];
+  int prn_number = atoi(prn.substr(1, 2).data());
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(system, BITS_GNSS_SYSTEM) |
+    BackendId::setBits(prn_number, BITS_GNSS_PRN) |
+    BackendId::setBits(phase_id, BITS_GNSS_PHASEID) |
+    BackendId::setBits(IdType::gAmbiguity, BITS_IDTYPE));
 }
 
 inline BackendId createExtrinsicsId(uint8_t camera_index,
                                     int32_t bundle_id){
-  return BackendId((static_cast<uint64_t>(
-                      static_cast<uint32_t>(bundle_id)) << 16) |
-                   (static_cast<uint64_t>(camera_index) << 48) |
-                   (static_cast<uint64_t>(IdType::cExtrinsics) << 56));
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) | 
+    BackendId::setBits(camera_index, BITS_CAMERA_IDX) |
+    BackendId::setBits(IdType::cExtrinsics, BITS_IDTYPE));
 }
 
 inline BackendId createImuStateId(int32_t bundle_id)
 {
-  return BackendId((static_cast<uint64_t>(
-                      static_cast<uint32_t>(bundle_id)) << 16) |
-                   (static_cast<uint64_t>(IdType::ImuStates) << 56));
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) | 
+    BackendId::setBits(IdType::ImuStates, BITS_IDTYPE));
 }
 
 inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
@@ -198,19 +254,42 @@ inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
   CHECK(id.type() != IdType::cLandmark);
   CHECK(type != IdType::cLandmark);
   CHECK(cam_index == 0 || type == IdType::cExtrinsics);
-  // Last 6 bytes remain the same.
-  return BackendId((id.asInteger() & 0xFFFFFFFFFFFF) |
-                   (static_cast<uint64_t>(cam_index) << 48) |
-                   (static_cast<uint64_t>(type) << 56));
+  uint64_t out = id.asInteger();
+  out = BackendId::resetBits(out, cam_index, BITS_CAMERA_IDX);
+  out = BackendId::resetBits(out, type, BITS_IDTYPE);
+  return BackendId(out);
 }
 
 inline BackendId changeIdType(BackendId id, IdType type, const char system)
 {
-  CHECK(id.type() != IdType::gPosition);
-  // Last 6 bytes remain the same.
-  return BackendId((id.asInteger() & 0xFFFFFFFFFFFF) |
-                   (static_cast<uint64_t>(system) << 48) |
-                   (static_cast<uint64_t>(type) << 56));
+  CHECK(id.type() != IdType::gClock);
+  CHECK(type == IdType::gClock);
+  uint64_t out = id.asInteger();
+  out = BackendId::resetBits(out, system, BITS_GNSS_SYSTEM);
+  out = BackendId::resetBits(out, type, BITS_IDTYPE);
+  return BackendId(out);
+}
+
+inline bool sameAmbiguity(const BackendId& lhs, const BackendId& rhs)
+{
+  CHECK(BackendId::getBits(lhs.asInteger(), BITS_IDTYPE) == 
+        static_cast<uint32_t>(IdType::gAmbiguity));
+  CHECK(BackendId::getBits(rhs.asInteger(), BITS_IDTYPE) == 
+        static_cast<uint32_t>(IdType::gAmbiguity));
+  
+  uint32_t sys_lhs = BackendId::getBits(lhs.asInteger(), BITS_GNSS_SYSTEM);
+  uint32_t sys_rhs = BackendId::getBits(rhs.asInteger(), BITS_GNSS_SYSTEM);
+  if (sys_lhs != sys_rhs) return false;
+
+  uint32_t prn_lhs = BackendId::getBits(lhs.asInteger(), BITS_GNSS_PRN);
+  uint32_t prn_rhs = BackendId::getBits(rhs.asInteger(), BITS_GNSS_PRN);
+  if (prn_lhs != prn_rhs) return false;
+
+  uint32_t phase_lhs = BackendId::getBits(lhs.asInteger(), BITS_GNSS_PHASEID);
+  uint32_t phase_rhs = BackendId::getBits(rhs.asInteger(), BITS_GNSS_PHASEID);
+  if (phase_lhs != phase_rhs) return false;
+
+  return true;
 }
 
 // Comparison operator for use in maps.
@@ -239,46 +318,5 @@ inline std::ostream& operator<<(std::ostream& out, const BackendId& id)
   out << std::hex << id.asInteger() << std::dec;
   return out;
 }
-
-//------------------------------------------------------------------------------
-/**
- * @brief A type to store information about a point in the world graph.
- */
-struct MapPoint
-{
-  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-  /// \brief Default constructor. Point is nullptr.
-  MapPoint()
-      : point(nullptr), fixed_position(false)
-  {}
-  /**
-   * @brief Constructor.
-   * @param point     Pointer to underlying gici::Point
-   */
-  MapPoint(const PointPtr& point)
-    : point(point), fixed_position(false)
-  {
-    hom_coordinates << point->pos(), 1;
-  }
-
-  Eigen::Vector4d hom_coordinates; ///< Continuosly updates position of point
-
-
-  //! Pointer to the point. The position is not updated inside backend
-  //! because of possible multithreading conflicts.
-  PointPtr point;
-
-  //! Observations of this point. The uint64_t's are the casted
-  //! ceres::ResidualBlockId values of the reprojection error residual block.
-  std::map<KeypointIdentifier, uint64_t> observations;
-
-  //! Is the point position fixed by a loop closure?
-  bool fixed_position;
-};
-
-typedef std::vector<MapPoint, Eigen::aligned_allocator<MapPoint> > MapPointVector;
-typedef std::map<BackendId, MapPoint, std::less<BackendId>,
-  Eigen::aligned_allocator<std::pair<const BackendId, MapPoint>> > PointMap;
 
 } // namespace gici

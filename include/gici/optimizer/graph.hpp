@@ -30,6 +30,7 @@
  *  Created on: Sep 8, 2013
  *      Author: Stefan Leutenegger (s.leutenegger@imperial.ac.uk)
  *    Modified: Zurich Eye
+ *    Modified: Cheng Chi
  *********************************************************************************/
 
 /**
@@ -399,7 +400,11 @@ class Graph
     Solve(options, problem_.get(), &summary);
   }
 
- protected:
+  // Get covariance estimation of given parameter blocks
+  bool computeCovariance(const std::vector<uint64_t>& parameter_block_ids,
+                         Eigen::MatrixXd& covariance);
+
+ public:
 
   /// \brief count the inserted residual blocks.
   uint64_t residual_counter_;

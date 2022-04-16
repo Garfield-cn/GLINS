@@ -248,12 +248,12 @@ extern void updateStreamData(int ret, obs_t *obs, nav_t *nav,
 
 // Load option with info
 #define LOAD_COMMON(opt) \
-  if (!YAML::safeGet(node, #opt, &config.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &config.opt)) { \
   LOG(INFO) << __FUNCTION__ << ": Unable to load " << #opt \
          << ". Using default instead."; }
 // Load option with fatal error
 #define LOAD_REQUIRED(opt) \
-  if (!YAML::safeGet(node, #opt, &config.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &config.opt)) { \
   LOG(FATAL) << __FUNCTION__ << ": Unable to load " << #opt << "!"; }
 
 // RTCM 2 ----------------------------------------------------

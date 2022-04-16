@@ -49,6 +49,12 @@ inline double radToDegree(double rad) {
   return rad * R2D;
 }
 
+// Get a phase ID
+// Note that we use "phase" to represent phase channels, which is not one-to-one 
+// correspondence to "wavelength" or "frequency", because the signal chanel like 
+// GPS L2C and L2W has the same frequency, but are two different phase channels.
+int getPhaseID(char system, int code, double wavelength);
+
 // ----------------------------------------------------------
 // Check whether the system is used
 bool useSystem(GNSSCommonOptions options, const char system);
@@ -57,11 +63,33 @@ bool useSystem(GNSSCommonOptions options, const char system);
 bool useSatellite(GNSSCommonOptions options, const std::string prn);
 
 // Check whether the code type is used
-bool useCode(GNSSCommonOptions options, const int code_type);
+bool useCode(GNSSCommonOptions options, char system, const int code_type);
 
 // Check elevation threshold
 bool checkElevation(GNSSCommonOptions options, 
-  const GNSSMeasurement& measurement, size_t satellite_index);
+  const GNSSMeasurement& measurement, std::string prn);
+
+// One phase corresponds to muitiple code type, so we need to delete
+// duplicated phases
+void deleteDuplicatePhases(GNSSMeasurement& measurement);
+
+// Check observation valid
+bool checkObservationValid(const GNSSMeasurement& measurement,
+                           const GNSSMeasurementIndex& index,
+                           const GNSSObservationType type, 
+                           const GNSSCommonOptions options = GNSSCommonOptions());
+
+// Form single difference pseudorange pair
+GNSSMeasurementIndexPairs formPseudorangePair(
+                            const GNSSMeasurement& measurement_rov, 
+                            const GNSSMeasurement& measurement_ref,
+                            const GNSSCommonOptions options = GNSSCommonOptions());
+
+// Form single difference phaserange pair
+GNSSMeasurementIndexPairs formPhaserangePair(
+                            const GNSSMeasurement& measurement_rov, 
+                            const GNSSMeasurement& measurement_ref,
+                            const GNSSCommonOptions options = GNSSCommonOptions());
 
 // ----------------------------------------------------------
 // Saastamoinen troposphere delay model
@@ -106,6 +134,20 @@ double satelliteElevation(
 // Satellite azimuth angle
 double satelliteAzimuth(
   const Eigen::Vector3d satellite_ecef, const Eigen::Vector3d receiver_ecef);
+
+// Melbourne-Wubbena (MW) combination
+double combinationMW(const Observation& observation_1,
+                     const Observation& observation_2);
+
+// Geometry Free (GF) combination
+double combinationGF(const Observation& observation_1,
+                     const Observation& observation_2);
+
+// Solve integer ambiguity by LAMBDA
+bool solveAmbiguityLambda(const Eigen::VectorXd& float_ambiguities,
+                          const Eigen::MatrixXd& covariance, 
+                          const double ratio_threshold, 
+                          Eigen::VectorXd& fixed_ambiguities);
 
 }
 

@@ -20,7 +20,7 @@ enum class CommonParameterBlockType {
 };
 
 /// \brief Wraps the parameter block for a common n dimension estimate
-template<int Dim_, CommonParameterBlockType Type_>
+template<int Dim, CommonParameterBlockType Type>
 class CommonParameterBlock : public ParameterBlock
 {
  public:
@@ -28,8 +28,8 @@ class CommonParameterBlock : public ParameterBlock
 
   typedef Eigen::VectorXd estimate_t;
 
-  static constexpr size_t c_dimension = Dim_;
-  static constexpr size_t c_minimal_dimension = Dim_;
+  static constexpr size_t c_dimension = Dim;
+  static constexpr size_t c_minimal_dimension = Dim;
 
   /// \brief Default constructor (assumes not fixed).
   CommonParameterBlock(): ParameterBlock::ParameterBlock() {
@@ -79,9 +79,9 @@ class CommonParameterBlock : public ParameterBlock
   virtual void plus(const double* x0, const double* Delta_Chi,
                     double* x0_plus_Delta) const
   {
-    Eigen::Map<const Eigen::VectorXd> x0_(x0, Dim_);
-    Eigen::Map<const Eigen::VectorXd> Delta_Chi_(Delta_Chi, Dim_);
-    Eigen::Map<Eigen::VectorXd> x0_plus_Delta_(x0_plus_Delta, Dim_);
+    Eigen::Map<const Eigen::VectorXd> x0_(x0, Dim);
+    Eigen::Map<const Eigen::VectorXd> Delta_Chi_(Delta_Chi, Dim);
+    Eigen::Map<Eigen::VectorXd> x0_plus_Delta_(x0_plus_Delta, Dim);
     x0_plus_Delta_ = x0_ + Delta_Chi_;
   }
 
@@ -92,7 +92,7 @@ class CommonParameterBlock : public ParameterBlock
                             double* jacobian) const
   {
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 
-      Eigen::Dynamic, Eigen::RowMajor>> identity(jacobian, Dim_, Dim_);
+      Eigen::Dynamic, Eigen::RowMajor>> identity(jacobian, Dim, Dim);
     identity.setIdentity();
   }
 
@@ -106,9 +106,9 @@ class CommonParameterBlock : public ParameterBlock
   virtual void minus(const double* x0, const double* x0_plus_Delta,
                      double* Delta_Chi) const
   {
-    Eigen::Map<const Eigen::VectorXd> x0_(x0, Dim_);
-    Eigen::Map<Eigen::VectorXd> Delta_Chi_(Delta_Chi, Dim_);
-    Eigen::Map<const Eigen::VectorXd> x0_plus_Delta_(x0_plus_Delta, Dim_);
+    Eigen::Map<const Eigen::VectorXd> x0_(x0, Dim);
+    Eigen::Map<Eigen::VectorXd> Delta_Chi_(Delta_Chi, Dim);
+    Eigen::Map<const Eigen::VectorXd> x0_plus_Delta_(x0_plus_Delta, Dim);
     Delta_Chi_ = x0_plus_Delta_ - x0_;
   }
 
@@ -120,7 +120,7 @@ class CommonParameterBlock : public ParameterBlock
                             double* jacobian) const
   {
     Eigen::Map<Eigen::Matrix<double, Eigen::Dynamic, 
-      Eigen::Dynamic, Eigen::RowMajor>> identity(jacobian, Dim_, Dim_);
+      Eigen::Dynamic, Eigen::RowMajor>> identity(jacobian, Dim, Dim);
     identity.setIdentity();
   }
 
@@ -128,7 +128,7 @@ class CommonParameterBlock : public ParameterBlock
   virtual std::string typeInfo() const
   {
 #define PRINT_MAP(x) \
-  if (Type_ == CommonParameterBlockType::x) return std::string(#x) + "ParameterBlock";
+  if (Type == CommonParameterBlockType::x) return std::string(#x) + "ParameterBlock";
     PRINT_MAP(Position);
     PRINT_MAP(Clock);
     PRINT_MAP(Frequency);

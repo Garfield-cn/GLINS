@@ -9,7 +9,10 @@
 #include <iostream>
 #include <vector>
 #include <unordered_map>
+#include <map>
+#include <memory>
 #include <Eigen/Core>
+#include <glog/logging.h>
 
 namespace gici {
 
@@ -37,17 +40,18 @@ enum class IonoType {
   Augmentation
 };
 
+// GNSS systems
+extern std::vector<char> GNSSSystems;
+
 // One code type measurement
 struct Observation {
   double wavelength;
-  double pesudorange;
+  double pseudorange;
   double phaserange;
   double doppler; // in m/s
   double SNR; // Sigal-to-Noise Ratio
   bool LLI; // Loss of Lock Indicator
   bool slip; // Cycle-slip flag
-  double code_bias;
-  double phase_bias;
 };
 
 // One satellite data
@@ -60,6 +64,18 @@ struct Satellite {
   Eigen::Vector3d sat_velocity;
   double sat_clock;
   double sat_frequency;
+
+  // Biases in meter: dbias = bias(pair.second) - bias(pair.first)
+  std::map<std::pair<int, int>, double> DCBs;
+  std::map<std::pair<int, int>, double> DPBs;
+
+  double TGDs[6]; // group delay parameters in meter
+                  // GPS/QZS:tgd[0]=TGD 
+                  // GAL:tgd[0]=BGD_E1E5a,tgd[1]=BGD_E1E5b 
+                  // BDS:tgd[0]=TGD_B1I ,tgd[1]=TGD_B2I/B2b,tgd[2]=TGD_B1Cp 
+                  //     tgd[3]=TGD_B2ap,tgd[4]=ISC_B1Cd   ,tgd[5]=ISC_B2ad 
+                  // GLO:tgd[0]=delay between L1 and L2 (s)
+
   double ionosphere;  // In 1575.42 MHz frequency
   IonoType ionosphere_type;
   
@@ -71,7 +87,20 @@ struct Satellite {
   inline char getSystem(void) const { return prn[0]; }
 };
 
-using Satellites = std::vector<Satellite, Eigen::aligned_allocator<Satellite>>;
+using Satellites = std::map<std::string, Satellite, std::less<std::string>, 
+  Eigen::aligned_allocator<std::pair<const std::string, Satellite>>>;
+
+// Index of observation 
+struct GNSSMeasurementIndex {
+  GNSSMeasurementIndex(std::string prn, int code_type) : 
+    prn(prn), code_type(code_type) {}
+  std::string prn;
+  int code_type;
+};
+
+// Single difference pair
+using GNSSMeasurementIndexPairs = 
+  std::vector<std::pair<GNSSMeasurementIndex, GNSSMeasurementIndex>>;
 
 // GNSS epoch data
 struct GNSSMeasurement {
@@ -88,23 +117,35 @@ struct GNSSMeasurement {
   Eigen::VectorXd ionosphere_parameters;  // GPS broadcast ionosphere parameters
   double troposphere_wet;  // Wet ZTD from augmentation
 
+  inline Satellite& getSat(std::string prn) { 
+    auto it = satellites.find(prn);
+    CHECK(it != satellites.end());
+    return it->second; 
+  }
+  
+  inline Satellite& getSat(GNSSMeasurementIndex index) { 
+    return getSat(index.prn);
+  }
+
+  inline Observation& getObs(GNSSMeasurementIndex index) {
+    Satellite& satellite = getSat(index);
+    auto it = satellite.observations.find(index.code_type);
+    CHECK(it != satellite.observations.end());
+    return it->second;
+  }
+
   static int32_t epoch_cnt_;
 };
 
 using GNSSMeasurements = std::vector<GNSSMeasurement, 
   Eigen::aligned_allocator<GNSSMeasurement>>;
 
-// Index of observation 
-struct GNSSMeasurementIndex {
-  GNSSMeasurementIndex(size_t index, int code) : 
-    satellite_index(index), code_type(code) {}
-  size_t satellite_index;
-  int code_type;
+// Observation type
+enum class GNSSObservationType {
+  Pseudorange,
+  Phaserange,
+  Doppler
 };
-
-// Single difference pair
-using GNSSMeasurementIndexPairs = 
-  std::vector<std::pair<GNSSMeasurementIndex, GNSSMeasurementIndex>>;
 
 // GNSS common options
 struct GNSSCommonOptions {
@@ -118,10 +159,19 @@ struct GNSSCommonOptions {
 
   // Usage of code types
   // In default, we use all code types
-  std::vector<int> code_exclude;
+  std::vector<std::pair<char, int>> code_exclude;
 
   // Minimum elevation angle (deg)
-  double min_elevation = 7.0;
+  double min_elevation = 0.0;
+
+  // Threshold for Melbourne-Wubbena (MW) cycle-slip detection (m)
+  double mw_slip_thres = 0.5;
+
+  // Threshold for Geometry-Free (GF) cycle-slip detection (m)
+  double gf_slip_thres = 0.05;
+
+  // Threshold for single differenced GF cycle-slip detection (m)
+  double gf_sd_slip_thres = 0.05;
 };
 
 // GNSS error factors

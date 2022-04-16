@@ -1,10 +1,19 @@
 # Gici board configurations
 stream:
   streamers:
+#   - streamer:
+#       tag: str-rov
+#       type: file
+#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/rov.rtcm3
+#       enable_time_tag: true
+#       swap_interval: 0
+#       buffer-length: 32768
+#       loop-duration: 1e-2
+#       formator-tags: [gnss-rov]
   - streamer:
       tag: str-rov
       type: file
-      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/rov.rtcm3
+      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref_copy.rtcm3
       enable_time_tag: true
       swap_interval: 0
       buffer-length: 32768
