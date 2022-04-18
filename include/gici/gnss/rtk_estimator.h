@@ -29,10 +29,10 @@ struct RTKEstimatorOptions {
   bool verbose = false;
 
   // Max age to apply difference
-  double max_age = 0.1;
+  double max_age = 20.0;
 
   // State window length
-  int window_length = 3;
+  int window_length = 5;
 
   // GNSS common options
   GNSSCommonOptions common;
@@ -54,8 +54,10 @@ public:
     BackendId id;
     std::vector<BackendId> ambiguity_ids;
     double timestamp = 0.0;
+    GNSSSolutionStatus status = GNSSSolutionStatus::Single;
     void clear() {
-      id = BackendId(0); ambiguity_ids.clear(); timestamp = 0.0;
+      id = BackendId(0); ambiguity_ids.clear(); 
+      timestamp = 0.0; status = GNSSSolutionStatus::Single;
     }
   };
 
@@ -73,8 +75,8 @@ public:
   // Get position in ECEF coordinate
   Eigen::Vector3d getPositionEstimate();
 
-  // Get Satellite clock
-  double getClockEstimate(const char system, double& dclock);
+  // Get solution status
+  GNSSSolutionStatus getSolutionStatus() { return lastState().status; }
 
   // Check if it is the first epoch
   bool isFirstEpoch() { return states_.size() < 2; }

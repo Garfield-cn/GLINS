@@ -21,13 +21,14 @@
 namespace gici {
 
 // Single-differenced pseudorange error
-// The parameter blocks Ns are indefinite, which enables user to flexibly estimate 
-// different groups of parameters, including:
+// The candidate parameter setups are:
 // Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
 // Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
 //          in body frame (3), P3. receiver clock (1)
-// Group 3: Group 1 + P3. troposphere delay (1), P4. ionosphere delay (1)
-// Group 4: Group 2 + P4. troposphere delay (1), P5. ionosphere delay (1)
+// Group 3: Group 1 + P3. troposphere delay at rov (1), P4. troposphere delay at ref (1) 
+//          P5. ionosphere delay (1)
+// Group 4: Group 2 + P4. troposphere delay at rov (1), P5. troposphere delay at ref (1), 
+//          P6. ionosphere delay (1)
 template<int... Ns>
 class PseudorangeErrorSD :
     public ceres::SizedCostFunction<
@@ -147,8 +148,8 @@ class PseudorangeErrorSD :
 // Explicitly instantiate template classes
 template class PseudorangeErrorSD<3, 1>;  // Group 1
 template class PseudorangeErrorSD<7, 3, 1>;  // Group 2
-template class PseudorangeErrorSD<3, 1, 1, 1>;  // Group 3
-template class PseudorangeErrorSD<7, 3, 1, 1, 1>;  // Group 4
+template class PseudorangeErrorSD<3, 1, 1, 1, 1>;  // Group 3
+template class PseudorangeErrorSD<7, 3, 1, 1, 1, 1>;  // Group 4
 
 }  
 

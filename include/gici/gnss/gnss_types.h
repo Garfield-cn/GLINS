@@ -92,15 +92,35 @@ using Satellites = std::map<std::string, Satellite, std::less<std::string>,
 
 // Index of observation 
 struct GNSSMeasurementIndex {
+  GNSSMeasurementIndex() {}
   GNSSMeasurementIndex(std::string prn, int code_type) : 
     prn(prn), code_type(code_type) {}
   std::string prn;
   int code_type;
 };
 
-// Single difference pair
-using GNSSMeasurementIndexPairs = 
-  std::vector<std::pair<GNSSMeasurementIndex, GNSSMeasurementIndex>>;
+// Pairs
+// single difference pair
+struct GNSSMeasurementSDIndexPair {
+  GNSSMeasurementSDIndexPair(
+    GNSSMeasurementIndex rov, GNSSMeasurementIndex ref) : 
+    rov(rov), ref(ref) { }
+  GNSSMeasurementIndex rov;
+  GNSSMeasurementIndex ref;
+};
+using GNSSMeasurementSDIndexPairs = std::vector<GNSSMeasurementSDIndexPair>;
+// double difference pair
+struct GNSSMeasurementDDIndexPair {
+  GNSSMeasurementDDIndexPair(
+    GNSSMeasurementIndex rov, GNSSMeasurementIndex ref, 
+    GNSSMeasurementIndex rov_base, GNSSMeasurementIndex ref_base) : 
+    rov(rov), ref(ref), rov_base(rov_base), ref_base(ref_base) { }
+  GNSSMeasurementIndex rov;
+  GNSSMeasurementIndex ref;
+  GNSSMeasurementIndex rov_base;
+  GNSSMeasurementIndex ref_base;
+};
+using GNSSMeasurementDDIndexPairs = std::vector<GNSSMeasurementDDIndexPair>;
 
 // GNSS epoch data
 struct GNSSMeasurement {
@@ -134,6 +154,23 @@ struct GNSSMeasurement {
     return it->second;
   }
 
+  inline const Satellite& getSat(std::string prn) const { 
+    const auto it = satellites.find(prn);
+    CHECK(it != satellites.end());
+    return it->second; 
+  }
+
+  inline const Satellite& getSat(GNSSMeasurementIndex index) const {
+    return getSat(index.prn);
+  }
+
+  inline const Observation& getObs(GNSSMeasurementIndex index) const {
+    const Satellite& satellite = getSat(index);
+    const auto it = satellite.observations.find(index.code_type);
+    CHECK(it != satellite.observations.end());
+    return it->second;
+  }
+
   static int32_t epoch_cnt_;
 };
 
@@ -145,6 +182,14 @@ enum class GNSSObservationType {
   Pseudorange,
   Phaserange,
   Doppler
+};
+
+// Solution status
+enum class GNSSSolutionStatus {
+  Single, 
+  SDGNSS,
+  Float,
+  Fixed
 };
 
 // GNSS common options
@@ -162,7 +207,7 @@ struct GNSSCommonOptions {
   std::vector<std::pair<char, int>> code_exclude;
 
   // Minimum elevation angle (deg)
-  double min_elevation = 0.0;
+  double min_elevation = 7.0;
 
   // Threshold for Melbourne-Wubbena (MW) cycle-slip detection (m)
   double mw_slip_thres = 0.5;
@@ -181,6 +226,10 @@ struct GNSSErrorParameter {
 
   // Error factor according to RTKLIB
   double phase_error_factor[3] = {0.003, 0.003, 0.0};
+
+  // System error ratio
+  std::map<char, double> system_error_ratio = 
+    {{'G', 1.0}, {'R', 5.0}, {'C', 2.0}, {'E', 1.5}};
 
   // Ionosphere model error factor
   double ionosphere_broadcast_factor = 0.5;

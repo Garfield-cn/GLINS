@@ -1,5 +1,5 @@
 /**
-* @Function: DGNSS (Double differenced pseudorange positioning) implementation
+* @Function: Single differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -11,12 +11,11 @@
 #include "gici/optimizer/graph.hpp"
 #include "gici/gnss/gnss_types.h"
 #include "gici/optimizer/estimator_types.hpp"
-#include "gici/optimizer/ceres_iteration_callback.h"
 
 namespace gici {
 
-// DGNSS options
-struct DGNSSEstimatorOptions {
+// SDGNSS options
+struct SDGNSSEstimatorOptions {
   // Max iteration number for ceres optimization
   int max_iteration = 15;
 
@@ -37,7 +36,7 @@ struct DGNSSEstimatorOptions {
 };
 
 // SPP estimator
-class DGNSSEstimator {
+class SDGNSSEstimator {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -47,8 +46,8 @@ public:
     double timestamp = 0.0;
   };
 
-  DGNSSEstimator(const DGNSSEstimatorOptions& options);
-  ~DGNSSEstimator();
+  SDGNSSEstimator(const SDGNSSEstimatorOptions& options);
+  ~SDGNSSEstimator();
 
   // Add GNSS measurements and state
   // measurement_ref should from the reference station
@@ -66,7 +65,7 @@ private:
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
-  DGNSSEstimatorOptions options_;
+  SDGNSSEstimatorOptions options_;
 
   // loss function
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
@@ -79,9 +78,6 @@ private:
   // States
   State current_state_;
   std::vector<BackendId> parameter_ids_;
-
-  // Debug
-  std::unique_ptr<CeresDebugCallback> debug_callback_;
 };
 
 }

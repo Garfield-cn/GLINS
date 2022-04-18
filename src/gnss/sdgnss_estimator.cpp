@@ -1,34 +1,30 @@
 /**
-* @Function: DGNSS (Double differenced pseudorange positioning) implementation
+* @Function: Single differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/gnss/dgnss_estimator.h"
+#include "gici/gnss/sdgnss_estimator.h"
 
-#include "gici/gnss/pseudorange_error_dd.h"
+#include "gici/gnss/pseudorange_error_sd.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
 
 namespace gici {
 
 // The default constructor
-DGNSSEstimator::DGNSSEstimator(const DGNSSEstimatorOptions& options) :
+SDGNSSEstimator::SDGNSSEstimator(const SDGNSSEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
-  huber_loss_function_ptr_(new ceres::HuberLoss(1)),
-  debug_callback_(new CeresDebugCallback())
-{
-  // For debug
-  graph_ptr_->options.callbacks.push_back(debug_callback_.get());
-}
+  huber_loss_function_ptr_(new ceres::HuberLoss(1))
+{}
 
 // The default destructor
-DGNSSEstimator::~DGNSSEstimator()
+SDGNSSEstimator::~SDGNSSEstimator()
 {}
 
 // Add GNSS measurements and state
-bool DGNSSEstimator::addGNSSMeasurementAndState(
+bool SDGNSSEstimator::addGNSSMeasurementAndState(
                     const GNSSMeasurement& measurement_rov, 
                     const GNSSMeasurement& measurement_ref)
 {
@@ -67,30 +63,65 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
   }
   parameter_ids_.push_back(position_id);
 
-  // select double difference pairs
-  GNSSMeasurementDDIndexPairs dd_pairs = gnss_common::formPseudorangeDDPair(
-      measurement_rov_, measurement_ref_, options_.common);
+  // select single difference pairs
+  GNSSMeasurementSDIndexPairs index_pairs = 
+    gnss_common::formPseudorangeSDPair(measurement_rov_, measurement_ref_, options_.common);
+
+  // check if any system does not have vaild satellite
+  std::map<char, int> system_observation_cnt;
+  for (auto index_pair : index_pairs) 
+  {
+    GNSSMeasurementIndex& index = index_pair.rov;
+    auto& satellite = measurement_rov_.getSat(index);
+    char system = satellite.getSystem();
+    if (system_observation_cnt.find(system) == system_observation_cnt.end()) 
+      system_observation_cnt.insert(std::make_pair(system, 0));
+    system_observation_cnt.at(system)++;
+  }
+
+  // clock blocks
+  int num_clock_blocks = 0;
+  for (auto index_pair : index_pairs) 
+  {
+    GNSSMeasurementIndex& index = index_pair.rov;
+    auto& satellite = measurement_rov_.getSat(index);
+    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_rov_.id);
+    if (system_observation_cnt.at(satellite.getSystem()) > 0 &&
+        !graph_ptr_->parameterBlockExists(clock_id.asInteger())) 
+    {
+      Eigen::Matrix<double, 1, 1> clock_init;
+      clock_init.setZero();
+      std::shared_ptr<ClockParameterBlock> clock_parameter_block = 
+        std::make_shared<ClockParameterBlock>(clock_init, clock_id.asInteger());
+      if (!graph_ptr_->addParameterBlock(clock_parameter_block)) {
+        return false;
+      }
+      num_clock_blocks++;
+      parameter_ids_.push_back(clock_id);
+    }
+  }
 
   // Set to state
   current_state_.id = position_id;
   current_state_.timestamp = timestamp;
 
   // Add residual blocks
-  int num_residual_block = dd_pairs.size();
+  int num_residual_block = index_pairs.size();
   int num_satellites = 0;
   std::string last_prn = "";
-  for (auto dd_pair : dd_pairs) 
+  for (auto index_pair : index_pairs) 
   {
-    GNSSMeasurementIndex& index = dd_pair.rov;
+    GNSSMeasurementIndex& index = index_pair.rov;
     auto& satellite = measurement_rov_.getSat(index);
 
-    std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
-      std::make_shared<PseudorangeErrorDD<3>>(measurement_rov_, measurement_ref_,
-      dd_pair.rov, dd_pair.ref, dd_pair.rov_base, dd_pair.ref_base, 
-      options_.error_parameter);
+    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_rov_.id);
+    std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
+      std::make_shared<PseudorangeErrorSD<3, 1>>(measurement_rov_, measurement_ref_,
+      index_pair.rov, index_pair.ref, options_.error_parameter);
     graph_ptr_->addResidualBlock(pseudorange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_ptr_->parameterBlockPtr(position_id.asInteger()));
+      graph_ptr_->parameterBlockPtr(position_id.asInteger()),
+      graph_ptr_->parameterBlockPtr(clock_id.asInteger()));
 
     // get number of satellites
     if (last_prn != satellite.prn) {
@@ -106,7 +137,7 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
   }
 
   // Insufficient satellites
-  if (num_satellites < 3) {
+  if (num_satellites < num_clock_blocks + 3) {
     LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites;
     return false;
   }
@@ -115,7 +146,7 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
 }
 
 // Start ceres optimization
-void DGNSSEstimator::optimize()
+void SDGNSSEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
@@ -139,7 +170,7 @@ void DGNSSEstimator::optimize()
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d DGNSSEstimator::getPositionEstimate()
+Eigen::Vector3d SDGNSSEstimator::getPositionEstimate()
 {
   if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
     return Eigen::Vector3d::Zero();

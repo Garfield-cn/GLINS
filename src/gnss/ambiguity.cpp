@@ -51,6 +51,7 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     uint64_t id = ambiguity_ids[i].asInteger();
     Spec ambiguity;
     ambiguity.id = ambiguity_ids[i];
+    ambiguity.prn = ambiguity.id.gPrn();
     CHECK(graph_ptr_->parameterBlockExists(id));
 
     // parameter and residual block
@@ -58,11 +59,13 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     ambiguity.value = *ambiguity.parameter_block->parameters();
     Graph::ResidualBlockCollection residuals = graph_ptr_->residuals(id);
     CHECK(residuals.size() > 0);
-    // Ideally, one ambiguity parameter block only conresponds to one phaserange
-    // error block, but we still check it in case that bad things happen.
+    // Ideally, for a non-reference satellite ambiguity parameter block, it only 
+    // conresponds to one phaserange error block
+    if (residuals.size() == 1) 
     for (size_t r = 0; r < residuals.size(); ++r) {
       if (residuals[r].error_interface_ptr->typeInfo() == ErrorType::kPhaserangeError ||
-          residuals[r].error_interface_ptr->typeInfo() == ErrorType::kPhaserangeErrorSD) {
+          residuals[r].error_interface_ptr->typeInfo() == ErrorType::kPhaserangeErrorSD ||
+          residuals[r].error_interface_ptr->typeInfo() == ErrorType::kPhaserangeErrorDD) {
         ambiguity.residual_block = residuals[r];
         break;
       }
@@ -145,6 +148,11 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     // If UWL fix failed (maybe because of less satellite), we type to solve them
     // together with WL
     ret_uwl_and_wl = solveLanes({LaneType::UWL, LaneType::WL});
+
+    // if still failed, we try only with WL
+    if (!ret_uwl_and_wl) {
+      ret_uwl_and_wl = solveLanes({LaneType::WL});
+    }
   }
   else {
     ret_uwl_and_wl = solveLanes({LaneType::WL});
@@ -166,7 +174,6 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     }
     else return false;
   }
-
 
   // Check ambiguity stability, if one ambiguity was fixed to the same value for given
   // epochs (see "min_consistant_fix_as_stable"), we consider it as stable. And then we 
@@ -221,13 +228,13 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
         std::shared_ptr<AmbiguityError4Coef> ambiguity_error = 
           std::dynamic_pointer_cast<AmbiguityError4Coef>(base_ptr);
         CHECK(ambiguity_error != nullptr);
-        ambiguity_error->setInformation(1e-4);  // 0.01 cycle
+        ambiguity_error->setInformation(1e6);  // 0.001 cycle
       }
       else {
         std::shared_ptr<AmbiguityError2Coef> ambiguity_error = 
           std::dynamic_pointer_cast<AmbiguityError2Coef>(base_ptr);
         CHECK(ambiguity_error != nullptr);
-        ambiguity_error->setInformation(1e-4);  // 0.01 cycle
+        ambiguity_error->setInformation(1e6);  // 0.001 cycle
       }
     } 
   }
@@ -248,6 +255,7 @@ void AmbiguityResolution::formSatellitePair()
   for (size_t i = 0; i < curAmbs().size(); i++) {
     Spec& ambiguity = curAmbs()[i];
     std::string prn = ambiguity.id.gPrn();
+
     auto it = prn_to_number_phases.find(prn);
     if (it == prn_to_number_phases.end()) {
       prn_to_number_phases.insert(std::make_pair(prn, 1));
@@ -403,6 +411,23 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
     }
   }
 
+  // Get convergence judge
+  int min_num_fixation = 0;
+  for (size_t i = 0; i < types.size(); i++) {
+    int num;
+    if (types[i] == LaneType::UWL) {
+      num = options_.min_num_fixation_uwl;
+    }
+    else if (types[i] == LaneType::WL) {
+      num = options_.min_num_fixation_wl;
+    }
+    else if (types[i] == LaneType::NL) {
+      num = options_.min_num_fixation_nl;
+    }
+    // get biggest one
+    if (num > min_num_fixation) min_num_fixation = num;
+  }
+
   // Sort them by elevation to apply partial AR latter
   std::sort(lane_pairs.begin(), lane_pairs.end(), [](LanePair lhs, LanePair rhs) 
     -> bool { return lhs.elevation > rhs.elevation; });
@@ -444,15 +469,20 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
   Eigen::MatrixXd active_float_covariance = float_covariance;
   // Try full AR and then partial AR, until it successed or active number 
   // of ambiguities reaches the minimum number of fixation judgement.
-  while (num_active >= options_.min_num_fixation) {
+  while (num_active >= min_num_fixation) {
     if (gnss_common::solveAmbiguityLambda(active_float_ambiguities, 
         active_float_covariance, options_.ratio, fixed_ambiguities)) break;
+    // fixed_ambiguities.setZero(); break;
     // reduce subsets
     --num_active;
     active_float_ambiguities = float_ambiguities.topRows(num_active);
     active_float_covariance = float_covariance.topLeftCorner(num_active, num_active);
   }
-  if (num_active < options_.min_num_fixation) return false;
+  if (num_active < min_num_fixation) return false;
+
+  LOG(INFO) << "------------- Num_active = " << num_active << ", Type = " << static_cast<int>(types[0]);
+
+  // return false;
 
   // Contraint the fixed ambiguities to temporary parameters and check 
   // phaserange residual. We test the residuals until no outlier is 
@@ -463,7 +493,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
   for (int i = 0; i < num_active; i++) is_reject.push_back(false);
   Eigen::VectorXd full_parameters_store;
   Eigen::MatrixXd full_covariance_store;
-  while (num_valid >= options_.min_num_fixation) {
+  while (num_valid >= min_num_fixation) {
     // parameters
     size_t ambiguity_size = ambiguity_covariance_.cols();
     size_t others_size = other_parameters_covariance_.cols();
@@ -506,6 +536,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
       (fixed_ambiguities - jacobian * full_parameters);
     full_covariance = (Eigen::MatrixXd::Identity(full_size, full_size) - 
       kalman_gain * jacobian) * full_covariance;
+    full_covariance = (full_covariance + full_covariance.transpose()) / 2.0;
 
     // Store them
     full_parameters_store = full_parameters;
@@ -517,13 +548,22 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
     for (size_t i = 0; i < curAmbs().size(); i++) {
       Spec& ambiguity = curAmbs()[i];
       // get parameters
-      size_t parameter_block_size = ambiguity.parameter_block_ids_connected.size();
-      double **parameters_ptr = new double*[parameter_block_size];
-      for (size_t p = 0; p < parameter_block_size; p++) {
+      size_t num_parameter_block = ambiguity.parameter_block_ids_connected.size();
+
+      // we did not put residual storages on base satellites side
+      if (num_parameter_block == 0) continue;
+
+      double **parameters_ptr = new double*[num_parameter_block];
+      for (size_t p = 0; p < num_parameter_block; p++) {
         BackendId& id = ambiguity.parameter_block_ids_connected[p];
         if (id.type() == IdType::gAmbiguity) {
-          parameters_ptr[p] = new double[1]; 
-          parameters_ptr[p][0] = full_parameters(i);
+          for (size_t k = 0; k < curAmbs().size(); k++) {
+            if (id == curAmbs()[k].id) {
+              parameters_ptr[p] = new double[1]; 
+              parameters_ptr[p][0] = full_parameters(k);
+              break;
+            }
+          }
         }
         else {
           for (size_t k = 0; k < other_parameters_.size(); k++) {
@@ -544,9 +584,10 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
         parameters_ptr, &residual, nullptr, nullptr);
       normalized_residuals[i] = residual;
 
-      for (size_t p = 0; p < parameter_block_size; p++) delete parameters_ptr[p];
+      for (size_t p = 0; p < num_parameter_block; p++) delete parameters_ptr[p];
       delete[] parameters_ptr;
     }
+
     // find outlier
     double normalized_residuals_median = vk::getMedian(normalized_residuals);
     for (size_t i = 0; i < normalized_residuals.size(); i++) {
@@ -556,9 +597,10 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
     std::vector<size_t> outlier_indexes;
     for (size_t i = 0; i < normalized_residuals.size(); i++) {
       // outlier detected
-      if (normalized_residuals[i] > options_.norm_phase_residual_reject_thres) {
+      if (fabs(normalized_residuals[i]) > options_.norm_phase_residual_reject_thres) {
         found = true;
         outlier_indexes.push_back(i);
+        LOG(INFO) << "Outlier detected, residual = " << normalized_residuals[i];
       }
     }
     // no outlier found, break this process
@@ -581,7 +623,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
           auto& spec = curAmbs()[pair.spec_id];
           if (spec.id.gSystem() == system) {
             is_reject[i] = true;
-            num_valid++;
+            num_valid--;
           }
         }
       }
@@ -603,7 +645,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
             auto& spec = curAmbs()[pair.spec_id];
             if (spec.id.gPrn() == prn) {
               is_reject[i] = true;
-              num_valid++;
+              num_valid--;
             }
           }
         }
@@ -618,7 +660,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
             auto& spec = curAmbs()[pair.spec_id];
             if (spec.id.gPrn() == prn && spec.id.gPhaseId() == phase_id) {
               is_reject[i] = true;
-              num_valid++;
+              num_valid--;
               found = true;
             }
           }
@@ -634,7 +676,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
       break;
     }
   }
-  if (num_valid < options_.min_num_fixation) return false;
+  if (num_valid < min_num_fixation) return false;
 
   // Constraint ambiguities on global parameters
   auto& ambiguities = curAmbs();
@@ -646,6 +688,10 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
   for (size_t i = 0; i < ambiguity_pairs.size(); i++) {
     ambiguity_pairs[i].update(ambiguities);
   }
+  for (size_t i = 0; i < ambiguity_lane_pairs.size(); i++) {
+    ambiguity_lane_pairs[i].update(ambiguity_pairs);
+  }
+  // set fix flag
   for (int i = 0; i < num_active; i++) {
     if (is_reject[i]) continue;
     auto& fixed_lane_pair = lane_pairs[i];
@@ -679,7 +725,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
 
   // Add a loosely constraint on RTK estimator, because we do not fully believe they
   // are accurate enough yet.
-  const double information_loosely = 1.0 / 1e-2;   // 0.1 cycle
+  const double information_loosely = 1e2;   // 0.01 cycle
   for (size_t i = 0; i < ambiguity_lane_pairs.size(); i++) {
     if (!ambiguity_lane_pairs[i].is_fixed) continue;
     std::vector<double> coefficients;
@@ -697,6 +743,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
         curAmbPairs()[ambiguity_lane_pairs[i].bsd_pair_id_higher].wavelength;
       double wave_lower = 
         curAmbPairs()[ambiguity_lane_pairs[i].bsd_pair_id_lower].wavelength;
+      double wave = ambiguity_lane_pairs[i].wavelength;
       coefficients.push_back(1.0 / wave_higher);
       coefficients.push_back(-1.0 / wave_higher);
       coefficients.push_back(-1.0 / wave_lower);
@@ -704,7 +751,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
       // we use a small information, and a flat robust cost function
       std::shared_ptr<AmbiguityError4Coef> ambiguity_error = 
         std::make_shared<AmbiguityError4Coef>(
-        ambiguity_lane_pairs[i].value, information_loosely, coefficients);
+        ambiguity_lane_pairs[i].value / wave, information_loosely, coefficients);
       ambiguity_lane_pairs[i].residual_id = graph_ptr_->addResidualBlock(
         ambiguity_error,
         cauchy_loss_function_ptr_ ? cauchy_loss_function_ptr_.get() : nullptr,
@@ -759,6 +806,7 @@ bool AmbiguityResolution::findMatch(
 
   for (size_t i = 0; i < last_lane_pairs.size(); i++) {
     if (last_lane_pairs[i].wavelength != wavelength) continue;
+    if (!last_lane_pairs[i].is_fixed) continue;
 
     auto& last_pair_higher = lastAmbPairs()[last_lane_pairs[i].bsd_pair_id_higher];
     auto& last_pair_lower = lastAmbPairs()[last_lane_pairs[i].bsd_pair_id_lower];
@@ -872,39 +920,57 @@ void cycleSlipDetectionSD(GNSSMeasurement& measurement_rov_pre,
   cycleSlipDetectionLLI(measurement_ref_cur);
 
   // Apply single difference 
-  GNSSMeasurementIndexPairs pairs_pre = 
-    gnss_common::formPhaserangePair(measurement_rov_pre, measurement_ref_pre);
+  GNSSMeasurementSDIndexPairs pairs_pre = 
+    gnss_common::formPhaserangeSDPair(measurement_rov_pre, measurement_ref_pre);
   GNSSMeasurement measurement_sd_pre;
   for (size_t i = 0; i < pairs_pre.size(); i++) {
-    Observation& observation_rov = measurement_rov_pre.getObs(pairs_pre[i].first);
-    Observation& observation_ref = measurement_ref_pre.getObs(pairs_pre[i].second);
+    Observation& observation_rov = measurement_rov_pre.getObs(pairs_pre[i].rov);
+    Observation& observation_ref = measurement_ref_pre.getObs(pairs_pre[i].ref);
+    Satellite& satellite_rov = measurement_rov_pre.getSat(pairs_pre[i].rov);
     double dpseudorange = observation_rov.pseudorange - observation_ref.pseudorange;
     double dphaserange = observation_rov.phaserange - observation_ref.phaserange;
     
     Observation observation_sd;
     observation_sd.pseudorange = dpseudorange;
     observation_sd.phaserange = dphaserange;
+    observation_sd.wavelength = observation_rov.wavelength;
+    observation_sd.slip = false;
 
     // force insert here
-    measurement_sd_pre.satellites[pairs_pre[i].first.prn].
-      observations[pairs_pre[i].first.code_type] = observation_sd;
+    std::string prn = pairs_pre[i].rov.prn;
+    int code_type = pairs_pre[i].rov.code_type;
+    measurement_sd_pre.satellites[prn].prn = satellite_rov.prn;
+    measurement_sd_pre.satellites[prn].sat_type = satellite_rov.sat_type;
+    measurement_sd_pre.satellites[prn].sat_position = satellite_rov.sat_position;
+    measurement_sd_pre.satellites[prn].sat_clock = satellite_rov.sat_clock;
+    measurement_sd_pre.satellites[prn].observations[code_type] = observation_sd;
+    measurement_sd_pre.position.setZero();
   }
 
-  GNSSMeasurementIndexPairs pairs_cur = 
-    gnss_common::formPhaserangePair(measurement_rov_cur, measurement_ref_cur);
+  GNSSMeasurementSDIndexPairs pairs_cur = 
+    gnss_common::formPhaserangeSDPair(measurement_rov_cur, measurement_ref_cur);
   GNSSMeasurement measurement_sd_cur;
   for (size_t i = 0; i < pairs_cur.size(); i++) {
-    Observation& observation_rov = measurement_rov_cur.getObs(pairs_cur[i].first);
-    Observation& observation_ref = measurement_ref_cur.getObs(pairs_cur[i].second);
+    Observation& observation_rov = measurement_rov_cur.getObs(pairs_cur[i].rov);
+    Observation& observation_ref = measurement_ref_cur.getObs(pairs_cur[i].ref);
+    Satellite& satellite_rov = measurement_rov_cur.getSat(pairs_cur[i].rov);
     double dpseudorange = observation_rov.pseudorange - observation_ref.pseudorange;
     double dphaserange = observation_rov.phaserange - observation_ref.phaserange;
     
     Observation observation_sd;
     observation_sd.pseudorange = dpseudorange;
     observation_sd.phaserange = dphaserange;
+    observation_sd.wavelength = observation_rov.wavelength;
+    observation_sd.slip = false;
 
-    measurement_sd_cur.satellites[pairs_cur[i].first.prn].
-      observations[pairs_cur[i].first.code_type] = observation_sd;
+    std::string prn = pairs_cur[i].rov.prn;
+    int code_type = pairs_cur[i].rov.code_type;
+    measurement_sd_cur.satellites[prn].prn = satellite_rov.prn;
+    measurement_sd_cur.satellites[prn].sat_type = satellite_rov.sat_type;
+    measurement_sd_cur.satellites[prn].sat_position = satellite_rov.sat_position;
+    measurement_sd_cur.satellites[prn].sat_clock = satellite_rov.sat_clock;
+    measurement_sd_cur.satellites[prn].observations[code_type] = observation_sd;
+    measurement_sd_cur.position.setZero();
   }
 
   // Detect by GF
@@ -912,9 +978,9 @@ void cycleSlipDetectionSD(GNSSMeasurement& measurement_rov_pre,
 
   // Put slip flags
   for (size_t i = 0; i < pairs_cur.size(); i++) {
-    Observation& observation_sd = measurement_sd_cur.getObs(pairs_cur[i].first);
-    Observation& observation_rov = measurement_rov_cur.getObs(pairs_cur[i].first);
-    Observation& observation_ref = measurement_ref_cur.getObs(pairs_cur[i].second);
+    Observation& observation_sd = measurement_sd_cur.getObs(pairs_cur[i].rov);
+    Observation& observation_rov = measurement_rov_cur.getObs(pairs_cur[i].rov);
+    Observation& observation_ref = measurement_ref_cur.getObs(pairs_cur[i].ref);
     observation_rov.slip = observation_sd.slip;
     observation_ref.slip = observation_sd.slip;
   }
@@ -943,14 +1009,14 @@ void cycleSlipDetectionMW(GNSSMeasurement& measurement_pre,
                           GNSSMeasurement& measurement_cur,
                           double threshold)
 {
-  GNSSMeasurementIndexPairs pairs = 
-    gnss_common::formPhaserangePair(measurement_pre, measurement_cur);
+  GNSSMeasurementSDIndexPairs pairs = 
+    gnss_common::formPhaserangeSDPair(measurement_pre, measurement_cur);
 
   // Find valid frequencies for each satellite
   std::vector<std::vector<int>> pair_indexes;
   std::string last_prn = "";
   for (size_t i = 0; i < pairs.size(); i++) {
-    std::string prn = pairs[i].first.prn;
+    std::string prn = pairs[i].rov.prn;
     if (prn != last_prn) {
       std::vector<int> indexes; indexes.push_back(i);
       pair_indexes.push_back(indexes);
@@ -966,10 +1032,10 @@ void cycleSlipDetectionMW(GNSSMeasurement& measurement_pre,
     if (pair_indexes[i].size() < 2) continue;
 
     for (size_t j = 1; j < pair_indexes[i].size(); j++) {
-      GNSSMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].first;
-      GNSSMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].first;
-      GNSSMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].second;
-      GNSSMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].second;
+      GNSSMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].rov;
+      GNSSMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].rov;
+      GNSSMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].ref;
+      GNSSMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].ref;
       Observation& observation_pre_0 = measurement_pre.getObs(index_pre_0);
       Observation& observation_pre_1 = measurement_pre.getObs(index_pre_1);
       Observation& observation_cur_0 = measurement_cur.getObs(index_cur_0);
@@ -991,14 +1057,14 @@ void cycleSlipDetectionGF(GNSSMeasurement& measurement_pre,
                           GNSSMeasurement& measurement_cur,
                           double threshold)
 {
-  GNSSMeasurementIndexPairs pairs = 
-    gnss_common::formPhaserangePair(measurement_pre, measurement_cur);
+  GNSSMeasurementSDIndexPairs pairs = 
+    gnss_common::formPhaserangeSDPair(measurement_pre, measurement_cur);
 
   // Find valid frequencies for each satellite
   std::vector<std::vector<int>> pair_indexes;
   std::string last_prn = "";
   for (size_t i = 0; i < pairs.size(); i++) {
-    std::string prn = pairs[i].first.prn;
+    std::string prn = pairs[i].rov.prn;
     if (prn != last_prn) {
       std::vector<int> indexes; indexes.push_back(i);
       pair_indexes.push_back(indexes);
@@ -1014,10 +1080,10 @@ void cycleSlipDetectionGF(GNSSMeasurement& measurement_pre,
     if (pair_indexes[i].size() < 2) continue;
 
     for (size_t j = 1; j < pair_indexes[i].size(); j++) {
-      GNSSMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].first;
-      GNSSMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].first;
-      GNSSMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].second;
-      GNSSMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].second;
+      GNSSMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].rov;
+      GNSSMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].rov;
+      GNSSMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].ref;
+      GNSSMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].ref;
       Observation& observation_pre_0 = measurement_pre.getObs(index_pre_0);
       Observation& observation_pre_1 = measurement_pre.getObs(index_pre_1);
       Observation& observation_cur_0 = measurement_cur.getObs(index_cur_0);

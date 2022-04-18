@@ -19,10 +19,16 @@ struct AmbiguityResolutionOptions {
   std::vector<char> system_exclude = {'R'};
 
   // Number of narrow lane ambiguity fixation to consider as fixed solution
-  int min_num_fixation = 8;
+  int min_num_fixation_nl = 6;
+
+  // Number of wide lane ambiguity fixation to consider as successed
+  int min_num_fixation_wl = 6;
+
+  // Number of ultra wide lane ambiguity fixation to consider as successed
+  int min_num_fixation_uwl = 4;
 
   // Ambiguity fixation ratio for LAMBDA
-  double ratio = 3.0;
+  double ratio = 2.0;
 
   // Max normalized phase residual to reject fixed ambiguity
   double norm_phase_residual_reject_thres = 3.0;
@@ -45,6 +51,7 @@ public:
   struct Spec {
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
     BackendId id;
+    std::string prn;
     double value;  // in meter
     double wavelength;
     double elevation;

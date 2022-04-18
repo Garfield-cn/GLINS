@@ -21,8 +21,7 @@
 namespace gici {
 
 // pseudorange error
-// The parameter blocks Ns are indefinite, which enables user to flexibly estimate 
-// different groups of parameters, including:
+// The candidate parameter setups are:
 // Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
 // Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
 //          in body frame (3), P3. receiver clock (1)

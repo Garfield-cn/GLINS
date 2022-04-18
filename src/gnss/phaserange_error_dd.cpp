@@ -1,10 +1,10 @@
 /**
-* @Function: Single-differenced (between stations) phase-range residual block for ceres backend
+* @Function: Single-differenced (between stations) phaserange residual block for ceres backend
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/gnss/phaserange_error_sd.h"
+#include "gici/gnss/phaserange_error_dd.h"
 
 #include "gici/gnss/gnss_common.h"
 #include "gici/utility/transform.h"
@@ -14,11 +14,13 @@ namespace gici {
 
 // Construct with measurement and information matrix
 template<int... Ns>
-PhaserangeErrorSD<Ns ...>::PhaserangeErrorSD(
+PhaserangeErrorDD<Ns ...>::PhaserangeErrorDD(
                     const GNSSMeasurement& measurement_rov,
                     const GNSSMeasurement& measurement_ref,
                     const GNSSMeasurementIndex index_rov,
                     const GNSSMeasurementIndex index_ref,
+                    const GNSSMeasurementIndex index_rov_base,
+                    const GNSSMeasurementIndex index_ref_base,
                     const GNSSErrorParameter& error_parameter)
 {
   CHECK(measurement_ref.position != Eigen::Vector3d::Zero()) << 
@@ -28,9 +30,13 @@ PhaserangeErrorSD<Ns ...>::PhaserangeErrorSD(
 
   satellite_rov_ = measurement_rov_.getSat(index_rov);
   satellite_ref_ = measurement_ref_.getSat(index_ref);
+  satellite_rov_base_ = measurement_rov_.getSat(index_rov_base);
+  satellite_ref_base_ = measurement_ref_.getSat(index_ref_base);
 
   observation_rov_ = measurement_rov_.getObs(index_rov);
   observation_ref_ = measurement_ref_.getObs(index_ref);
+  observation_rov_base_ = measurement_rov_.getObs(index_rov_base);
+  observation_ref_base_ = measurement_ref_.getObs(index_ref_base);
 
   error_parameter_ = error_parameter;
 
@@ -52,32 +58,33 @@ PhaserangeErrorSD<Ns ...>::PhaserangeErrorSD(
     parameter_block_group_ = 2;
   }
   // Group 3
-  else if (dims_.kNumParameterBlocks == 6 && 
+  else if (dims_.kNumParameterBlocks == 7 && 
       dims_.GetDim(0) == 3 && dims_.GetDim(1) == 1 &&
-      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 &&
-      dims_.GetDim(4) == 1 && dims_.GetDim(5) == 1) {
+      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 && 
+      dims_.GetDim(4) == 1 && dims_.GetDim(5) == 1 &&
+      dims_.GetDim(6) == 1) {
     is_estimate_body_ = false;
     is_estimate_atmosphere_ = true;
     parameter_block_group_ = 3;
   }
   // Group 4
-  else if (dims_.kNumParameterBlocks == 7 && 
+  else if (dims_.kNumParameterBlocks == 8 && 
       dims_.GetDim(0) == 7 && dims_.GetDim(1) == 3 &&
       dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 &&
       dims_.GetDim(4) == 1 && dims_.GetDim(5) == 1 &&
-      dims_.GetDim(6) == 1) {
+      dims_.GetDim(6) == 1 && dims_.GetDim(7) == 1) {
     is_estimate_body_ = true;
     is_estimate_atmosphere_ = true;
     parameter_block_group_ = 4;
   }
   else {
-    LOG(FATAL) << "PhaserangeErrorSD parameter blocks setup invalid!";
+    LOG(FATAL) << "PhaserangeErrorDD parameter blocks setup invalid!";
   }
 }
 
 // This evaluates the error term and additionally computes the Jacobians.
 template<int... Ns>
-bool PhaserangeErrorSD<Ns ...>::Evaluate(double const* const * parameters,
+bool PhaserangeErrorDD<Ns ...>::Evaluate(double const* const * parameters,
                                  double* residuals, double** jacobians) const
 {
   return EvaluateWithMinimalJacobians(parameters, residuals, jacobians, nullptr);
@@ -86,23 +93,23 @@ bool PhaserangeErrorSD<Ns ...>::Evaluate(double const* const * parameters,
 // This evaluates the error term and additionally computes
 // the Jacobians in the minimal internal representation.
 template<int... Ns>
-bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
+bool PhaserangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
     double const* const * parameters, double* residuals, double** jacobians,
     double** jacobians_minimal) const
 {
   Eigen::Vector3d t_WR_ECEF, t_WS_W, t_SR_S;
   Eigen::Quaterniond q_WS;
-  double dclock;
   double dtroposphere_delay = 0.0, dionosphere_delay = 0.0;
-  double dambiguity;
-  double gmf_wet_ref, gmf_wet_rov;
+  double gmf_wet_rov, gmf_wet_ref;
+  double gmf_wet_rov_base, gmf_wet_ref_base;
+  double dambiguity, dambiguity_base;
   
   // Position and clock
   if (!is_estimate_body_) 
   {
     t_WR_ECEF = Eigen::Map<const Eigen::Vector3d>(parameters[0]);
-    dclock = parameters[1][0];
-    dambiguity = parameters[2][0];
+    dambiguity = parameters[1][0];
+    dambiguity_base = parameters[2][0];
   }
   else 
   {
@@ -113,14 +120,12 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     // relative position
     t_SR_S = Eigen::Map<const Eigen::Vector3d>(parameters[1]);
 
-    // clock
-    dclock = parameters[2][0];
-
-    // ambiguity
-    dambiguity = parameters[3][0];
-
     // receiver position
     Eigen::Vector3d t_WR_W = t_WS_W + q_WS * t_SR_S;
+
+    // ambiguity
+    dambiguity = parameters[2][0];
+    dambiguity_base = parameters[3][0];
 
     if (!coordinate_) {
       LOG(FATAL) << "Coordinate not set!";
@@ -137,32 +142,41 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     satellite_rov_.sat_position, t_WR_ECEF);
   double rho_ref = gnss_common::satelliteToReceiverDistance(
     satellite_ref_.sat_position, measurement_ref_.position);
+  double rho_rov_base = gnss_common::satelliteToReceiverDistance(
+    satellite_rov_base_.sat_position, t_WR_ECEF);
+  double rho_ref_base = gnss_common::satelliteToReceiverDistance(
+    satellite_ref_base_.sat_position, measurement_ref_.position);
 
   double elevation_rov = gnss_common::satelliteElevation(
     satellite_rov_.sat_position, t_WR_ECEF);
   double elevation_ref = gnss_common::satelliteElevation(
     satellite_ref_.sat_position, measurement_ref_.position);
-  double azimuth_rov = gnss_common::satelliteAzimuth(
-    satellite_rov_.sat_position, t_WR_ECEF);
+  double elevation_rov_base = gnss_common::satelliteElevation(
+    satellite_rov_base_.sat_position, t_WR_ECEF);
+  double elevation_ref_base = gnss_common::satelliteElevation(
+    satellite_ref_base_.sat_position, measurement_ref_.position);
 
   // Atmosphere
   if (!is_estimate_atmosphere_) 
   {
-    // We think all atmosphere delays are eliminated by single-difference
+    // We think all atmosphere delays are eliminated by double-difference
   }
   else
   { 
     // use estimated atomspheric delays
     double troposphere_wet_rov = 0.0, troposphere_wet_ref = 0.0;
+    double dionosphere_delay_cur = 0.0, dionosphere_delay_base = 0.0;
     if (!is_estimate_body_) {
       troposphere_wet_rov = parameters[3][0];
       troposphere_wet_ref = parameters[4][0];
-      dionosphere_delay = parameters[5][0];
+      dionosphere_delay_cur = parameters[5][0];
+      dionosphere_delay_base = parameters[6][0];
     }
     else {
       troposphere_wet_rov = parameters[4][0];
       troposphere_wet_ref = parameters[5][0];
-      dionosphere_delay = parameters[6][0];
+      dionosphere_delay_cur = parameters[6][0];
+      dionosphere_delay_base = parameters[7][0];
     }
 
     // troposphere hydro-static delay
@@ -170,26 +184,42 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       timestamp, t_WR_ECEF, elevation_rov);
     double troposphere_delay_ref = gnss_common::troposphereSaastamoinen(
       timestamp, t_WR_ECEF, elevation_ref);
+    double troposphere_delay_rov_base = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, elevation_rov_base);
+    double troposphere_delay_ref_base = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, elevation_ref_base);
     // troposphere wet delay
-    gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation_rov, nullptr, &gmf_wet_rov);
-    gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation_ref, nullptr, &gmf_wet_ref);
-    dtroposphere_delay = troposphere_delay_rov - troposphere_delay_ref + 
-      troposphere_wet_rov * gmf_wet_rov - troposphere_wet_ref * gmf_wet_ref;
+    gnss_common::troposphereGMF(
+      timestamp, t_WR_ECEF, elevation_rov, nullptr, &gmf_wet_rov);
+    gnss_common::troposphereGMF(
+      timestamp, t_WR_ECEF, elevation_ref, nullptr, &gmf_wet_ref);
+    gnss_common::troposphereGMF(
+      timestamp, t_WR_ECEF, elevation_rov_base, nullptr, &gmf_wet_rov_base);
+    gnss_common::troposphereGMF(
+      timestamp, t_WR_ECEF, elevation_ref_base, nullptr, &gmf_wet_ref_base);
+    dtroposphere_delay = troposphere_delay_rov - troposphere_delay_ref - 
+      troposphere_delay_rov_base + troposphere_delay_ref_base + 
+      troposphere_wet_rov * gmf_wet_rov - troposphere_wet_ref * gmf_wet_ref - 
+      troposphere_wet_rov * gmf_wet_rov_base + troposphere_wet_ref * gmf_wet_ref_base;
+
+    // ionosphere
+    dionosphere_delay = dionosphere_delay_cur - dionosphere_delay_base;
   }
 
   // Get estimate derivated measurement
-  double dphaserange_estimate = rho_rov - rho_ref + dclock
-   + dtroposphere_delay + dionosphere_delay + dambiguity;
+  double dphaserange_estimate = rho_rov - rho_ref - rho_rov_base + rho_ref_base
+   + dtroposphere_delay + dionosphere_delay + dambiguity - dambiguity_base;
 
   // Compute error
-  double dphaserange = observation_rov_.phaserange - observation_ref_.phaserange;
+  double dphaserange = observation_rov_.phaserange - observation_ref_.phaserange -
+    observation_rov_base_.phaserange + observation_ref_base_.phaserange;
   Eigen::Matrix<double, 1, 1> error = 
     Eigen::Matrix<double, 1, 1>(dphaserange - dphaserange_estimate);
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
   Eigen::Vector3d factor(error_parameter_.phase_error_factor);
-  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_rov))) * 2.0;
+  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_rov))) * 4.0;
   char system = satellite_rov_.getSystem();
   variance *= square(error_parameter_.system_error_ratio.at(system));
   double square_root_information = sqrt(1.0 / variance);
@@ -200,7 +230,8 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   {
     // Receiver position in ECEF
     Eigen::Matrix<double, 1, 3> J_t_ECEF = 
-      -((t_WR_ECEF - satellite_rov_.sat_position) / rho_rov).transpose();
+      -((t_WR_ECEF - satellite_rov_.sat_position) / rho_rov).transpose() + 
+       ((t_WR_ECEF - satellite_rov_base_.sat_position) / rho_rov_base).transpose();
     
     // Poses
     Eigen::Matrix<double, 1, 6> J_T_WS;
@@ -223,20 +254,19 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       J_t_SR_S = J_t_W * q_WS.toRotationMatrix();
     }
 
-    // Clock
-    Eigen::Matrix<double, 1, 1> J_clock = -Eigen::MatrixXd::Identity(1, 1);
-
     // Ambiguity
     Eigen::Matrix<double, 1, 1> J_amb = -Eigen::MatrixXd::Identity(1, 1);
+    Eigen::Matrix<double, 1, 1> J_amb_base = Eigen::MatrixXd::Identity(1, 1);
 
     // Troposphere
     Eigen::Matrix<double, 1, 1> J_trop_rov = 
-      -gmf_wet_rov * Eigen::MatrixXd::Identity(1, 1);
+      -(gmf_wet_rov - gmf_wet_rov_base) * Eigen::MatrixXd::Identity(1, 1);
     Eigen::Matrix<double, 1, 1> J_trop_ref = 
-      gmf_wet_ref * Eigen::MatrixXd::Identity(1, 1);
+      (gmf_wet_ref - gmf_wet_ref_base) * Eigen::MatrixXd::Identity(1, 1);
 
     // Ionosphere
     Eigen::Matrix<double, 1, 1> J_iono = -Eigen::MatrixXd::Identity(1, 1);
+    Eigen::Matrix<double, 1, 1> J_iono_base = Eigen::MatrixXd::Identity(1, 1);
 
     // Group 1
     if (parameter_block_group_ == 1 || parameter_block_group_ == 3) 
@@ -252,10 +282,10 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J0_minimal_mapped = J0;
         }
       }
-      // Clock
+      // Ambiguity
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_clock;
+        J1 = square_root_information * J_amb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -263,10 +293,10 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J1_minimal_mapped = J1;
         }
       }
-      // Ambiguity
+      // Ambiguity for base satellite
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_amb;
+        J2 = square_root_information * J_amb_base;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -307,6 +337,17 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J5_minimal_mapped = J5;
         }
       }
+      // Ionosphere at base satellite
+      if (is_estimate_atmosphere_ && jacobians[6] != nullptr) {
+        Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J6(jacobians[6]);
+        J6 = square_root_information * J_iono_base;
+
+        if (jacobians_minimal != nullptr && jacobians_minimal[6] != nullptr) {
+          Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
+              J6_minimal_mapped(jacobians_minimal[6]);
+          J6_minimal_mapped = J6;
+        }
+      }
     }
     // // Group 2
     if (parameter_block_group_ == 2 || parameter_block_group_ == 4)
@@ -340,10 +381,10 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J1_minimal_mapped = J1;
         }
       }
-      // Clock
+      // Ambiguity
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = J_clock;
+        J2 = square_root_information * J_amb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -351,10 +392,10 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J2_minimal_mapped = J2;
         }
       }
-      // Ambiguity
+      // Ambiguity of base satellite
       if (jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_amb;
+        J3 = square_root_information * J_amb_base;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -393,6 +434,17 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
               J6_minimal_mapped(jacobians_minimal[6]);
           J6_minimal_mapped = J6;
+        }
+      }
+      // Ionosphere at base satellite
+      if (is_estimate_atmosphere_ && jacobians[7] != nullptr) {
+        Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J7(jacobians[7]);
+        J7 = square_root_information * J_iono_base;
+
+        if (jacobians_minimal != nullptr && jacobians_minimal[7] != nullptr) {
+          Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
+              J7_minimal_mapped(jacobians_minimal[7]);
+          J7_minimal_mapped = J7;
         }
       }
     }

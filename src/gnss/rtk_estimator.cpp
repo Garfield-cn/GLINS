@@ -6,11 +6,12 @@
 **/
 #include "gici/gnss/rtk_estimator.h"
 
-#include "gici/gnss/pseudorange_error_sd.h"
-#include "gici/gnss/phaserange_error_sd.h"
+#include "gici/gnss/pseudorange_error_dd.h"
+#include "gici/gnss/phaserange_error_dd.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
-#include "gici/gnss/gnss_relative_const_errors.h"
+#include "gici/gnss/gnss_relative_errors.h"
+#include "gici/gnss/ambiguity_error.h"
 
 namespace gici {
 
@@ -43,7 +44,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
   if (fabs(measurement_rov.timestamp - measurement_ref.timestamp) > options_.max_age) {
     LOG(WARNING) << "Max age between two measurements exceeded! "
       << "age = " << fabs(measurement_rov.timestamp - measurement_ref.timestamp)
-      << "max_age = " << options_.max_age;
+      << ", max_age = " << options_.max_age;
     return false;
   }
 
@@ -74,62 +75,26 @@ bool RTKEstimator::addGNSSMeasurementAndState(
   curState().timestamp = timestamp;
 
   // select single difference pairs
-  GNSSMeasurementIndexPairs pseudorange_index_pairs = 
-      gnss_common::formPseudorangePair(curMeasRov(), curMeasRef(), options_.common);
-  GNSSMeasurementIndexPairs phaserange_index_pairs = 
-      gnss_common::formPhaserangePair(curMeasRov(), curMeasRef(), options_.common);
-
-  // check if any system does not have vaild satellite
-  std::map<char, int> system_observation_cnt;
-  for (auto index_pair : pseudorange_index_pairs) 
-  {
-    GNSSMeasurementIndex& index = index_pair.first;
-    auto& satellite = curMeasRov().getSat(index);
-    char system = satellite.getSystem();
-    if (system_observation_cnt.find(system) == system_observation_cnt.end()) 
-      system_observation_cnt.insert(std::make_pair(system, 0));
-    system_observation_cnt.at(system)++;
-  }
-
-  // clock blocks
-  int num_clock_blocks = 0;
-  for (auto index_pair : pseudorange_index_pairs) 
-  {
-    GNSSMeasurementIndex& index = index_pair.first;
-    auto& satellite = curMeasRov().getSat(index);
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), curMeasRov().id);
-    if (system_observation_cnt.at(satellite.getSystem()) > 0 &&
-        !graph_ptr_->parameterBlockExists(clock_id.asInteger())) 
-    {
-      Eigen::Matrix<double, 1, 1> clock_init;
-      clock_init.setZero();
-      std::shared_ptr<ClockParameterBlock> clock_parameter_block = 
-        std::make_shared<ClockParameterBlock>(clock_init, clock_id.asInteger());
-      if (!graph_ptr_->addParameterBlock(clock_parameter_block)) {
-        return false;
-      }
-      num_clock_blocks++;
-    }
-  }
+  GNSSMeasurementDDIndexPairs dd_pairs = 
+      gnss_common::formPhaserangeDDPair(curMeasRov(), curMeasRef(), options_.common);
 
   // Pseudorange ---------------------------------------------------
   // Add pseudorange residual blocks
-  int num_residual_block = pseudorange_index_pairs.size();
+  int num_residual_block = dd_pairs.size();
   int num_satellites = 0;
   std::string last_prn = "";
-  for (auto index_pair : pseudorange_index_pairs) 
+  for (auto dd_pair : dd_pairs) 
   {
-    GNSSMeasurementIndex& index = index_pair.first;
+    GNSSMeasurementIndex& index = dd_pair.rov;
     auto& satellite = curMeasRov().getSat(index);
 
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), curMeasRov().id);
-    std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
-      std::make_shared<PseudorangeErrorSD<3, 1>>(curMeasRov(), curMeasRef(),
-      index_pair.first, index_pair.second, options_.error_parameter);
+    std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
+      std::make_shared<PseudorangeErrorDD<3>>(curMeasRov(), curMeasRef(),
+      dd_pair.rov, dd_pair.ref, dd_pair.rov_base, dd_pair.ref_base, 
+      options_.error_parameter);
     graph_ptr_->addResidualBlock(pseudorange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_ptr_->parameterBlockPtr(position_id.asInteger()),
-      graph_ptr_->parameterBlockPtr(clock_id.asInteger()));
+      graph_ptr_->parameterBlockPtr(position_id.asInteger()));
 
     // get number of satellites
     if (last_prn != satellite.prn) {
@@ -150,7 +115,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
   // Insufficient satellites
   // It is ok if it is not a first epoch, because we always have time constraints to 
   // ensure its observability.
-  if (num_satellites < num_clock_blocks + 4 && isFirstEpoch()) {
+  if (num_satellites < 4 && isFirstEpoch()) {
     LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites 
                  << ". Input num_rov_sat = " << measurement_rov.satellites.size()
                  << ", num_ref_sat = " << measurement_ref.satellites.size();
@@ -158,24 +123,28 @@ bool RTKEstimator::addGNSSMeasurementAndState(
     return false;
   }
 
+  curState().status = GNSSSolutionStatus::SDGNSS;
+
   // Phaserange ---------------------------------------------------
   // Add Phaserange residual blocks and ambiguity states
-  for (auto index_pair : phaserange_index_pairs) 
+  for (auto dd_pair : dd_pairs) 
   {
-    GNSSMeasurementIndex& index = index_pair.first;
-    auto& satellite = curMeasRov().getSat(index);
-    auto& observation = satellite.observations.at(index.code_type);
-
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), curMeasRov().id);
+    auto& satellite = curMeasRov().getSat(dd_pair.rov);
+    auto& satellite_base = curMeasRov().getSat(dd_pair.rov_base);
+    auto& observation = satellite.observations.at(dd_pair.rov.code_type);
+    auto& observation_base = satellite.observations.at(dd_pair.rov_base.code_type);
 
     int phase_id = gnss_common::getPhaseID(
-      satellite.getSystem(), index.code_type, observation.wavelength);
-    BackendId ambiguity_id = createGNSSAmbiguityId(satellite.prn, phase_id, curMeasRov().id);
+      satellite.getSystem(), dd_pair.rov.code_type, observation.wavelength);
+    BackendId ambiguity_id = 
+      createGNSSAmbiguityId(satellite.prn, phase_id, curMeasRov().id);
+    BackendId ambiguity_base_id = 
+      createGNSSAmbiguityId(satellite_base.prn, phase_id, curMeasRov().id);
 
     // Create an ambiguity parameter block
     Eigen::Matrix<double, 1, 1> ambiguity_init;
     ambiguity_init(0, 0) = getInitialAmbiguity(curMeasRov(), curMeasRef(), 
-      index_pair.first, index_pair.second);
+      dd_pair.rov, dd_pair.ref);
     std::shared_ptr<AmbiguityParameterBlock> ambiguity_parameter_block = 
       std::make_shared<AmbiguityParameterBlock>(ambiguity_init, ambiguity_id.asInteger());
     if (!graph_ptr_->addParameterBlock(ambiguity_parameter_block)) {
@@ -184,18 +153,40 @@ bool RTKEstimator::addGNSSMeasurementAndState(
     // add to state
     curState().ambiguity_ids.push_back(ambiguity_id);
 
+    // Create an ambiguity parameter block for base satellite
+    if (!graph_ptr_->parameterBlockExists(ambiguity_base_id.asInteger())) {
+      ambiguity_init(0, 0) = getInitialAmbiguity(curMeasRov(), curMeasRef(), 
+        dd_pair.rov_base, dd_pair.ref_base);
+      std::shared_ptr<AmbiguityParameterBlock> ambiguity_base_parameter_block = 
+        std::make_shared<AmbiguityParameterBlock>(ambiguity_init, ambiguity_base_id.asInteger());
+      if (!graph_ptr_->addParameterBlock(ambiguity_base_parameter_block)) {
+        continue;
+      }
+      // add to state
+      curState().ambiguity_ids.push_back(ambiguity_base_id);
+
+      // add a residual to avoid rand deficiency
+      std::vector<double> coefficients = {1.0};
+      std::shared_ptr<AmbiguityError1Coef> ambiguity_error = 
+        std::make_shared<AmbiguityError1Coef>(ambiguity_init(0, 0), 1.0, coefficients);
+      graph_ptr_->addResidualBlock(ambiguity_error, nullptr, 
+        ambiguity_base_parameter_block);
+    }
+
     // Add residual block
-    std::shared_ptr<PhaserangeErrorSD<3, 1, 1>> phaserange_error = 
-      std::make_shared<PhaserangeErrorSD<3, 1, 1>>(curMeasRov(), curMeasRef(),
-      index_pair.first, index_pair.second, options_.error_parameter);
+    std::shared_ptr<PhaserangeErrorDD<3, 1, 1>> phaserange_error = 
+      std::make_shared<PhaserangeErrorDD<3, 1, 1>>(curMeasRov(), curMeasRef(),
+      dd_pair.rov, dd_pair.ref, dd_pair.rov_base, dd_pair.ref_base, options_.error_parameter);
     // TODO: we thought that the phaseranges are far less affected by uncontrollable noises, 
     // so we unused robust function for phase to make it faster convergence. But the result was 
     // not as good as we expected.
     graph_ptr_->addResidualBlock(phaserange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
       graph_ptr_->parameterBlockPtr(position_id.asInteger()),
-      graph_ptr_->parameterBlockPtr(clock_id.asInteger()), 
-      graph_ptr_->parameterBlockPtr(ambiguity_id.asInteger()));
+      graph_ptr_->parameterBlockPtr(ambiguity_id.asInteger()), 
+      graph_ptr_->parameterBlockPtr(ambiguity_base_id.asInteger()));
+
+    curState().status = GNSSSolutionStatus::Float;
   }
 
   // Time constraints ---------------------------------------------------
@@ -232,11 +223,14 @@ bool RTKEstimator::addGNSSMeasurementAndState(
           }
         }
         // if slip happened, we do not add ambiguity time constraint
-        if (slip) continue;
+        if (slip) {
+          LOG(INFO) << "Cycle slip detected! Prn = " << prn << ", phase_id = " << phase_id;
+          continue;
+        }
 
         // Add constraint
         Eigen::Matrix<double, 1, 1> relative_ambiguity_information = 
-          Eigen::Matrix<double, 1, 1>::Identity() * 1e6;
+          Eigen::Matrix<double, 1, 1>::Identity() * 1e8;
         std::shared_ptr<RelativeAmbiguityError> relative_ambiguity_error = 
           std::make_shared<RelativeAmbiguityError>(relative_ambiguity_information);
         graph_ptr_->addResidualBlock(relative_ambiguity_error, nullptr,
@@ -252,10 +246,23 @@ bool RTKEstimator::addGNSSMeasurementAndState(
 // Start ceres optimization
 void RTKEstimator::optimize()
 {
-  graph_ptr_->options.linear_solver_type = ceres::DENSE_SCHUR;
+  graph_ptr_->options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::DOGLEG;
   graph_ptr_->options.num_threads = options_.num_threads;
   graph_ptr_->options.max_num_iterations = options_.max_iteration;
+  // graph_ptr_->options.function_tolerance = 1e-12;
+  // graph_ptr_->options.gradient_tolerance = 1e-12;
+  // graph_ptr_->options.parameter_tolerance = 1e-12;
+
+  // graph_ptr_->options.initial_trust_region_radius = 1.0e4;
+  // graph_ptr_->options.initial_trust_region_radius = 2.0e6;
+  // graph_ptr_->options.preconditioner_type = ceres::IDENTITY;
+  // graph_ptr_->options.trust_region_strategy_type = ceres::DOGLEG;
+  // graph_ptr_->options.use_nonmonotonic_steps = true;
+  // graph_ptr_->options.max_consecutive_nonmonotonic_steps = 10;
+  // graph_ptr_->options.function_tolerance = 1e-12;
+  // graph_ptr_->options.gradient_tolerance = 1e-12;
+  // graph_ptr_->options.jacobi_scaling = false;
 
   // For debug
   // debug_callback_.reset(new CeresDebugCallback());
@@ -275,14 +282,16 @@ void RTKEstimator::optimize()
 
   // Ambiguity resolution
   setPositionEstimateToMeas();
-  ambiguity_resolution_->solve(
-    curState().id, curState().ambiguity_ids, measurements_.back());
+  if (ambiguity_resolution_->solve(
+    curState().id, curState().ambiguity_ids, measurements_.back())) {
+    curState().status = GNSSSolutionStatus::Fixed;
+  }
 
   if (options_.verbose) {
     LOG(INFO) << graph_ptr_->summary.BriefReport();
 #if 0
     std::ofstream outfile;
-    outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
+    outfile.open("/home/cc/datasets/tmp/log2.txt", std::ios::out | std::ios::trunc);
     outfile << graph_ptr_->summary.BriefReport() << std::endl;
     for (auto residual_map : graph_ptr_->residual_block_id_to_residual_block_spec_map_) {
       auto residual = residual_map.first;
@@ -299,24 +308,14 @@ void RTKEstimator::optimize()
 
         // auto parameters = graph_ptr_->parameters(residual);
         // for (Graph::ParameterBlockSpec &parameter : parameters) {
-        //   outfile << "    Parameter: " << parameter.first << std::endl;
+        //   outfile << "    Parameter: " << parameter.rov << std::endl;
         // }
     }
     outfile.close();
 
-    if (graph_ptr_->summary.final_cost > 1) LOG(FATAL) << "aa";
 #endif
 
   }
-
-  // test: get covariance
-  // std::vector<uint64_t> parameter_block_ids;
-  // parameter_block_ids.push_back(curState().id.asInteger());
-  // parameter_block_ids.push_back(changeIdType(curState().id, IdType::gClock, 'G').asInteger());
-  // parameter_block_ids.push_back(curState().ambiguity_ids[0].asInteger());
-  // Eigen::MatrixXd covariance;
-  // graph_ptr_->computeCovariance(parameter_block_ids, covariance);
-  // LOG(INFO) << "Covariance: " << std::endl << covariance;
 
   // Marginalization
   marginalization();
@@ -348,27 +347,6 @@ Eigen::Vector3d RTKEstimator::getPositionEstimate()
   }
 
   return Eigen::Vector3d::Zero();
-}
-
-// Get Satellite clock
-double RTKEstimator::getClockEstimate(const char system, double& dclock)
-{
-  State& state = lastState();
-  BackendId id = changeIdType(state.id, IdType::gClock, system);
-  if (!graph_ptr_->parameterBlockExists(id.asInteger())) {
-    return 0.0;
-  }
-
-  std::shared_ptr<ParameterBlock> base_ptr =
-      graph_ptr_->parameterBlockPtr(id.asInteger());
-  if (base_ptr != nullptr) {
-    std::shared_ptr<ClockParameterBlock> block_ptr = 
-      std::dynamic_pointer_cast<ClockParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
-    return *block_ptr->estimate().data();
-  }
-
-  return 0.0;
 }
 
 // Compute initial ambiguity
@@ -496,13 +474,6 @@ void RTKEstimator::clearCurrentStateAndMeasurement()
   BackendId position_id = curState().id;
   if (graph_ptr_->parameterBlockExists(position_id.asInteger())) {
     graph_ptr_->removeParameterBlock(position_id.asInteger());
-  }
-
-  // Clock parameter
-  for (size_t i = 0; i < GNSSSystems.size(); i++) {
-    BackendId clock_id = changeIdType(position_id, IdType::gClock, GNSSSystems[i]);
-    if (!graph_ptr_->parameterBlockExists(clock_id.asInteger())) continue;
-    graph_ptr_->removeParameterBlock(clock_id.asInteger());
   }
 
   // Ambiguity parameter

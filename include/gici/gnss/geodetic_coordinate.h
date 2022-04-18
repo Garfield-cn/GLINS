@@ -84,11 +84,11 @@ public:
   Eigen::Matrix3d rotationMatrix(GeoType from, GeoType to);
 
   // Convert coordinate
-  static Eigen::Vector3d convet(const Eigen::Vector3d& position,
+  static Eigen::Vector3d convert(const Eigen::Vector3d& position,
               const GeoType in_type, const GeoType out_type);
 
   // Convert coordinate
-  static Eigen::Vector3d convet(const Eigen::Vector3d& position,
+  static Eigen::Vector3d convert(const Eigen::Vector3d& position,
               const Eigen::Vector3d& position_zero,
               const GeoType in_type, const GeoType out_type);
 

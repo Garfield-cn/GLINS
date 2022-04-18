@@ -54,9 +54,8 @@ bool AmbiguityError<Ns ...>::EvaluateWithMinimalJacobians(
   }
 
   // Compute error
-  double dambiguity = ambiguity_ - ambiguity_estimate;
   Eigen::Matrix<double, 1, 1> error = 
-    Eigen::Matrix<double, 1, 1>(dambiguity - ambiguity_estimate);
+    Eigen::Matrix<double, 1, 1>(ambiguity_ - ambiguity_estimate);
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);

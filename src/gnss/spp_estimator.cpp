@@ -145,6 +145,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   // Insufficient satellites
   if (num_satellites < num_clock_blocks + 3) {
     LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites;
+    return false;
   }
 
   return true;

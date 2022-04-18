@@ -57,10 +57,15 @@ enum class ErrorType: uint8_t
   kRelativePoseError,
   kPseudorangeError,
   kPseudorangeErrorSD, 
+  kPseudorangeErrorDD,
   kPhaserangeError, 
   kPhaserangeErrorSD,
+  kPhaserangeErrorDD,
   kAmbiguityError,
+  kVelocityError,
   kRelativePositionError, 
+  kRelativePositionAndVelocityError,
+  kRelativeClockError,
   kRelativeAmbiguityError
 };
 

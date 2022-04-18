@@ -51,18 +51,19 @@ PseudorangeErrorSD<Ns ...>::PseudorangeErrorSD(
     parameter_block_group_ = 2;
   }
   // Group 3
-  else if (dims_.kNumParameterBlocks == 4 && 
+  else if (dims_.kNumParameterBlocks == 5 && 
       dims_.GetDim(0) == 3 && dims_.GetDim(1) == 1 &&
-      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1) {
+      dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 && 
+      dims_.GetDim(4) == 1) {
     is_estimate_body_ = false;
     is_estimate_atmosphere_ = true;
     parameter_block_group_ = 3;
   }
   // Group 4
-  else if (dims_.kNumParameterBlocks == 5 && 
+  else if (dims_.kNumParameterBlocks == 6 && 
       dims_.GetDim(0) == 7 && dims_.GetDim(1) == 3 &&
       dims_.GetDim(2) == 1 && dims_.GetDim(3) == 1 &&
-      dims_.GetDim(4) == 1) {
+      dims_.GetDim(4) == 1 && dims_.GetDim(5) == 1) {
     is_estimate_body_ = true;
     is_estimate_atmosphere_ = true;
     parameter_block_group_ = 4;
@@ -91,7 +92,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   Eigen::Quaterniond q_WS;
   double dclock;
   double dtroposphere_delay = 0.0, dionosphere_delay = 0.0;
-  double gmf_wet;
+  double gmf_wet_rov, gmf_wet_ref;
   
   // Position and clock
   if (!is_estimate_body_) 
@@ -125,14 +126,17 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
 
   double timestamp = measurement_rov_.timestamp;
 
-  double rho_1 = gnss_common::satelliteToReceiverDistance(satellite_rov_.sat_position, t_WR_ECEF);
-  double rho_2 = gnss_common::satelliteToReceiverDistance(
+  double rho_rov = gnss_common::satelliteToReceiverDistance(
+    satellite_rov_.sat_position, t_WR_ECEF);
+  double rho_ref = gnss_common::satelliteToReceiverDistance(
     satellite_ref_.sat_position, measurement_ref_.position);
 
-  double elevation_1 = gnss_common::satelliteElevation(satellite_rov_.sat_position, t_WR_ECEF);
-  double elevation_2 = gnss_common::satelliteElevation(
+  double elevation_rov = gnss_common::satelliteElevation(
+    satellite_rov_.sat_position, t_WR_ECEF);
+  double elevation_ref = gnss_common::satelliteElevation(
     satellite_ref_.sat_position, measurement_ref_.position);
-  double azimuth_1 = gnss_common::satelliteAzimuth(satellite_rov_.sat_position, t_WR_ECEF);
+  double azimuth_rov = gnss_common::satelliteAzimuth(
+    satellite_rov_.sat_position, t_WR_ECEF);
 
   // Atmosphere
   if (!is_estimate_atmosphere_) 
@@ -142,29 +146,32 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   else
   { 
     // use estimated atomspheric delays
-    double dtroposphere_wet = 0.0;
+    double troposphere_wet_rov = 0.0, troposphere_wet_ref = 0.0;
     if (!is_estimate_body_) {
-      dtroposphere_wet = parameters[2][0];
-      dionosphere_delay = parameters[3][0];
+      troposphere_wet_rov = parameters[2][0];
+      troposphere_wet_ref = parameters[3][0];
+      dionosphere_delay = parameters[4][0];
     }
     else {
-      dtroposphere_wet = parameters[3][0];
-      dionosphere_delay = parameters[4][0];
+      troposphere_wet_rov = parameters[3][0];
+      troposphere_wet_ref = parameters[4][0];
+      dionosphere_delay = parameters[5][0];
     }
 
     // troposphere hydro-static delay
-    double troposphere_delay_1 = gnss_common::troposphereSaastamoinen(
-      timestamp, t_WR_ECEF, elevation_1);
-    double troposphere_delay_2 = gnss_common::troposphereSaastamoinen(
-      timestamp, t_WR_ECEF, elevation_2);
-    // troposphere wet delay from augmentation
-    gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation_1, nullptr, &gmf_wet);
-    dtroposphere_delay = troposphere_delay_1 - 
-      troposphere_delay_2 + dtroposphere_wet * gmf_wet;
+    double troposphere_delay_rov = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, elevation_rov);
+    double troposphere_delay_ref = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, elevation_ref);
+    // troposphere wet delay
+    gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation_rov, nullptr, &gmf_wet_rov);
+    gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation_ref, nullptr, &gmf_wet_ref);
+    dtroposphere_delay = troposphere_delay_rov - troposphere_delay_ref + 
+      troposphere_wet_rov * gmf_wet_rov - troposphere_wet_ref * gmf_wet_ref;
   }
 
   // Get estimate derivated measurement
-  double dpseudorange_estimate = rho_1 - rho_2 + dclock
+  double dpseudorange_estimate = rho_rov - rho_ref + dclock
    + dtroposphere_delay + dionosphere_delay;
 
   // Compute error
@@ -176,7 +183,9 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
   Eigen::Vector3d factor(error_parameter_.phase_error_factor);
   double ratio = square(error_parameter_.code_to_phase_ratio);
-  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_1))) * ratio * 2.0;
+  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_rov))) * ratio * 2.0;
+  char system = satellite_rov_.getSystem();
+  variance *= square(error_parameter_.system_error_ratio.at(system));
   double square_root_information = sqrt(1.0 / variance);
   weighted_error = square_root_information * error;
 
@@ -185,7 +194,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
   {
     // Receiver position in ECEF
     Eigen::Matrix<double, 1, 3> J_t_ECEF = 
-      -((t_WR_ECEF - satellite_rov_.sat_position) / rho_1).transpose();
+      -((t_WR_ECEF - satellite_rov_.sat_position) / rho_rov).transpose();
     
     // Poses
     Eigen::Matrix<double, 1, 6> J_T_WS;
@@ -212,7 +221,10 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     Eigen::Matrix<double, 1, 1> J_clock = -Eigen::MatrixXd::Identity(1, 1);
 
     // Troposphere
-    Eigen::Matrix<double, 1, 1> J_trop = -gmf_wet * Eigen::MatrixXd::Identity(1, 1);
+    Eigen::Matrix<double, 1, 1> J_trop_rov = 
+      -gmf_wet_rov * Eigen::MatrixXd::Identity(1, 1);
+    Eigen::Matrix<double, 1, 1> J_trop_ref = 
+      gmf_wet_ref * Eigen::MatrixXd::Identity(1, 1);
 
     // Ionosphere
     Eigen::Matrix<double, 1, 1> J_iono = -Eigen::MatrixXd::Identity(1, 1);
@@ -242,10 +254,10 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J1_minimal_mapped = J1;
         }
       }
-      // Troposphere
+      // Troposphere at rov
       if (is_estimate_atmosphere_ && jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_trop;
+        J2 = square_root_information * J_trop_rov;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -253,15 +265,26 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J2_minimal_mapped = J2;
         }
       }
-      // Ionosphere
+      // Troposphere at ref
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_iono;
+        J3 = square_root_information * J_trop_ref;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
               J3_minimal_mapped(jacobians_minimal[3]);
           J3_minimal_mapped = J3;
+        }
+      }
+      // Ionosphere
+      if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
+        Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
+        J4 = square_root_information * J_iono;
+
+        if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
+          Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
+              J4_minimal_mapped(jacobians_minimal[4]);
+          J4_minimal_mapped = J4;
         }
       }
     }
@@ -308,10 +331,10 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J2_minimal_mapped = J2;
         }
       }
-      // Troposphere
+      // Troposphere at rov
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_trop;
+        J3 = square_root_information * J_trop_rov;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -319,15 +342,26 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
           J3_minimal_mapped = J3;
         }
       }
-      // Ionosphere
+      // Troposphere at ref
       if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_iono;
+        J4 = square_root_information * J_trop_ref;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
               J4_minimal_mapped(jacobians_minimal[4]);
           J4_minimal_mapped = J4;
+        }
+      }
+      // Ionosphere
+      if (is_estimate_atmosphere_ && jacobians[5] != nullptr) {
+        Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J5(jacobians[5]);
+        J5 = square_root_information * J_iono;
+
+        if (jacobians_minimal != nullptr && jacobians_minimal[5] != nullptr) {
+          Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
+              J5_minimal_mapped(jacobians_minimal[5]);
+          J5_minimal_mapped = J5;
         }
       }
     }

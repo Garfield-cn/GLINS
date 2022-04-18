@@ -12,6 +12,7 @@ namespace gici {
 
 enum class CommonParameterBlockType {
   Position,
+  Velocity,
   Clock,
   Frequency,
   Ambiguity,
@@ -130,6 +131,7 @@ class CommonParameterBlock : public ParameterBlock
 #define PRINT_MAP(x) \
   if (Type == CommonParameterBlockType::x) return std::string(#x) + "ParameterBlock";
     PRINT_MAP(Position);
+    PRINT_MAP(Velocity);
     PRINT_MAP(Clock);
     PRINT_MAP(Frequency);
     PRINT_MAP(Ambiguity);

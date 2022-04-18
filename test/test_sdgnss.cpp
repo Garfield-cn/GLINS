@@ -9,8 +9,7 @@
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
 #include "gici/gnss/spp_estimator.h"
-#include "gici/gnss/dgnss_estimator.h"
-#include "gici/gnss/gnss_common.h"
+#include "gici/gnss/sdgnss_estimator.h"
 
 using namespace gici;
 
@@ -21,7 +20,7 @@ bool measurement_updated_ref_ = false;
 
 void gnssCallback(GNSSMeasurement& data)
 {
-  // LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
+  LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
 
   if (!measurement_updated_rov_ && data.role == GNSSRole::Rover) {
     gnss_measurement_rov_ = data;
@@ -52,10 +51,10 @@ int main(void)
 
   initializeSignalHandles();
 
-  DGNSSEstimatorOptions estimator_options;
+  SDGNSSEstimatorOptions estimator_options;
   estimator_options.verbose = true;
   // estimator_options.system_exclude.push_back('C');
-  DGNSSEstimator estimator(estimator_options);
+  SDGNSSEstimator estimator(estimator_options);
 
   YAML::Node stream_config = config["stream"];
   StreamHandle stream_handle(stream_config);
@@ -78,16 +77,8 @@ int main(void)
         estimator.optimize();
         Eigen::Vector3d position = estimator.getPositionEstimate();
         LOG(INFO) << std::fixed << position.transpose();
-
-        uint8_t buff[256];
-        sol_t sol;
-        for (int i = 0; i < 3; i++) sol.rr[i] = position(i);
-        sol.time = gnss_common::doubleToGtime(gnss_measurement_rov_.timestamp);
-        sol.stat = SOLQ_DGPS;
-        int size = outnmea_rmc(buff, &sol);
-        outnmea_gga(buff + size, &sol);
         outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::app);
-        outfile << buff;
+        outfile << std::fixed << position.transpose() << std::endl;
         outfile.close();
       }
       measurement_updated_rov_ = false;

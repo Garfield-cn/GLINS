@@ -80,13 +80,26 @@ bool checkObservationValid(const GNSSMeasurement& measurement,
                            const GNSSCommonOptions options = GNSSCommonOptions());
 
 // Form single difference pseudorange pair
-GNSSMeasurementIndexPairs formPseudorangePair(
+GNSSMeasurementSDIndexPairs formPseudorangeSDPair(
                             const GNSSMeasurement& measurement_rov, 
                             const GNSSMeasurement& measurement_ref,
                             const GNSSCommonOptions options = GNSSCommonOptions());
 
 // Form single difference phaserange pair
-GNSSMeasurementIndexPairs formPhaserangePair(
+GNSSMeasurementSDIndexPairs formPhaserangeSDPair(
+                            const GNSSMeasurement& measurement_rov, 
+                            const GNSSMeasurement& measurement_ref,
+                            const GNSSCommonOptions options = GNSSCommonOptions());
+
+// Form double difference pseudorange pair
+// we use satellite with highest elevation angle as base satellite
+GNSSMeasurementDDIndexPairs formPseudorangeDDPair(
+                            const GNSSMeasurement& measurement_rov, 
+                            const GNSSMeasurement& measurement_ref,
+                            const GNSSCommonOptions options = GNSSCommonOptions());
+
+// Form double difference phaserange pair
+GNSSMeasurementDDIndexPairs formPhaserangeDDPair(
                             const GNSSMeasurement& measurement_rov, 
                             const GNSSMeasurement& measurement_ref,
                             const GNSSCommonOptions options = GNSSCommonOptions());

@@ -60,12 +60,13 @@ enum class IdType : uint8_t
   ImuStates = 2,
   cExtrinsics = 3,
   gPosition = 4,
-  gClock = 5, 
-  gFrequency = 6,
-  gTroposphere = 7,
-  gExtrinsics = 8,
-  gAmbiguity = 9,
-  gIonosphere = 10
+  gVelocity = 5,
+  gClock = 6, 
+  gFrequency = 7,
+  gTroposphere = 8,
+  gExtrinsics = 9,
+  gAmbiguity = 10,
+  gIonosphere = 11
 };
 
 // The BackendID for multiple types
@@ -209,6 +210,14 @@ inline BackendId createGNSSPositionId(int32_t bundle_id)
     BackendId::setBits(IdType::gPosition, BITS_IDTYPE));
 }
 
+inline BackendId createGNSSVelocityId(int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  return BackendId(
+    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(IdType::gVelocity, BITS_IDTYPE));
+}
+
 inline BackendId createGNSSClockId(char system,
                                    int32_t bundle_id)
 {
@@ -253,7 +262,7 @@ inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
 {
   CHECK(id.type() != IdType::cLandmark);
   CHECK(type != IdType::cLandmark);
-  CHECK(cam_index == 0 || type == IdType::cExtrinsics);
+  CHECK(cam_index == 0 || type == IdType::cExtrinsics || type == IdType::gVelocity);
   uint64_t out = id.asInteger();
   out = BackendId::resetBits(out, cam_index, BITS_CAMERA_IDX);
   out = BackendId::resetBits(out, type, BITS_IDTYPE);

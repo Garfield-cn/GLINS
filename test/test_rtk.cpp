@@ -10,11 +10,16 @@
 #include "gici/gnss/gnss_types.h"
 #include "gici/gnss/spp_estimator.h"
 #include "gici/gnss/rtk_estimator.h"
+#include "gici/gnss/gnss_common.h"
+#include "gici/gnss/geodetic_coordinate.h"
 
 using namespace gici;
 
+#define SIM_DELAY_PERIOD 0
+
 GNSSMeasurement gnss_measurement_rov_;
 GNSSMeasurement gnss_measurement_ref_;
+std::deque<GNSSMeasurement> gnss_measurements_ref_;
 bool measurement_updated_rov_ = false;
 bool measurement_updated_ref_ = false;
 
@@ -23,11 +28,18 @@ void gnssCallback(GNSSMeasurement& data)
   if (!measurement_updated_rov_ && data.role == GNSSRole::Rover) {
     gnss_measurement_rov_ = data;
     measurement_updated_rov_ = true;
+  } 
+
+  if (data.role == GNSSRole::Reference) {
+    gnss_measurements_ref_.push_back(data);
+    if (gnss_measurements_ref_.size() > SIM_DELAY_PERIOD + 1) gnss_measurements_ref_.pop_front();
   }
 
   if (!measurement_updated_ref_ && data.role == GNSSRole::Reference) {
-    gnss_measurement_ref_ = data;
-    measurement_updated_ref_ = true;
+    if (gnss_measurements_ref_.size() == SIM_DELAY_PERIOD + 1) {
+      gnss_measurement_ref_ = gnss_measurements_ref_.front();
+      measurement_updated_ref_ = true;
+    }
   }
 }
 
@@ -63,6 +75,8 @@ int main(void)
   std::ofstream outfile;
   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
   outfile.close();
+  outfile.open("/home/cc/datasets/tmp/log2.txt", std::ios::out | std::ios::trunc);
+  outfile.close();
 
   SpinControl spin(1e-3);
   while (SpinControl::ok()) {
@@ -80,10 +94,22 @@ int main(void)
           gnss_measurement_rov_, gnss_measurement_ref_)) {
         estimator.optimize();
         Eigen::Vector3d position = estimator.getPositionEstimate();
+        GNSSSolutionStatus status = estimator.getSolutionStatus();
+
         LOG(INFO) << std::fixed << std::setprecision(9) << gnss_measurement_rov_.timestamp 
-                  << " " << std::fixed << position.transpose() << std::endl;
+                  << " " << std::fixed << position.transpose();
+
+        uint8_t buff[256];
+        sol_t sol;
+        for (int i = 0; i < 3; i++) sol.rr[i] = position(i);
+        sol.time = gnss_common::doubleToGtime(gnss_measurement_rov_.timestamp);
+        if (status == GNSSSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
+        else if (status == GNSSSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
+        else sol.stat = SOLQ_DGPS;
+        int size = outnmea_rmc(buff, &sol);
+        outnmea_gga(buff + size, &sol);
         outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::app);
-        outfile << std::fixed << position.transpose() << std::endl;
+        outfile << buff;
         outfile.close();
       }
       measurement_updated_rov_ = false;

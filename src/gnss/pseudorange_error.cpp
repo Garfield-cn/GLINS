@@ -116,9 +116,12 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
   }
 
   double timestamp = measurement_.timestamp;
-  double rho = gnss_common::satelliteToReceiverDistance(satellite_.sat_position, t_WR_ECEF);
-  double elevation = gnss_common::satelliteElevation(satellite_.sat_position, t_WR_ECEF);
-  double azimuth = gnss_common::satelliteAzimuth(satellite_.sat_position, t_WR_ECEF);
+  double rho = gnss_common::satelliteToReceiverDistance(
+    satellite_.sat_position, t_WR_ECEF);
+  double elevation = gnss_common::satelliteElevation(
+    satellite_.sat_position, t_WR_ECEF);
+  double azimuth = gnss_common::satelliteAzimuth(
+    satellite_.sat_position, t_WR_ECEF);
 
   // Atmosphere
   if (!is_estimate_atmosphere_) 
@@ -129,7 +132,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       timestamp, t_WR_ECEF, elevation);
     troposphere_var = square(
       error_parameter_.troposphere_model_factor * troposphere_delay);
-    // troposphere wet delay from augmentation
+    // troposphere wet delay
     if (measurement_.troposphere_wet != 0.0) {
       gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation, nullptr, &gmf_wet);
       troposphere_delay += measurement_.troposphere_wet * gmf_wet;
@@ -179,7 +182,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
     // troposphere hydro-static delay
     troposphere_delay = gnss_common::troposphereSaastamoinen(
       timestamp, t_WR_ECEF, elevation);
-    // troposphere wet delay from augmentation
+    // troposphere wet delay
     gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation, nullptr, &gmf_wet);
     troposphere_delay += troposphere_wet * gmf_wet;
 
@@ -204,6 +207,8 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
   double ratio = square(error_parameter_.code_to_phase_ratio);
   double variance = (square(factor(0)) + square(factor(1) / sin(elevation))) * ratio + 
     ephemeris_var + ionosphere_var + troposphere_var;
+  char system = satellite_.getSystem();
+  variance *= square(error_parameter_.system_error_ratio.at(system));
   double square_root_information = sqrt(1.0 / variance);
   weighted_error = square_root_information * error;
 

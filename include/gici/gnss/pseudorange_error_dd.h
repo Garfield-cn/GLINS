@@ -1,5 +1,5 @@
 /**
-* @Function: Single-differenced (between stations) phase-range residual block for ceres backend
+* @Function: Double-differenced pseudorange residual block for ceres backend
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -20,17 +20,17 @@
 
 namespace gici {
 
-// Single-differenced phase-range error
+// Double-differenced pseudorange error
 // The candidate parameter setups are:
-// Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1), P3. ambiguity (1)
+// Group 1: P1. receiver position in ECEF (3)
 // Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
-//          in body frame (3), P3. receiver clock (1), P4. ambiguity (1)
-// Group 3: Group 1 + P4. troposphere delay at rov (1), P5. troposphere delay at ref (1) 
-//          P6. ionosphere delay (1)
-// Group 4: Group 2 + P5. troposphere delay at rov (1), P6. troposphere delay at ref (1), 
-//          P7. ionosphere delay (1)
+//          in body frame (3)
+// Group 3: Group 1 + P2. troposphere delay at rov (1), P3. troposphere delay at ref (1) 
+//          P4. ionosphere delay (1), P5. ionosphere delay of base satellite (1)
+// Group 4: Group 2 + P3. troposphere delay at rov (1), P4. troposphere delay at ref (1), 
+//          P5. ionosphere delay (1), P6. ionosphere delay of base satellite (1)
 template<int... Ns>
-class PhaserangeErrorSD :
+class PseudorangeErrorDD :
     public ceres::SizedCostFunction<
     1 /* number of residuals */,
     Ns ... /* parameter blocks */>,
@@ -52,20 +52,24 @@ class PhaserangeErrorSD :
   typedef double covariance_t;
 
   /// \brief Default constructor.
-  PhaserangeErrorSD();
+  PseudorangeErrorDD();
 
   /// \brief Construct with measurement and information matrix
-  /// @param[in] measurement_rov The measurement of rover.
-  /// @param[in] measurement_ref The measurement of reference.
+  /// @param[in] measurement_rov The measurement at rover.
+  /// @param[in] measurement_ref The measurement at reference.
+  /// @param[in] measurement_rov_base The measurement of base satellite at rover.
+  /// @param[in] measurement_ref_base The measurement of base satellite at reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PhaserangeErrorSD(const GNSSMeasurement& measurement_rov,
+  PseudorangeErrorDD(const GNSSMeasurement& measurement_rov,
                     const GNSSMeasurement& measurement_ref,
                     const GNSSMeasurementIndex index_rov,
                     const GNSSMeasurementIndex index_ref,
+                    const GNSSMeasurementIndex index_rov_base,
+                    const GNSSMeasurementIndex index_ref_base,
                     const GNSSErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
-  virtual ~PhaserangeErrorSD() {}
+  virtual ~PseudorangeErrorDD() {}
 
   // setters
   /// \brief Set the measurement.
@@ -122,13 +126,15 @@ class PhaserangeErrorSD :
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const
   {
-    return ErrorType::kPhaserangeErrorSD;
+    return ErrorType::kPseudorangeErrorDD;
   }
 
  protected:
-  GNSSMeasurement measurement_rov_, measurement_ref_; ///< The measurement.
-  Satellite satellite_rov_, satellite_ref_;
-  Observation observation_rov_, observation_ref_;
+  GNSSMeasurement measurement_rov_, measurement_ref_; 
+  Satellite satellite_rov_, satellite_ref_,
+            satellite_rov_base_, satellite_ref_base_;
+  Observation observation_rov_, observation_ref_,
+              observation_rov_base_, observation_ref_base_;
 
   // weighting related
   GNSSErrorParameter error_parameter_;
@@ -146,10 +152,10 @@ class PhaserangeErrorSD :
 };
 
 // Explicitly instantiate template classes
-template class PhaserangeErrorSD<3, 1, 1>;  // Group 1
-template class PhaserangeErrorSD<7, 3, 1, 1>;  // Group 2
-template class PhaserangeErrorSD<3, 1, 1, 1, 1, 1>;  // Group 3
-template class PhaserangeErrorSD<7, 3, 1, 1, 1, 1, 1>;  // Group 4
+template class PseudorangeErrorDD<3>;  // Group 1
+template class PseudorangeErrorDD<7, 3>;  // Group 2
+template class PseudorangeErrorDD<3, 1, 1, 1, 1>;  // Group 3
+template class PseudorangeErrorDD<7, 3, 1, 1, 1, 1>;  // Group 4
 
 }  
 

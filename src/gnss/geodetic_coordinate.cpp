@@ -150,7 +150,7 @@ Eigen::Vector3d GeoCoordinate::convertToLLA(
 }
 
 // Convert coordinate
-Eigen::Vector3d GeoCoordinate::convet(const Eigen::Vector3d& position,
+Eigen::Vector3d GeoCoordinate::convert(const Eigen::Vector3d& position,
             const GeoType in_type, const GeoType out_type)
 {
   if (out_type == GeoType::ENU) {
@@ -163,7 +163,7 @@ Eigen::Vector3d GeoCoordinate::convet(const Eigen::Vector3d& position,
 }
 
 // Convert coordinate
-Eigen::Vector3d GeoCoordinate::convet(const Eigen::Vector3d& position,
+Eigen::Vector3d GeoCoordinate::convert(const Eigen::Vector3d& position,
             const Eigen::Vector3d& position_zero,
             const GeoType in_type, const GeoType out_type)
 {

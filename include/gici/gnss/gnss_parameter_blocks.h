@@ -12,6 +12,7 @@ namespace gici {
 
 // All the parameters used by GNSS positioning are common blocks
 using PositionParameterBlock = CommonParameterBlock<3, CommonParameterBlockType::Position>;
+using VelocityParameterBlock = CommonParameterBlock<3, CommonParameterBlockType::Velocity>;
 using ClockParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Clock>;
 using FrequencyParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Frequency>;
 using AmbiguityParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Ambiguity>;
