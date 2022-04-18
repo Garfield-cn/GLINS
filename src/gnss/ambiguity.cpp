@@ -472,17 +472,12 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
   while (num_active >= min_num_fixation) {
     if (gnss_common::solveAmbiguityLambda(active_float_ambiguities, 
         active_float_covariance, options_.ratio, fixed_ambiguities)) break;
-    // fixed_ambiguities.setZero(); break;
     // reduce subsets
     --num_active;
     active_float_ambiguities = float_ambiguities.topRows(num_active);
     active_float_covariance = float_covariance.topLeftCorner(num_active, num_active);
   }
   if (num_active < min_num_fixation) return false;
-
-  LOG(INFO) << "------------- Num_active = " << num_active << ", Type = " << static_cast<int>(types[0]);
-
-  // return false;
 
   // Contraint the fixed ambiguities to temporary parameters and check 
   // phaserange residual. We test the residuals until no outlier is 
