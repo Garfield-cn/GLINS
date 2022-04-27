@@ -23,7 +23,9 @@ enum class GeoType {
 
 class GeoCoordinate {
 public:
-  GeoCoordinate(const Eigen::Vector3d& position, 
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  GeoCoordinate(const Eigen::Vector3d& position_zero, 
                 const GeoType type);
   GeoCoordinate() : lla_(Eigen::Vector3d::Zero()),
     lla_zero_(Eigen::Vector3d::Zero()), lla_zero_setted_(false) { }
@@ -44,53 +46,12 @@ public:
   // Get position
   Eigen::Vector3d get(const GeoType type);
 
-  // Get position in LLA coordinate
-  Eigen::Vector3d getLLA(void);
-
-  inline Eigen::Vector3d getLLA(
-    const Eigen::Vector3d& position, const GeoType type) {
-    setPosition(position, type);
-    return getLLA();
-  }
-
-  // Get position in ECEF coordinate
-  Eigen::Vector3d getECEF(void);
-
-  inline Eigen::Vector3d getECEF(
-    const Eigen::Vector3d& position, const GeoType type) {
-    setPosition(position, type);
-    return getECEF();
-  }
-
-  // Get position in ENU coordinate
-  Eigen::Vector3d getENU(void);
-
-  inline Eigen::Vector3d getENU(
-    const Eigen::Vector3d& position, const GeoType type) {
-    setPosition(position, type);
-    return getENU();
-  }
-
-  // Get position in NED coordinate
-  Eigen::Vector3d getNED(void);
-
-  inline Eigen::Vector3d getNED(
-    const Eigen::Vector3d& position, const GeoType type) {
-    setPosition(position, type);
-    return getNED();
-  }
+  // Convert coordinate
+  Eigen::Vector3d convert(const Eigen::Vector3d& position,
+              const GeoType in_type, const GeoType out_type);
 
   // Rotation matrix
   Eigen::Matrix3d rotationMatrix(GeoType from, GeoType to);
-
-  // Convert coordinate
-  static Eigen::Vector3d convert(const Eigen::Vector3d& position,
-              const GeoType in_type, const GeoType out_type);
-
-  // Convert coordinate
-  static Eigen::Vector3d convert(const Eigen::Vector3d& position,
-              const Eigen::Vector3d& position_zero,
-              const GeoType in_type, const GeoType out_type);
 
   // Convert LLA in degree to LLA in rad
   inline static Eigen::Vector3d degToRad(Eigen::Vector3d& deg) {
@@ -107,9 +68,17 @@ public:
   }
 
 private:
-  // Set coordinate
-  static Eigen::Vector3d convertToLLA(const Eigen::Vector3d& position, 
-                                      const GeoType type);
+  // Get position in LLA coordinate
+  Eigen::Vector3d getLLA(void);
+
+  // Get position in ECEF coordinate
+  Eigen::Vector3d getECEF(void);
+
+  // Get position in ENU coordinate
+  Eigen::Vector3d getENU(void);
+
+  // Get position in NED coordinate
+  Eigen::Vector3d getNED(void);
 
   // Latitude, Longitude and Altitude stored in rad
   Eigen::Vector3d lla_;

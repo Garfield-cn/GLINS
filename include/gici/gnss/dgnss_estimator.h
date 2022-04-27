@@ -16,7 +16,7 @@
 namespace gici {
 
 // DGNSS options
-struct DGNSSEstimatorOptions {
+struct DgnssEstimatorOptions {
   // Max iteration number for ceres optimization
   int max_iteration = 15;
 
@@ -30,14 +30,14 @@ struct DGNSSEstimatorOptions {
   double max_age = 30.0;
 
   // GNSS common options
-  GNSSCommonOptions common;
+  GnssCommonOptions common;
 
   // GNSS error parameter
-  GNSSErrorParameter error_parameter;
+  GnssErrorParameter error_parameter;
 };
 
-// SPP estimator
-class DGNSSEstimator {
+// Estimator
+class DgnssEstimator {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -47,13 +47,13 @@ public:
     double timestamp = 0.0;
   };
 
-  DGNSSEstimator(const DGNSSEstimatorOptions& options);
-  ~DGNSSEstimator();
+  DgnssEstimator(const DgnssEstimatorOptions& options);
+  ~DgnssEstimator();
 
   // Add GNSS measurements and state
   // measurement_ref should from the reference station
-  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement_rov, 
-                                  const GNSSMeasurement& measurement_ref);
+  bool addGnssMeasurementAndState(const GnssMeasurement& measurement_rov, 
+                                  const GnssMeasurement& measurement_ref);
 
   // Start ceres optimization
   void optimize();
@@ -66,15 +66,15 @@ private:
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
-  DGNSSEstimatorOptions options_;
+  DgnssEstimatorOptions options_;
 
   // loss function
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
   std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
 
   // Measurement
-  GNSSMeasurement measurement_rov_;
-  GNSSMeasurement measurement_ref_;
+  GnssMeasurement measurement_rov_;
+  GnssMeasurement measurement_ref_;
 
   // States
   State current_state_;

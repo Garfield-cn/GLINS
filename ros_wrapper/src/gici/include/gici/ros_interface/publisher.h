@@ -1,0 +1,73 @@
+/**
+* @Function: ROS publishers
+*
+* @Author  : Cheng Chi
+* @Email   : chichengcn@sjtu.edu.cn
+**/
+#ifndef ROS_PUBLISHER_H
+#define ROS_PUBLISHER_H
+
+#include <iostream>
+#include <boost/shared_ptr.hpp>
+#include <ros/ros.h>
+#include <visualization_msgs/Marker.h>
+#include <visualization_msgs/MarkerArray.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/CameraInfo.h>
+#include <nav_msgs/Odometry.h>
+#include <std_msgs/ColorRGBA.h>
+#include <tf/transform_broadcaster.h>
+#include <image_transport/image_transport.h>
+#include <nav_msgs/Path.h>
+#include <pcl_ros/point_cloud.h>
+#include <pcl/point_types.h>
+
+#include "gici/utility/svo.h"
+
+namespace gici {
+
+// Publish raw image
+void publishImage(ros::Publisher& pub, 
+  const FramePtr& frame, const ros::Time time);
+
+// Publish image with features
+void publishFeaturedImage(ros::Publisher& pub, 
+  const FramePtr& frame, const ros::Time time);
+
+// Publish seeds
+void publishSeeds(ros::Publisher& pub, 
+  const MapPtr& map, const ros::Time time, 
+  std::string frame_id);
+
+// Publish pose
+void publishPoseStamped(ros::Publisher& pub, 
+  const Transformation& pose, const ros::Time time, 
+  std::string frame_id);
+
+// Publish pose with transform
+void publishPoseWithTransform(ros::Publisher& pub, 
+  tf::TransformBroadcaster& broadcaster, 
+  const Transformation& pose, const ros::Time time, 
+  std::string frame_id, std::string child_frame_id);
+
+// Path publisher
+class PathPublisher {
+public:
+  void addPoseAndPublish(ros::Publisher& pub, 
+    const Transformation& pose, const ros::Time time, 
+    std::string frame_id);
+
+protected:
+  bool is_initialized_ = false;
+  nav_msgs::Path path_;
+};
+
+// Publish 3D error
+void publishError3d(ros::Publisher& pub, 
+  const Eigen::Vector3d& error, const ros::Time time, 
+  std::string frame_id);
+
+}
+
+
+#endif

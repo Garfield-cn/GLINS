@@ -81,9 +81,10 @@ public:
   // This function should be called after all the streamers are initialized
   static void enableReplay(StreamerReplayOptions option);
 
-private:
   // Synchronize streams for replay
   static void syncStreams(void);
+
+private:
 
 protected:
   stream_t stream_;

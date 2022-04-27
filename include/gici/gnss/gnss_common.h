@@ -36,6 +36,9 @@ std::string satToPrn(int sat);
 // Convert gtime to double
 double gtimeToDouble(gtime_t time);
 
+// Convert GPS time to UTC time
+double gpsTimeToUtc(double gps_time);
+
 // Convert double to gtime
 gtime_t doubleToGtime(double time);
 
@@ -57,52 +60,52 @@ int getPhaseID(char system, int code, double wavelength);
 
 // ----------------------------------------------------------
 // Check whether the system is used
-bool useSystem(GNSSCommonOptions options, const char system);
+bool useSystem(GnssCommonOptions options, const char system);
 
 // Check whether the satellite is used
-bool useSatellite(GNSSCommonOptions options, const std::string prn);
+bool useSatellite(GnssCommonOptions options, const std::string prn);
 
 // Check whether the code type is used
-bool useCode(GNSSCommonOptions options, char system, const int code_type);
+bool useCode(GnssCommonOptions options, char system, const int code_type);
 
 // Check elevation threshold
-bool checkElevation(GNSSCommonOptions options, 
-  const GNSSMeasurement& measurement, std::string prn);
+bool checkElevation(GnssCommonOptions options, 
+  const GnssMeasurement& measurement, std::string prn);
 
 // One phase corresponds to muitiple code type, so we need to delete
 // duplicated phases
-void deleteDuplicatePhases(GNSSMeasurement& measurement);
+void deleteDuplicatePhases(GnssMeasurement& measurement);
 
 // Check observation valid
-bool checkObservationValid(const GNSSMeasurement& measurement,
-                           const GNSSMeasurementIndex& index,
-                           const GNSSObservationType type, 
-                           const GNSSCommonOptions options = GNSSCommonOptions());
+bool checkObservationValid(const GnssMeasurement& measurement,
+                           const GnssMeasurementIndex& index,
+                           const ObservationType type, 
+                           const GnssCommonOptions options = GnssCommonOptions());
 
 // Form single difference pseudorange pair
-GNSSMeasurementSDIndexPairs formPseudorangeSDPair(
-                            const GNSSMeasurement& measurement_rov, 
-                            const GNSSMeasurement& measurement_ref,
-                            const GNSSCommonOptions options = GNSSCommonOptions());
+GnssMeasurementSDIndexPairs formPseudorangeSDPair(
+                            const GnssMeasurement& measurement_rov, 
+                            const GnssMeasurement& measurement_ref,
+                            const GnssCommonOptions options = GnssCommonOptions());
 
 // Form single difference phaserange pair
-GNSSMeasurementSDIndexPairs formPhaserangeSDPair(
-                            const GNSSMeasurement& measurement_rov, 
-                            const GNSSMeasurement& measurement_ref,
-                            const GNSSCommonOptions options = GNSSCommonOptions());
+GnssMeasurementSDIndexPairs formPhaserangeSDPair(
+                            const GnssMeasurement& measurement_rov, 
+                            const GnssMeasurement& measurement_ref,
+                            const GnssCommonOptions options = GnssCommonOptions());
 
 // Form double difference pseudorange pair
 // we use satellite with highest elevation angle as base satellite
-GNSSMeasurementDDIndexPairs formPseudorangeDDPair(
-                            const GNSSMeasurement& measurement_rov, 
-                            const GNSSMeasurement& measurement_ref,
-                            const GNSSCommonOptions options = GNSSCommonOptions());
+GnssMeasurementDDIndexPairs formPseudorangeDDPair(
+                            const GnssMeasurement& measurement_rov, 
+                            const GnssMeasurement& measurement_ref,
+                            const GnssCommonOptions options = GnssCommonOptions());
 
 // Form double difference phaserange pair
-GNSSMeasurementDDIndexPairs formPhaserangeDDPair(
-                            const GNSSMeasurement& measurement_rov, 
-                            const GNSSMeasurement& measurement_ref,
-                            const GNSSCommonOptions options = GNSSCommonOptions());
+GnssMeasurementDDIndexPairs formPhaserangeDDPair(
+                            const GnssMeasurement& measurement_rov, 
+                            const GnssMeasurement& measurement_ref,
+                            const GnssCommonOptions options = GnssCommonOptions());
 
 // ----------------------------------------------------------
 // Saastamoinen troposphere delay model

@@ -17,7 +17,7 @@ namespace gici {
 DataFormat::DataFormat(FormatorType type)
 {
   if (type == FormatorType::RTCM2 || type == FormatorType::RTCM3 ||
-    type == FormatorType::GNSSRaw) {
+    type == FormatorType::GnssRaw) {
     gnss = std::make_shared<GNSS>();
     gnss->init();
     return;
@@ -221,25 +221,25 @@ extern void updateStreamData(int ret, obs_t *obs, nav_t *nav,
   sta_t *sta, ssr_t *ssr, int iobs, int sat, 
   std::vector<DataFormat::GNSS::Ptr>& gnss_data)
 {
-  GNSSDataType type = static_cast<GNSSDataType>(ret);
+  GnssDataType type = static_cast<GnssDataType>(ret);
   // Observation data
-  if (type == GNSSDataType::Observation) {
+  if (type == GnssDataType::Observation) {
     updateObservation(obs, gnss_data[iobs]);
   }
   // Ephemeris data
-  else if (type == GNSSDataType::Ephemeris) {
+  else if (type == GnssDataType::Ephemeris) {
     updateEphemeris(nav, sat, gnss_data[0]);
   }
   // Ionosphere parameters
-  else if (type == GNSSDataType::IonPara) {
+  else if (type == GnssDataType::IonPara) {
     updateIonAndUTC(nav, gnss_data[0]);
   }
   // Antenna position parameters
-  else if (type == GNSSDataType::AntePos) {
+  else if (type == GnssDataType::AntePos) {
     updateAntennaPosition(sta, gnss_data[0]);
   }
   // SSR (precise ephemeris, DCBs, etc..)
-  else if (type == GNSSDataType::SSR) {
+  else if (type == GnssDataType::SSR) {
     updateSSR(ssr, gnss_data[0]);
   }
 }
@@ -315,15 +315,15 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
     int sat = rtcm_.ephsat;
     gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
-    GNSSDataType type = static_cast<GNSSDataType>(ret);
+    GnssDataType type = static_cast<GnssDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
-      type == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
+      type == GnssDataType::Observation ? gnss_data[iobs] : gnss_data[0];
     if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
       gnss->types.push_back(type);
     }
     
-    if (type == GNSSDataType::Observation) {
+    if (type == GnssDataType::Observation) {
       if (iobs < MaxDataSize::RTCM2) iobs++;
       if (iobs >= MaxDataSize::RTCM2) {
         LOG(WARNING) << "Max data length surpassed!";
@@ -406,15 +406,15 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
     gnss_data[1]->observation[0].data[0].code[0] = 1;
     gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
-    GNSSDataType type = static_cast<GNSSDataType>(ret);
+    GnssDataType type = static_cast<GnssDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
-      type == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
+      type == GnssDataType::Observation ? gnss_data[iobs] : gnss_data[0];
     if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
       gnss->types.push_back(type);
     }
     
-    if (type == GNSSDataType::Observation) {
+    if (type == GnssDataType::Observation) {
       if (iobs < MaxDataSize::RTCM3) iobs++;
       if (iobs >= MaxDataSize::RTCM3) {
         LOG(WARNING) << "Max data length surpassed!";
@@ -435,10 +435,10 @@ int RTCM3Formator::encode(
   const DataFormat::Ptr& data, uint8_t *buf)
 {
   // Check the control structure
-  std::map<GNSSDataType, bool> type_valid;
-  type_valid.insert(std::make_pair(GNSSDataType::Observation, false));
-  type_valid.insert(std::make_pair(GNSSDataType::Ephemeris, false));
-  type_valid.insert(std::make_pair(GNSSDataType::AntePos, false));
+  std::map<GnssDataType, bool> type_valid;
+  type_valid.insert(std::make_pair(GnssDataType::Observation, false));
+  type_valid.insert(std::make_pair(GnssDataType::Ephemeris, false));
+  type_valid.insert(std::make_pair(GnssDataType::AntePos, false));
   for (auto it : data->gnss->types) {
     type_valid.at(it) = true;
   }
@@ -454,7 +454,7 @@ int RTCM3Formator::encode(
   memcpy(&rtcm.sta, data->gnss->antenna, sizeof(sta_t));
   memcpy(rtcm.ssr, data->gnss->ephemeris->ssr, sizeof(ssr_t) * MAXSAT);
 
-  if (type_valid.at(GNSSDataType::Observation)) {
+  if (type_valid.at(GnssDataType::Observation)) {
     // Set time
     rtcm.time = rtcm.obs.data[0].time;
     if (fabs(timediff(rtcm.time, rtcm_.time)) > 30.0) rtcm_.time = rtcm.time;
@@ -465,14 +465,14 @@ int RTCM3Formator::encode(
       n += rtcm.nbyte;
     }
   }
-  if (type_valid.at(GNSSDataType::Ephemeris)) {
+  if (type_valid.at(GnssDataType::Ephemeris)) {
     for (size_t i = 0; i < msg_eph.size(); i++) {
       gen_rtcm3(&rtcm, msg_eph[i], 0, i != 4);
       memcpy(buf+n, rtcm.buff, rtcm.nbyte);
       n += rtcm.nbyte;
     }
   }
-  if (type_valid.at(GNSSDataType::AntePos)) {
+  if (type_valid.at(GnssDataType::AntePos)) {
     for (size_t i = 0; i < msg_ant.size(); i++) {
       gen_rtcm3(&rtcm, msg_ant[i], 0, i != 3);
       memcpy(buf+n, rtcm.buff, rtcm.nbyte);
@@ -484,42 +484,42 @@ int RTCM3Formator::encode(
 }
 
 // GNSS raw --------------------------------------------------------
-GNSSRawFormator::GNSSRawFormator(Config& config)
+GnssRawFormator::GnssRawFormator(Config& config)
 {
-  type_ = FormatorType::GNSSRaw;
+  type_ = FormatorType::GnssRaw;
   option_tools::convert(config.sub_type, format_);
 
   init_raw(&raw_, static_cast<int>(format_));
   raw_.time = gnss_common::doubleToGtime(config.start_time);
-  for (int i = 0; i < MaxDataSize::GNSSRaw; i++) {
+  for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
 }
   
-GNSSRawFormator::GNSSRawFormator(YAML::Node& node)
+GnssRawFormator::GnssRawFormator(YAML::Node& node)
 {
   Config config;
   config.start_time = vk::Timer::getCurrentTime();
   LOAD_COMMON(start_time);
   LOAD_REQUIRED(sub_type);
 
-  type_ = FormatorType::GNSSRaw;
+  type_ = FormatorType::GnssRaw;
   option_tools::convert(config.sub_type, format_);
 
   init_raw(&raw_, static_cast<int>(format_));
   raw_.time = gnss_common::doubleToGtime(config.start_time);
-  for (int i = 0; i < MaxDataSize::GNSSRaw; i++) {
+  for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
     data_.push_back(std::make_shared<DataFormat>(type_));
   }
 } 
 
-GNSSRawFormator::~GNSSRawFormator()
+GnssRawFormator::~GnssRawFormator()
 {
   free_raw(&raw_);
 }
 
 // Decode stream to data
-int GNSSRawFormator::decode(const uint8_t *buf, int size, 
+int GnssRawFormator::decode(const uint8_t *buf, int size, 
     std::vector<DataFormat::Ptr>& data)
 {
   // Clear old informations and get GNSS data handle
@@ -542,17 +542,17 @@ int GNSSRawFormator::decode(const uint8_t *buf, int size,
     int sat = raw_.ephsat;
     gnss_common::updateStreamData(
         ret, obs, nav, sta, NULL, iobs, sat, gnss_data);
-    GNSSDataType type = static_cast<GNSSDataType>(ret);
+    GnssDataType type = static_cast<GnssDataType>(ret);
     DataFormat::GNSS::Ptr& gnss = 
-      type == GNSSDataType::Observation ? gnss_data[iobs] : gnss_data[0];
+      type == GnssDataType::Observation ? gnss_data[iobs] : gnss_data[0];
     if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
       gnss->types.push_back(type);
     }
     
-    if (type == GNSSDataType::Observation) {
-      if (iobs < MaxDataSize::GNSSRaw) iobs++;
-      if (iobs >= MaxDataSize::GNSSRaw) {
+    if (type == GnssDataType::Observation) {
+      if (iobs < MaxDataSize::GnssRaw) iobs++;
+      if (iobs >= MaxDataSize::GnssRaw) {
         LOG(WARNING) << "Max data length surpassed!";
         break;
       }
@@ -567,7 +567,7 @@ int GNSSRawFormator::decode(const uint8_t *buf, int size,
 }
 
 // Encode data to stream
-int GNSSRawFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int GnssRawFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
 {
   LOG(ERROR) << "GNSS-Raw Encoding not supported!";
   return 0;
@@ -816,7 +816,7 @@ FormatorBase::Ptr makeFormator(YAML::Node& node)
   FormatorType type = loadType(node);
   MAP_FORMATOR(FormatorType::RTCM2, RTCM2Formator);
   MAP_FORMATOR(FormatorType::RTCM3, RTCM3Formator);
-  MAP_FORMATOR(FormatorType::GNSSRaw, GNSSRawFormator);
+  MAP_FORMATOR(FormatorType::GnssRaw, GnssRawFormator);
   MAP_FORMATOR(FormatorType::ImagePack, ImagePackFormator);
   MAP_FORMATOR(FormatorType::ImageV4L2, ImageV4L2Formator);
   MAP_FORMATOR(FormatorType::IMUPack, IMUPackFormator);

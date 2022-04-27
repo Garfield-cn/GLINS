@@ -182,7 +182,14 @@ class ImuError :
   /// \brief (Re)set the measurements
   void setImuMeasurements(const ImuMeasurements& imu_measurements)
   {
-    imu_measurements_ = imu_measurements;
+    imu_measurements_.clear();
+    auto it_imu = imu_measurements.rbegin();
+    for (; it_imu != imu_measurements.rend(); it_imu++) {
+      const ImuMeasurement& imu = *it_imu;
+      if (imu.timestamp < t0_ - 5.0 / imu_parameters_.rate || 
+          imu.timestamp > t1_ + 5.0 / imu_parameters_.rate) continue;
+      imu_measurements_.push_front(imu);
+    }
   }
 
   /// \brief (Re)set the start time.

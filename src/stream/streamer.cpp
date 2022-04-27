@@ -40,9 +40,6 @@ void StreamerBase::enableReplay(StreamerReplayOptions option)
       it->replay_options_ = option;
     }
   }
-
-  // Synchronize streams
-  syncStreams();
 }
 
 // Synchronize streams for replay

@@ -17,7 +17,7 @@
 namespace gici {
 
 // Role of formator
-enum class GNSSRole {
+enum class GnssRole {
   None,
   Rover,
   Reference,
@@ -41,7 +41,7 @@ enum class IonoType {
 };
 
 // GNSS systems
-extern std::vector<char> GNSSSystems;
+extern std::vector<char> GnssSystems;
 
 // One code type measurement
 struct Observation {
@@ -50,7 +50,7 @@ struct Observation {
   double phaserange;
   double doppler; // in m/s
   double SNR; // Sigal-to-Noise Ratio
-  bool LLI; // Loss of Lock Indicator
+  uint8_t LLI; // Loss of Lock Indicator
   bool slip; // Cycle-slip flag
 };
 
@@ -91,9 +91,9 @@ using Satellites = std::map<std::string, Satellite, std::less<std::string>,
   Eigen::aligned_allocator<std::pair<const std::string, Satellite>>>;
 
 // Index of observation 
-struct GNSSMeasurementIndex {
-  GNSSMeasurementIndex() {}
-  GNSSMeasurementIndex(std::string prn, int code_type) : 
+struct GnssMeasurementIndex {
+  GnssMeasurementIndex() {}
+  GnssMeasurementIndex(std::string prn, int code_type) : 
     prn(prn), code_type(code_type) {}
   std::string prn;
   int code_type;
@@ -101,35 +101,35 @@ struct GNSSMeasurementIndex {
 
 // Pairs
 // single difference pair
-struct GNSSMeasurementSDIndexPair {
-  GNSSMeasurementSDIndexPair(
-    GNSSMeasurementIndex rov, GNSSMeasurementIndex ref) : 
+struct GnssMeasurementSDIndexPair {
+  GnssMeasurementSDIndexPair(
+    GnssMeasurementIndex rov, GnssMeasurementIndex ref) : 
     rov(rov), ref(ref) { }
-  GNSSMeasurementIndex rov;
-  GNSSMeasurementIndex ref;
+  GnssMeasurementIndex rov;
+  GnssMeasurementIndex ref;
 };
-using GNSSMeasurementSDIndexPairs = std::vector<GNSSMeasurementSDIndexPair>;
+using GnssMeasurementSDIndexPairs = std::vector<GnssMeasurementSDIndexPair>;
 // double difference pair
-struct GNSSMeasurementDDIndexPair {
-  GNSSMeasurementDDIndexPair(
-    GNSSMeasurementIndex rov, GNSSMeasurementIndex ref, 
-    GNSSMeasurementIndex rov_base, GNSSMeasurementIndex ref_base) : 
+struct GnssMeasurementDDIndexPair {
+  GnssMeasurementDDIndexPair(
+    GnssMeasurementIndex rov, GnssMeasurementIndex ref, 
+    GnssMeasurementIndex rov_base, GnssMeasurementIndex ref_base) : 
     rov(rov), ref(ref), rov_base(rov_base), ref_base(ref_base) { }
-  GNSSMeasurementIndex rov;
-  GNSSMeasurementIndex ref;
-  GNSSMeasurementIndex rov_base;
-  GNSSMeasurementIndex ref_base;
+  GnssMeasurementIndex rov;
+  GnssMeasurementIndex ref;
+  GnssMeasurementIndex rov_base;
+  GnssMeasurementIndex ref_base;
 };
-using GNSSMeasurementDDIndexPairs = std::vector<GNSSMeasurementDDIndexPair>;
+using GnssMeasurementDDIndexPairs = std::vector<GnssMeasurementDDIndexPair>;
 
 // GNSS epoch data
-struct GNSSMeasurement {
+struct GnssMeasurement {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  GNSSMeasurement() : id(++epoch_cnt_) {}
+  GnssMeasurement() : id(++epoch_cnt_) {}
 
   double timestamp;
-  GNSSRole role;
+  GnssRole role;
   std::string mount_id;
   int32_t id;  // ID for bundle adjustment
   Satellites satellites;
@@ -143,11 +143,11 @@ struct GNSSMeasurement {
     return it->second; 
   }
   
-  inline Satellite& getSat(GNSSMeasurementIndex index) { 
+  inline Satellite& getSat(GnssMeasurementIndex index) { 
     return getSat(index.prn);
   }
 
-  inline Observation& getObs(GNSSMeasurementIndex index) {
+  inline Observation& getObs(GnssMeasurementIndex index) {
     Satellite& satellite = getSat(index);
     auto it = satellite.observations.find(index.code_type);
     CHECK(it != satellite.observations.end());
@@ -160,11 +160,11 @@ struct GNSSMeasurement {
     return it->second; 
   }
 
-  inline const Satellite& getSat(GNSSMeasurementIndex index) const {
+  inline const Satellite& getSat(GnssMeasurementIndex index) const {
     return getSat(index.prn);
   }
 
-  inline const Observation& getObs(GNSSMeasurementIndex index) const {
+  inline const Observation& getObs(GnssMeasurementIndex index) const {
     const Satellite& satellite = getSat(index);
     const auto it = satellite.observations.find(index.code_type);
     CHECK(it != satellite.observations.end());
@@ -174,26 +174,39 @@ struct GNSSMeasurement {
   static int32_t epoch_cnt_;
 };
 
-using GNSSMeasurements = std::vector<GNSSMeasurement, 
-  Eigen::aligned_allocator<GNSSMeasurement>>;
+using GnssMeasurements = std::vector<GnssMeasurement, 
+  Eigen::aligned_allocator<GnssMeasurement>>;
 
 // Observation type
-enum class GNSSObservationType {
+enum class ObservationType {
   Pseudorange,
   Phaserange,
   Doppler
 };
 
 // Solution status
-enum class GNSSSolutionStatus {
+enum class GnssSolutionStatus {
+  None, 
   Single, 
-  SDGNSS,
+  DGNSS,
   Float,
   Fixed
 };
 
+// Solutions
+struct GnssSolution {
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  double timestamp;
+  int32_t id;  // bundle id for integration
+  Eigen::Vector3d position; // in ECEF
+  Eigen::Vector3d velocity;
+  Eigen::Matrix<double, 6, 6> covariance;
+  GnssSolutionStatus status;
+};
+
 // GNSS common options
-struct GNSSCommonOptions {
+struct GnssCommonOptions {
   // Usage of satellite systems
   // In default, we use all systems
   std::vector<char> system_exclude;
@@ -217,15 +230,18 @@ struct GNSSCommonOptions {
 
   // Threshold for single differenced GF cycle-slip detection (m)
   double gf_sd_slip_thres = 0.05;
+
+  // Data period
+  double period = 1.0;
 };
 
 // GNSS error factors
-struct GNSSErrorParameter {
+struct GnssErrorParameter {
   // code noise = phase noise * ratio
   double code_to_phase_ratio = 100.0;
 
   // Error factor according to RTKLIB
-  double phase_error_factor[3] = {0.003, 0.003, 0.0};
+  double phase_error_factor[3] = {0.005, 0.005, 0.0};
 
   // System error ratio
   std::map<char, double> system_error_ratio = 

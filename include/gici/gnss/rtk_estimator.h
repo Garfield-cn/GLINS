@@ -17,8 +17,8 @@
 
 namespace gici {
 
-// RTK options
-struct RTKEstimatorOptions {
+// Options
+struct RtkEstimatorOptions {
   // Max iteration number for ceres optimization
   int max_iteration = 15;
 
@@ -32,20 +32,23 @@ struct RTKEstimatorOptions {
   double max_age = 20.0;
 
   // State window length
-  int window_length = 5;
+  int window_length = 3;
+
+  // Use ambiguity resolution
+  bool use_ambiguity_resolution = true;
 
   // GNSS common options
-  GNSSCommonOptions common;
+  GnssCommonOptions common;
 
   // GNSS error parameter
-  GNSSErrorParameter error_parameter;
+  GnssErrorParameter error_parameter;
 
   // Ambiguity resolution parameter
   AmbiguityResolutionOptions ambiguity_resolution;
 };
 
-// SPP estimator
-class RTKEstimator {
+// Estimator
+class RtkEstimator {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -54,20 +57,20 @@ public:
     BackendId id;
     std::vector<BackendId> ambiguity_ids;
     double timestamp = 0.0;
-    GNSSSolutionStatus status = GNSSSolutionStatus::Single;
+    GnssSolutionStatus status = GnssSolutionStatus::Single;
     void clear() {
       id = BackendId(0); ambiguity_ids.clear(); 
-      timestamp = 0.0; status = GNSSSolutionStatus::Single;
+      timestamp = 0.0; status = GnssSolutionStatus::Single;
     }
   };
 
-  RTKEstimator(const RTKEstimatorOptions& options);
-  ~RTKEstimator();
+  RtkEstimator(const RtkEstimatorOptions& options);
+  ~RtkEstimator();
 
   // Add GNSS measurements and state
   // measurement_ref should from the reference station
-  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement_rov, 
-                                  const GNSSMeasurement& measurement_ref);
+  bool addGnssMeasurementAndState(const GnssMeasurement& measurement_rov, 
+                                  const GnssMeasurement& measurement_ref);
 
   // Start ceres optimization
   void optimize();
@@ -76,17 +79,20 @@ public:
   Eigen::Vector3d getPositionEstimate();
 
   // Get solution status
-  GNSSSolutionStatus getSolutionStatus() { return lastState().status; }
+  GnssSolutionStatus getSolutionStatus() { return lastState().status; }
+
+  // Get solution
+  GnssSolution getSolution();
 
   // Check if it is the first epoch
   bool isFirstEpoch() { return states_.size() < 2; }
 
 private:
   // Compute initial ambiguity
-  double getInitialAmbiguity(const GNSSMeasurement& measurement_rov, 
-                             const GNSSMeasurement& measurement_ref,
-                             const GNSSMeasurementIndex& index_rov,
-                             const GNSSMeasurementIndex& index_ref);
+  double getInitialAmbiguity(const GnssMeasurement& measurement_rov, 
+                             const GnssMeasurement& measurement_ref,
+                             const GnssMeasurementIndex& index_rov,
+                             const GnssMeasurementIndex& index_ref);
 
   // Marginalization
   bool marginalization();
@@ -98,13 +104,13 @@ private:
   void setPositionEstimateToMeas();
 
   // Getters
-  inline GNSSMeasurement& curMeasRef() { return measurements_.back().second; }
-  inline GNSSMeasurement& curMeasRov() { return measurements_.back().first; }
-  inline GNSSMeasurement& lastMeasRef() { 
+  inline GnssMeasurement& curMeasRef() { return measurements_.back().second; }
+  inline GnssMeasurement& curMeasRov() { return measurements_.back().first; }
+  inline GnssMeasurement& lastMeasRef() { 
     CHECK(measurements_.size() >= 2);
     return measurements_.at(measurements_.size() - 2).second;
   }
-  inline GNSSMeasurement& lastMeasRov() { 
+  inline GnssMeasurement& lastMeasRov() { 
     CHECK(measurements_.size() >= 2);
     return measurements_.at(measurements_.size() - 2).first;
   }
@@ -120,7 +126,7 @@ private:
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
-  RTKEstimatorOptions options_;
+  RtkEstimatorOptions options_;
 
   // loss function 
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
@@ -130,7 +136,7 @@ private:
   std::deque<State> states_;
 
   // Measurements
-  std::deque<std::pair<GNSSMeasurement, GNSSMeasurement>> measurements_;
+  std::deque<std::pair<GnssMeasurement, GnssMeasurement>> measurements_;
 
   // Ambiguity resolution
   std::unique_ptr<AmbiguityResolution> ambiguity_resolution_;

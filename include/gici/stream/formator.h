@@ -21,7 +21,7 @@ namespace gici {
 enum class FormatorType {
   RTCM2, 
   RTCM3,
-  GNSSRaw, 
+  GnssRaw, 
   ImageV4L2,
   ImagePack,  
   IMUPack,
@@ -29,7 +29,7 @@ enum class FormatorType {
 };
 
 // GNSS data types
-enum class GNSSDataType {
+enum class GnssDataType {
   None = 0,
   Ephemeris = 2,
   Observation = 1,
@@ -53,7 +53,7 @@ public:
     void init(void);
     void free(void);
 
-    std::vector<GNSSDataType> types;
+    std::vector<GnssDataType> types;
     obs_t *observation;
     nav_t *ephemeris;
     sta_t *antenna;
@@ -93,7 +93,7 @@ public:
 };
 
 // Formats of FormatorType::GNSS_Raw
-enum class GNSSRawFormats {
+enum class GnssRawFormats {
   Ublox = STRFMT_UBX,
   Septentrio = STRFMT_SEPT
 };
@@ -102,7 +102,7 @@ enum class GNSSRawFormats {
 struct MaxDataSize {
   static const int RTCM2 = 30;
   static const int RTCM3 = RTCM2;
-  static const int GNSSRaw = RTCM2;
+  static const int GnssRaw = RTCM2;
   static const int ImagePack = 2;
   static const int IMUPack = 500;
 };
@@ -211,16 +211,16 @@ protected:
 };
 
 // GNSS raw
-class GNSSRawFormator : public FormatorBase {
+class GnssRawFormator : public FormatorBase {
 public:
   struct Config {
     double start_time; 
     std::string sub_type;
   };
 
-  GNSSRawFormator(Config& config);
-  GNSSRawFormator(YAML::Node& node);
-  ~GNSSRawFormator();
+  GnssRawFormator(Config& config);
+  GnssRawFormator(YAML::Node& node);
+  ~GnssRawFormator();
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
@@ -231,7 +231,7 @@ public:
 
 protected:
   raw_t raw_;
-  GNSSRawFormats format_;
+  GnssRawFormats format_;
 };
 
 // Image V4L2
@@ -332,7 +332,7 @@ inline FormatorBase::Ptr makeFormator( \
 }
 MAKE_FORMATOR(RTCM2Formator);
 MAKE_FORMATOR(RTCM3Formator);
-MAKE_FORMATOR(GNSSRawFormator);
+MAKE_FORMATOR(GnssRawFormator);
 MAKE_FORMATOR(ImageV4L2Formator);
 MAKE_FORMATOR(ImagePackFormator);
 MAKE_FORMATOR(IMUPackFormator);

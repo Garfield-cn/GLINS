@@ -16,14 +16,14 @@
 namespace gici {
 
 // The default constructor
-RTKEstimator::RTKEstimator(const RTKEstimatorOptions& options) :
+RtkEstimator::RtkEstimator(const RtkEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1)),
   marginalization_residual_id_(0)
 {
   states_.push_back(State());
-  measurements_.push_back(std::make_pair(GNSSMeasurement(), GNSSMeasurement()));
+  measurements_.push_back(std::make_pair(GnssMeasurement(), GnssMeasurement()));
 
   marginalization_error_ptr_.reset(new MarginalizationError(*graph_ptr_.get()));
 
@@ -32,13 +32,13 @@ RTKEstimator::RTKEstimator(const RTKEstimatorOptions& options) :
 }
 
 // The default destructor
-RTKEstimator::~RTKEstimator()
+RtkEstimator::~RtkEstimator()
 {}
 
 // Add GNSS measurements and state
-bool RTKEstimator::addGNSSMeasurementAndState(
-                    const GNSSMeasurement& measurement_rov, 
-                    const GNSSMeasurement& measurement_ref)
+bool RtkEstimator::addGnssMeasurementAndState(
+                    const GnssMeasurement& measurement_rov, 
+                    const GnssMeasurement& measurement_ref)
 {
   // Check timestamp
   if (fabs(measurement_rov.timestamp - measurement_ref.timestamp) > options_.max_age) {
@@ -61,7 +61,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
   double timestamp = curMeasRov().timestamp;
 
   // position block
-  BackendId position_id = createGNSSPositionId(curMeasRov().id);
+  BackendId position_id = createGnssPositionId(curMeasRov().id);
   Eigen::Vector3d position_prior = curMeasRov().position;
   if (!checkZero(last_position)) position_prior = last_position;
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
@@ -75,7 +75,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
   curState().timestamp = timestamp;
 
   // select single difference pairs
-  GNSSMeasurementDDIndexPairs dd_pairs = 
+  GnssMeasurementDDIndexPairs dd_pairs = 
       gnss_common::formPhaserangeDDPair(curMeasRov(), curMeasRef(), options_.common);
 
   // Pseudorange ---------------------------------------------------
@@ -85,7 +85,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
   std::string last_prn = "";
   for (auto dd_pair : dd_pairs) 
   {
-    GNSSMeasurementIndex& index = dd_pair.rov;
+    GnssMeasurementIndex& index = dd_pair.rov;
     auto& satellite = curMeasRov().getSat(index);
 
     std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
@@ -123,7 +123,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
     return false;
   }
 
-  curState().status = GNSSSolutionStatus::SDGNSS;
+  curState().status = GnssSolutionStatus::DGNSS;
 
   // Phaserange ---------------------------------------------------
   // Add Phaserange residual blocks and ambiguity states
@@ -137,9 +137,9 @@ bool RTKEstimator::addGNSSMeasurementAndState(
     int phase_id = gnss_common::getPhaseID(
       satellite.getSystem(), dd_pair.rov.code_type, observation.wavelength);
     BackendId ambiguity_id = 
-      createGNSSAmbiguityId(satellite.prn, phase_id, curMeasRov().id);
+      createGnssAmbiguityId(satellite.prn, phase_id, curMeasRov().id);
     BackendId ambiguity_base_id = 
-      createGNSSAmbiguityId(satellite_base.prn, phase_id, curMeasRov().id);
+      createGnssAmbiguityId(satellite_base.prn, phase_id, curMeasRov().id);
 
     // Create an ambiguity parameter block
     Eigen::Matrix<double, 1, 1> ambiguity_init;
@@ -186,7 +186,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
       graph_ptr_->parameterBlockPtr(ambiguity_id.asInteger()), 
       graph_ptr_->parameterBlockPtr(ambiguity_base_id.asInteger()));
 
-    curState().status = GNSSSolutionStatus::Float;
+    curState().status = GnssSolutionStatus::Float;
   }
 
   // Time constraints ---------------------------------------------------
@@ -224,7 +224,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
         }
         // if slip happened, we do not add ambiguity time constraint
         if (slip) {
-          LOG(INFO) << "Cycle slip detected! Prn = " << prn << ", phase_id = " << phase_id;
+          // LOG(INFO) << "Cycle slip detected! Prn = " << prn << ", phase_id = " << phase_id;
           continue;
         }
 
@@ -244,7 +244,7 @@ bool RTKEstimator::addGNSSMeasurementAndState(
 }
 
 // Start ceres optimization
-void RTKEstimator::optimize()
+void RtkEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::DOGLEG;
@@ -253,16 +253,6 @@ void RTKEstimator::optimize()
   // graph_ptr_->options.function_tolerance = 1e-12;
   // graph_ptr_->options.gradient_tolerance = 1e-12;
   // graph_ptr_->options.parameter_tolerance = 1e-12;
-
-  // graph_ptr_->options.initial_trust_region_radius = 1.0e4;
-  // graph_ptr_->options.initial_trust_region_radius = 2.0e6;
-  // graph_ptr_->options.preconditioner_type = ceres::IDENTITY;
-  // graph_ptr_->options.trust_region_strategy_type = ceres::DOGLEG;
-  // graph_ptr_->options.use_nonmonotonic_steps = true;
-  // graph_ptr_->options.max_consecutive_nonmonotonic_steps = 10;
-  // graph_ptr_->options.function_tolerance = 1e-12;
-  // graph_ptr_->options.gradient_tolerance = 1e-12;
-  // graph_ptr_->options.jacobi_scaling = false;
 
   // For debug
   // debug_callback_.reset(new CeresDebugCallback());
@@ -282,39 +272,14 @@ void RTKEstimator::optimize()
 
   // Ambiguity resolution
   setPositionEstimateToMeas();
-  if (ambiguity_resolution_->solve(
+  if (options_.use_ambiguity_resolution && 
+    ambiguity_resolution_->solve(
     curState().id, curState().ambiguity_ids, measurements_.back())) {
-    curState().status = GNSSSolutionStatus::Fixed;
+    curState().status = GnssSolutionStatus::Fixed;
   }
 
   if (options_.verbose) {
     LOG(INFO) << graph_ptr_->summary.BriefReport();
-#if 0
-    std::ofstream outfile;
-    outfile.open("/home/cc/datasets/tmp/log2.txt", std::ios::out | std::ios::trunc);
-    outfile << graph_ptr_->summary.BriefReport() << std::endl;
-    for (auto residual_map : graph_ptr_->residual_block_id_to_residual_block_spec_map_) {
-      auto residual = residual_map.first;
-      auto& error_interface_ptr = residual_map.second.error_interface_ptr;
-      size_t size = residual_map.second.error_interface_ptr->residualDim();
-
-      Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(size);
-      graph_ptr_->problem_->EvaluateResidualBlock(
-          residual, false, nullptr, Residuals.data(), nullptr);
-      // if (Residuals.maxCoeff() > 1.0 || Residuals.minCoeff() < -1.0)
-      // if (size > 2)
-        outfile << "Residual " << static_cast<int>(error_interface_ptr->typeInfo()) << ": " 
-                << residual << ": " << Residuals.transpose() << std::endl;
-
-        // auto parameters = graph_ptr_->parameters(residual);
-        // for (Graph::ParameterBlockSpec &parameter : parameters) {
-        //   outfile << "    Parameter: " << parameter.rov << std::endl;
-        // }
-    }
-    outfile.close();
-
-#endif
-
   }
 
   // Marginalization
@@ -322,7 +287,7 @@ void RTKEstimator::optimize()
 
   // Shift state and measurement
   states_.push_back(State());
-  measurements_.push_back(std::make_pair(GNSSMeasurement(), GNSSMeasurement()));
+  measurements_.push_back(std::make_pair(GnssMeasurement(), GnssMeasurement()));
   if (states_.size() > options_.window_length) {
     states_.pop_front();
     measurements_.pop_front();
@@ -330,7 +295,7 @@ void RTKEstimator::optimize()
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d RTKEstimator::getPositionEstimate()
+Eigen::Vector3d RtkEstimator::getPositionEstimate()
 {
   State& state = lastState();
   if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
@@ -342,19 +307,83 @@ Eigen::Vector3d RTKEstimator::getPositionEstimate()
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
+    CHECK(block_ptr != nullptr);
     return block_ptr->estimate();
   }
 
   return Eigen::Vector3d::Zero();
 }
 
+// Get solution
+GnssSolution RtkEstimator::getSolution()
+{
+  GnssSolution solution;
+  std::vector<uint64_t> parameter_block_ids;
+
+  // Position
+  State& state = lastState();
+  solution.timestamp = state.timestamp;
+  solution.id = lastMeasRov().id;
+  solution.status = GnssSolutionStatus::None;
+  solution.covariance.setZero();
+  solution.position.setZero();
+  solution.velocity.setZero();
+  if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
+    return solution;
+  }
+  else {
+    parameter_block_ids.push_back(state.id.asInteger());
+
+    std::shared_ptr<ParameterBlock> base_ptr =
+        graph_ptr_->parameterBlockPtr(state.id.asInteger());
+    if (base_ptr != nullptr) {
+      std::shared_ptr<PositionParameterBlock> block_ptr = 
+        std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
+      CHECK(block_ptr != nullptr);
+      solution.position = block_ptr->estimate();
+    }
+  }
+
+  // velocity
+  BackendId velocity_id = changeIdType(state.id, IdType::gVelocity);
+  if (!graph_ptr_->parameterBlockExists(velocity_id.asInteger())) {
+    // we did not estimate velocity
+    // get the position covariance and return
+    Eigen::MatrixXd position_covariance;
+    graph_ptr_->computeCovariance(parameter_block_ids, position_covariance);
+    CHECK(position_covariance.cols() == 3);
+    solution.covariance.topLeftCorner(3, 3) = position_covariance;
+  }
+  else {
+    parameter_block_ids.push_back(velocity_id.asInteger());
+
+    std::shared_ptr<ParameterBlock> base_ptr =
+        graph_ptr_->parameterBlockPtr(velocity_id.asInteger());
+    if (base_ptr != nullptr) {
+      std::shared_ptr<VelocityParameterBlock> block_ptr = 
+        std::dynamic_pointer_cast<VelocityParameterBlock>(base_ptr);
+      CHECK(block_ptr != nullptr);
+      solution.velocity = block_ptr->estimate();
+    }
+
+    Eigen::MatrixXd covariance;
+    graph_ptr_->computeCovariance(parameter_block_ids, covariance);
+    CHECK(covariance.cols() == 6);
+    solution.covariance = covariance;
+  }
+
+  // status
+  solution.status = getSolutionStatus();
+
+  return solution;
+}
+
 // Compute initial ambiguity
-double RTKEstimator::getInitialAmbiguity(
-            const GNSSMeasurement& measurement_rov, 
-            const GNSSMeasurement& measurement_ref,
-            const GNSSMeasurementIndex& index_rov,
-            const GNSSMeasurementIndex& index_ref)
+double RtkEstimator::getInitialAmbiguity(
+            const GnssMeasurement& measurement_rov, 
+            const GnssMeasurement& measurement_ref,
+            const GnssMeasurementIndex& index_rov,
+            const GnssMeasurementIndex& index_ref)
 {
   auto& observation_1 = measurement_rov.satellites.at(index_rov.prn).
                         observations.at(index_rov.code_type);
@@ -370,7 +399,7 @@ double RTKEstimator::getInitialAmbiguity(
 }
 
 // Marginalization
-bool RTKEstimator::marginalization()
+bool RtkEstimator::marginalization()
 {
   // Check if we need marginalization
   if (states_.size() < options_.window_length) {
@@ -399,21 +428,6 @@ bool RTKEstimator::marginalization()
     // Get all residuals connected to this state.
     Graph::ResidualBlockCollection residuals = 
       graph_ptr_->residuals(position_id.asInteger());
-    for (size_t r = 0; r < residuals.size(); ++r) {
-      marginalization_error_ptr_->addResidualBlock(
-            residuals[r].residual_block_id);
-    }
-  }
-
-  // Clock parameter
-  for (size_t i = 0; i < GNSSSystems.size(); i++) {
-    BackendId clock_id = changeIdType(position_id, IdType::gClock, GNSSSystems[i]);
-    if (!graph_ptr_->parameterBlockExists(clock_id.asInteger())) continue;
-    parameter_blocks_to_be_marginalized.push_back(clock_id.asInteger());
-    keep_parameter_blocks.push_back(false);
-
-    Graph::ResidualBlockCollection residuals = 
-      graph_ptr_->residuals(clock_id.asInteger());
     for (size_t r = 0; r < residuals.size(); ++r) {
       marginalization_error_ptr_->addResidualBlock(
             residuals[r].residual_block_id);
@@ -468,7 +482,7 @@ bool RTKEstimator::marginalization()
 }
 
 // Delete current states and measurement
-void RTKEstimator::clearCurrentStateAndMeasurement()
+void RtkEstimator::clearCurrentStateAndMeasurement()
 {
   // Position parameter
   BackendId position_id = curState().id;
@@ -489,7 +503,7 @@ void RTKEstimator::clearCurrentStateAndMeasurement()
 }
 
 // Set position estimate to measurement 
-void RTKEstimator::setPositionEstimateToMeas()
+void RtkEstimator::setPositionEstimateToMeas()
 {
   State& state = curState();
   if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
@@ -501,7 +515,7 @@ void RTKEstimator::setPositionEstimateToMeas()
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
+    CHECK(block_ptr != nullptr);
     curMeasRov().position = block_ptr->estimate();
   }
 }

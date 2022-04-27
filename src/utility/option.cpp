@@ -51,7 +51,7 @@ void convert<std::string, FormatorType>
 {
   MAP_IN_OUT("gnss-rtcm-2", FormatorType::RTCM2);
   MAP_IN_OUT("gnss-rtcm-3", FormatorType::RTCM3);
-  MAP_IN_OUT("gnss-raw", FormatorType::GNSSRaw);
+  MAP_IN_OUT("gnss-raw", FormatorType::GnssRaw);
   MAP_IN_OUT("image-v4l2", FormatorType::ImageV4L2);
   MAP_IN_OUT("image-pack", FormatorType::ImagePack);
   MAP_IN_OUT("imu-pack", FormatorType::IMUPack);
@@ -60,11 +60,11 @@ void convert<std::string, FormatorType>
 }
 
 template <>
-void convert<std::string, GNSSRawFormats>
-  (const std::string& in, GNSSRawFormats& out)
+void convert<std::string, GnssRawFormats>
+  (const std::string& in, GnssRawFormats& out)
 {
-  MAP_IN_OUT("ublox", GNSSRawFormats::Ublox);
-  MAP_IN_OUT("septentrio", GNSSRawFormats::Septentrio);
+  MAP_IN_OUT("ublox", GnssRawFormats::Ublox);
+  MAP_IN_OUT("septentrio", GnssRawFormats::Septentrio);
   LOG_INVALId;
 }
 
@@ -79,14 +79,14 @@ void convert<std::string, StreamIOType>
 }
 
 template <>
-void convert<std::string, GNSSRole>
-  (const std::string& in, GNSSRole& out)
+void convert<std::string, GnssRole>
+  (const std::string& in, GnssRole& out)
 {
-  MAP_IN_OUT("rover", GNSSRole::Rover);
-  MAP_IN_OUT("reference", GNSSRole::Reference);
-  MAP_IN_OUT("ephemeris", GNSSRole::Ephemeris);
-  MAP_IN_OUT("correction", GNSSRole::Correction);
-  MAP_IN_OUT("heading", GNSSRole::Heading);
+  MAP_IN_OUT("rover", GnssRole::Rover);
+  MAP_IN_OUT("reference", GnssRole::Reference);
+  MAP_IN_OUT("ephemeris", GnssRole::Ephemeris);
+  MAP_IN_OUT("correction", GnssRole::Correction);
+  MAP_IN_OUT("heading", GnssRole::Heading);
   LOG_INVALId;
 }
 

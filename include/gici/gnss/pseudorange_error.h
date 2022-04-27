@@ -56,9 +56,9 @@ class PseudorangeError :
   /// @param[in] measurement The measurement.
   /// @param[in] index Index of current satellite.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeError(const GNSSMeasurement& measurement,
-                   const GNSSMeasurementIndex index,
-                   const GNSSErrorParameter& error_parameter);
+  PseudorangeError(const GnssMeasurement& measurement,
+                   const GnssMeasurementIndex index,
+                   const GnssErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
   virtual ~PseudorangeError() {}
@@ -66,7 +66,7 @@ class PseudorangeError :
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement)
+  void setMeasurement(const GnssMeasurement& measurement)
   {
     measurement_ = measurement;
   }
@@ -79,7 +79,7 @@ class PseudorangeError :
   // getters
   /// \brief Get the measurement.
   /// \return The measurement vector.
-  const GNSSMeasurement& measurement() const { return measurement_; }
+  const GnssMeasurement& measurement() const { return measurement_; }
 
   // error term and Jacobian implementation
   /**
@@ -125,12 +125,12 @@ class PseudorangeError :
   }
 
  protected:
-  GNSSMeasurement measurement_; ///< The measurement.
+  GnssMeasurement measurement_; ///< The measurement.
   Satellite satellite_;
   Observation observation_;
 
   // weighting related
-  GNSSErrorParameter error_parameter_;
+  GnssErrorParameter error_parameter_;
 
   // Parameter dimensions
   ceres::internal::StaticParameterDims<Ns...> dims_;

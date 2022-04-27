@@ -9,7 +9,7 @@
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
 
-void gnssCallback(gici::GNSSMeasurement& data)
+void gnssCallback(gici::GnssMeasurement& data)
 {
   LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
   int n_data = 0, n_precise = 0;
@@ -55,8 +55,8 @@ int main(void)
   YAML::Node stream_config = config["stream"];
   gici::StreamHandle stream_handle(stream_config);
 
-  gici::StreamHandle::GNSSCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
-  stream_handle.setGNSSCallback(gnss_callback);
+  gici::StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
+  stream_handle.setGnssCallback(gnss_callback);
   gici::StreamHandle::IMUCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
   stream_handle.setIMUCallback(imu_callback);
   gici::StreamHandle::ImageCallback image_callback = std::bind(imageCallback, std::placeholders::_1, std::placeholders::_2);

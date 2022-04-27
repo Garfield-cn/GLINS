@@ -566,7 +566,6 @@ void Graph::resetResidualBlock(
 bool Graph::removeResidualBlock(ceres::ResidualBlockId residual_block_id)
 {
   VLOG(200) << "Removing residual block with ID " << residual_block_id;
-  problem_->RemoveResidualBlock(residual_block_id);  // remove in ceres
 
   ResidualBlockIdToParameterBlockCollectionMap::iterator it =
       residual_block_id_to_parameter_block_collection_map_.find(residual_block_id);
@@ -574,6 +573,8 @@ bool Graph::removeResidualBlock(ceres::ResidualBlockId residual_block_id)
   {
     return false;
   }
+
+  problem_->RemoveResidualBlock(residual_block_id);  // remove in ceres
 
   for (ParameterBlockCollection::iterator parameter_it = it->second.begin();
       parameter_it != it->second.end(); ++parameter_it)

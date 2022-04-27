@@ -13,20 +13,20 @@
 namespace gici {
 
 // The default constructor
-SDGNSSEstimator::SDGNSSEstimator(const SDGNSSEstimatorOptions& options) :
+SdgnssEstimator::SdgnssEstimator(const SdgnssEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1))
 {}
 
 // The default destructor
-SDGNSSEstimator::~SDGNSSEstimator()
+SdgnssEstimator::~SdgnssEstimator()
 {}
 
 // Add GNSS measurements and state
-bool SDGNSSEstimator::addGNSSMeasurementAndState(
-                    const GNSSMeasurement& measurement_rov, 
-                    const GNSSMeasurement& measurement_ref)
+bool SdgnssEstimator::addGnssMeasurementAndState(
+                    const GnssMeasurement& measurement_rov, 
+                    const GnssMeasurement& measurement_ref)
 {
   // Check timestamp
   if (!checkEqual(measurement_rov.timestamp, measurement_ref.timestamp, 
@@ -53,7 +53,7 @@ bool SDGNSSEstimator::addGNSSMeasurementAndState(
   parameter_ids_.clear();
 
   // position block
-  BackendId position_id = createGNSSPositionId(measurement_rov_.id);
+  BackendId position_id = createGnssPositionId(measurement_rov_.id);
   Eigen::Vector3d position_prior = measurement_rov_.position;
   if (!checkZero(last_position)) position_prior = last_position;
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
@@ -64,14 +64,14 @@ bool SDGNSSEstimator::addGNSSMeasurementAndState(
   parameter_ids_.push_back(position_id);
 
   // select single difference pairs
-  GNSSMeasurementSDIndexPairs index_pairs = 
+  GnssMeasurementSDIndexPairs index_pairs = 
     gnss_common::formPseudorangeSDPair(measurement_rov_, measurement_ref_, options_.common);
 
   // check if any system does not have vaild satellite
   std::map<char, int> system_observation_cnt;
   for (auto index_pair : index_pairs) 
   {
-    GNSSMeasurementIndex& index = index_pair.rov;
+    GnssMeasurementIndex& index = index_pair.rov;
     auto& satellite = measurement_rov_.getSat(index);
     char system = satellite.getSystem();
     if (system_observation_cnt.find(system) == system_observation_cnt.end()) 
@@ -83,9 +83,9 @@ bool SDGNSSEstimator::addGNSSMeasurementAndState(
   int num_clock_blocks = 0;
   for (auto index_pair : index_pairs) 
   {
-    GNSSMeasurementIndex& index = index_pair.rov;
+    GnssMeasurementIndex& index = index_pair.rov;
     auto& satellite = measurement_rov_.getSat(index);
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_rov_.id);
+    BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement_rov_.id);
     if (system_observation_cnt.at(satellite.getSystem()) > 0 &&
         !graph_ptr_->parameterBlockExists(clock_id.asInteger())) 
     {
@@ -111,10 +111,10 @@ bool SDGNSSEstimator::addGNSSMeasurementAndState(
   std::string last_prn = "";
   for (auto index_pair : index_pairs) 
   {
-    GNSSMeasurementIndex& index = index_pair.rov;
+    GnssMeasurementIndex& index = index_pair.rov;
     auto& satellite = measurement_rov_.getSat(index);
 
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_rov_.id);
+    BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement_rov_.id);
     std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
       std::make_shared<PseudorangeErrorSD<3, 1>>(measurement_rov_, measurement_ref_,
       index_pair.rov, index_pair.ref, options_.error_parameter);
@@ -146,7 +146,7 @@ bool SDGNSSEstimator::addGNSSMeasurementAndState(
 }
 
 // Start ceres optimization
-void SDGNSSEstimator::optimize()
+void SdgnssEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
@@ -170,7 +170,7 @@ void SDGNSSEstimator::optimize()
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d SDGNSSEstimator::getPositionEstimate()
+Eigen::Vector3d SdgnssEstimator::getPositionEstimate()
 {
   if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
     return Eigen::Vector3d::Zero();
@@ -181,7 +181,7 @@ Eigen::Vector3d SDGNSSEstimator::getPositionEstimate()
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
+    CHECK(block_ptr != nullptr);
     return block_ptr->estimate();
   }
 

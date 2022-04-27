@@ -13,7 +13,7 @@
 namespace gici {
 
 // The default constructor
-DGNSSEstimator::DGNSSEstimator(const DGNSSEstimatorOptions& options) :
+DgnssEstimator::DgnssEstimator(const DgnssEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1)),
@@ -24,13 +24,13 @@ DGNSSEstimator::DGNSSEstimator(const DGNSSEstimatorOptions& options) :
 }
 
 // The default destructor
-DGNSSEstimator::~DGNSSEstimator()
+DgnssEstimator::~DgnssEstimator()
 {}
 
 // Add GNSS measurements and state
-bool DGNSSEstimator::addGNSSMeasurementAndState(
-                    const GNSSMeasurement& measurement_rov, 
-                    const GNSSMeasurement& measurement_ref)
+bool DgnssEstimator::addGnssMeasurementAndState(
+                    const GnssMeasurement& measurement_rov, 
+                    const GnssMeasurement& measurement_ref)
 {
   // Check timestamp
   if (!checkEqual(measurement_rov.timestamp, measurement_ref.timestamp, 
@@ -57,7 +57,7 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
   parameter_ids_.clear();
 
   // position block
-  BackendId position_id = createGNSSPositionId(measurement_rov_.id);
+  BackendId position_id = createGnssPositionId(measurement_rov_.id);
   Eigen::Vector3d position_prior = measurement_rov_.position;
   if (!checkZero(last_position)) position_prior = last_position;
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
@@ -68,7 +68,7 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
   parameter_ids_.push_back(position_id);
 
   // select double difference pairs
-  GNSSMeasurementDDIndexPairs dd_pairs = gnss_common::formPseudorangeDDPair(
+  GnssMeasurementDDIndexPairs dd_pairs = gnss_common::formPseudorangeDDPair(
       measurement_rov_, measurement_ref_, options_.common);
 
   // Set to state
@@ -81,7 +81,7 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
   std::string last_prn = "";
   for (auto dd_pair : dd_pairs) 
   {
-    GNSSMeasurementIndex& index = dd_pair.rov;
+    GnssMeasurementIndex& index = dd_pair.rov;
     auto& satellite = measurement_rov_.getSat(index);
 
     std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
@@ -115,7 +115,7 @@ bool DGNSSEstimator::addGNSSMeasurementAndState(
 }
 
 // Start ceres optimization
-void DGNSSEstimator::optimize()
+void DgnssEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
@@ -139,7 +139,7 @@ void DGNSSEstimator::optimize()
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d DGNSSEstimator::getPositionEstimate()
+Eigen::Vector3d DgnssEstimator::getPositionEstimate()
 {
   if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
     return Eigen::Vector3d::Zero();
@@ -150,7 +150,7 @@ Eigen::Vector3d DGNSSEstimator::getPositionEstimate()
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
+    CHECK(block_ptr != nullptr);
     return block_ptr->estimate();
   }
 

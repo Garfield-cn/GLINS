@@ -58,11 +58,11 @@ class PseudorangeErrorSD :
   /// @param[in] measurement_rov The measurement of rover.
   /// @param[in] measurement_ref The measurement of reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeErrorSD(const GNSSMeasurement& measurement_rov,
-                    const GNSSMeasurement& measurement_ref,
-                    const GNSSMeasurementIndex index_rov,
-                    const GNSSMeasurementIndex index_ref,
-                    const GNSSErrorParameter& error_parameter);
+  PseudorangeErrorSD(const GnssMeasurement& measurement_rov,
+                    const GnssMeasurement& measurement_ref,
+                    const GnssMeasurementIndex index_rov,
+                    const GnssMeasurementIndex index_ref,
+                    const GnssErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
   virtual ~PseudorangeErrorSD() {}
@@ -70,8 +70,8 @@ class PseudorangeErrorSD :
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement_rov,
-                      const GNSSMeasurement& measurement_ref)
+  void setMeasurement(const GnssMeasurement& measurement_rov,
+                      const GnssMeasurement& measurement_ref)
   {
     measurement_rov_ = measurement_rov;
     measurement_ref_ = measurement_ref;
@@ -126,12 +126,12 @@ class PseudorangeErrorSD :
   }
 
  protected:
-  GNSSMeasurement measurement_rov_, measurement_ref_; ///< The measurement.
+  GnssMeasurement measurement_rov_, measurement_ref_; ///< The measurement.
   Satellite satellite_rov_, satellite_ref_;;
   Observation observation_rov_, observation_ref_;
 
   // weighting related
-  GNSSErrorParameter error_parameter_;
+  GnssErrorParameter error_parameter_;
 
   // Parameter dimensions
   ceres::internal::StaticParameterDims<Ns...> dims_;

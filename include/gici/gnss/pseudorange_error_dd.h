@@ -60,13 +60,13 @@ class PseudorangeErrorDD :
   /// @param[in] measurement_rov_base The measurement of base satellite at rover.
   /// @param[in] measurement_ref_base The measurement of base satellite at reference.
   /// @param[in] error_parameter To compute GNSS information matrix.
-  PseudorangeErrorDD(const GNSSMeasurement& measurement_rov,
-                    const GNSSMeasurement& measurement_ref,
-                    const GNSSMeasurementIndex index_rov,
-                    const GNSSMeasurementIndex index_ref,
-                    const GNSSMeasurementIndex index_rov_base,
-                    const GNSSMeasurementIndex index_ref_base,
-                    const GNSSErrorParameter& error_parameter);
+  PseudorangeErrorDD(const GnssMeasurement& measurement_rov,
+                    const GnssMeasurement& measurement_ref,
+                    const GnssMeasurementIndex index_rov,
+                    const GnssMeasurementIndex index_ref,
+                    const GnssMeasurementIndex index_rov_base,
+                    const GnssMeasurementIndex index_ref_base,
+                    const GnssErrorParameter& error_parameter);
 
   /// \brief Trivial destructor.
   virtual ~PseudorangeErrorDD() {}
@@ -74,8 +74,8 @@ class PseudorangeErrorDD :
   // setters
   /// \brief Set the measurement.
   /// @param[in] measurement The measurement.
-  void setMeasurement(const GNSSMeasurement& measurement_rov,
-                      const GNSSMeasurement& measurement_ref)
+  void setMeasurement(const GnssMeasurement& measurement_rov,
+                      const GnssMeasurement& measurement_ref)
   {
     measurement_rov_ = measurement_rov;
     measurement_ref_ = measurement_ref;
@@ -130,14 +130,14 @@ class PseudorangeErrorDD :
   }
 
  protected:
-  GNSSMeasurement measurement_rov_, measurement_ref_; 
+  GnssMeasurement measurement_rov_, measurement_ref_; 
   Satellite satellite_rov_, satellite_ref_,
             satellite_rov_base_, satellite_ref_base_;
   Observation observation_rov_, observation_ref_,
               observation_rov_base_, observation_ref_base_;
 
   // weighting related
-  GNSSErrorParameter error_parameter_;
+  GnssErrorParameter error_parameter_;
 
   // Parameter dimensions
   ceres::internal::StaticParameterDims<Ns...> dims_;

@@ -120,21 +120,21 @@ void StreamHandle::handleGNSS(const std::string& tag,
     LOG(ERROR) << "Formator tag " << tag << " not registored!";
     return;
   }
-  std::vector<GNSSRole> roles;
-  GNSSRole role_out;
+  std::vector<GnssRole> roles;
+  GnssRole role_out;
   for (size_t i = 0; i < behaviors_.at(tag).role.size(); i++) {
-    roles.push_back(GNSSRole());
+    roles.push_back(GnssRole());
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
-    if (roles[i] == GNSSRole::Rover || roles[i] == GNSSRole::Reference ||
-        roles[i] == GNSSRole::Heading) role_out = roles[i]; 
+    if (roles[i] == GnssRole::Rover || roles[i] == GnssRole::Reference ||
+        roles[i] == GnssRole::Heading) role_out = roles[i]; 
   }
 
   // Update ephemeris and corrections
   for (auto it : gnss->types) {
-    if (it == GNSSDataType::Ephemeris) {
+    if (it == GnssDataType::Ephemeris) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSSRole::Ephemeris) 
+        if (it_role == GnssRole::Ephemeris) 
         { found = true; break; }
       }
       if (!found) continue;
@@ -147,30 +147,30 @@ void StreamHandle::handleGNSS(const std::string& tag,
         gnss->ephemeris->geph, sizeof(geph_t) * 2 * NSATGLO);
     }
 
-    if (it == GNSSDataType::SSR) {
+    if (it == GnssDataType::SSR) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSSRole::Correction) 
+        if (it_role == GnssRole::Correction) 
         { found = true; break; }
       }
       if (!found) continue;
       gnss_common::updateSSR(gnss->ephemeris->ssr, gnss_local_);
     }
 
-    if (it == GNSSDataType::AntePos) {
+    if (it == GnssDataType::AntePos) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSSRole::Reference) 
+        if (it_role == GnssRole::Reference) 
         { found = true; break; }
       }
       if (!found) continue;
       gnss_common::updateAntennaPosition(gnss->antenna, gnss_local_);
     }
 
-    if (it == GNSSDataType::IonPara) {
+    if (it == GnssDataType::IonPara) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GNSSRole::Ephemeris) 
+        if (it_role == GnssRole::Ephemeris) 
         { found = true; break; }
       }
       if (!found) continue;
@@ -181,12 +181,13 @@ void StreamHandle::handleGNSS(const std::string& tag,
   // Find observation message
   bool has_observation = false;
   for (auto it : gnss->types) 
-    if (it == GNSSDataType::Observation) has_observation = true;
+    if (it == GnssDataType::Observation) has_observation = true;
   if (!has_observation) return;
 
   // Set to epoch data
-  GNSSMeasurement epoch;
-  epoch.timestamp = gnss_common::gtimeToDouble(gnss->observation->data[0].time);
+  GnssMeasurement epoch;
+  epoch.timestamp = gnss_common::gpsTimeToUtc(
+    gnss_common::gtimeToDouble(gnss->observation->data[0].time));
   epoch.role = role_out;
   epoch.mount_id = tag;
   double *rs, *dts, *var;
@@ -249,7 +250,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
       observation.doppler = -obs->data[i].D[j] * observation.wavelength;
       observation.SNR = obs->data[i].SNR[j] * 1.0e-3;
       observation.LLI = obs->data[i].LLI[j];
-      observation.slip = observation.LLI;
+      observation.slip = false;
       satellite.observations.insert(std::make_pair(code_type, observation));
     }
 
@@ -297,7 +298,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
   free(rs_ssr); free(dts_ssr); free(var_ssr);
 
   // reference station position
-  if (role_out == GNSSRole::Reference) {
+  if (role_out == GnssRole::Reference) {
     if (gnss_local_->antenna->pos[0] == 0.0) {
       LOG(WARNING) << "Unable to get antenna position of reference station!";
       return;
@@ -342,8 +343,9 @@ void StreamHandle::handleIMU(const std::string& tag,
   if (!has_major) return;
 
   // Convert IMU data
-  ImuMeasurement epoch(imu->time, Eigen::Map<Eigen::Vector3d>
-    (imu->acceleration), Eigen::Map<Eigen::Vector3d>(imu->angular_velocity));
+  ImuMeasurement epoch(imu->time, 
+    Eigen::Map<Eigen::Vector3d>(imu->angular_velocity), 
+    Eigen::Map<Eigen::Vector3d>(imu->acceleration));
 
   // Call INS processor
   imu_callback_(epoch);

@@ -15,7 +15,7 @@
 namespace gici {
 
 // SPP options
-struct SPPEstimatorOptions {
+struct SppEstimatorOptions {
   // Max iteration number for ceres optimization
   int max_iteration = 15;
 
@@ -26,14 +26,14 @@ struct SPPEstimatorOptions {
   bool verbose = false;
 
   // GNSS common options
-  GNSSCommonOptions common;
+  GnssCommonOptions common;
 
   // GNSS error parameter
-  GNSSErrorParameter error_parameter;
+  GnssErrorParameter error_parameter;
 };
 
-// SPP estimator
-class SPPEstimator {
+// Estimator
+class SppEstimator {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -43,11 +43,11 @@ public:
     double timestamp = 0.0;
   };
 
-  SPPEstimator(const SPPEstimatorOptions& options);
-  ~SPPEstimator();
+  SppEstimator(const SppEstimatorOptions& options);
+  ~SppEstimator();
 
   // Add GNSS measurements and state
-  bool addGNSSMeasurementAndState(const GNSSMeasurement& measurement);
+  bool addGnssMeasurementAndState(const GnssMeasurement& measurement);
 
   // Start ceres optimization
   void optimize();
@@ -59,30 +59,30 @@ public:
   double getClockEstimate(const char system);
 
   // Correct DCB (or TGD)
-  void correctDCB(GNSSMeasurement& measurement);
+  void correctDCB(GnssMeasurement& measurement);
 
   // Compute and set coarse position on measurement
-  static bool setCoarsePosition(GNSSMeasurement& measurement);
+  static bool setCoarsePosition(GnssMeasurement& measurement);
 
 private:
   // Graph that handles residuals and states
   std::shared_ptr<Graph> graph_ptr_;
 
   // Options
-  SPPEstimatorOptions options_;
+  SppEstimatorOptions options_;
 
   // loss function
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
   std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
 
   // Measurement
-  GNSSMeasurement measurement_;
+  GnssMeasurement measurement_;
 
   // States
   State current_state_;
   std::vector<BackendId> parameter_ids_;
 };
 
-using SPPEstimatorPtr = std::shared_ptr<SPPEstimator>;
+using SppEstimatorPtr = std::shared_ptr<SppEstimator>;
 
 }

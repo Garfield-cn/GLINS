@@ -11,7 +11,7 @@
 namespace gici {
 
 // Static variable
-int32_t GNSSMeasurement::epoch_cnt_ = 0;
-std::vector<char> GNSSSystems{'G', 'R', 'E', 'C'};
+int32_t GnssMeasurement::epoch_cnt_ = 0;
+std::vector<char> GnssSystems{'G', 'R', 'E', 'C'};
 
 }

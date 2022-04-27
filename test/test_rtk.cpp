@@ -17,25 +17,25 @@ using namespace gici;
 
 #define SIM_DELAY_PERIOD 0
 
-GNSSMeasurement gnss_measurement_rov_;
-GNSSMeasurement gnss_measurement_ref_;
-std::deque<GNSSMeasurement> gnss_measurements_ref_;
+GnssMeasurement gnss_measurement_rov_;
+GnssMeasurement gnss_measurement_ref_;
+std::deque<GnssMeasurement> gnss_measurements_ref_;
 bool measurement_updated_rov_ = false;
 bool measurement_updated_ref_ = false;
 
-void gnssCallback(GNSSMeasurement& data)
+void gnssCallback(GnssMeasurement& data)
 {
-  if (!measurement_updated_rov_ && data.role == GNSSRole::Rover) {
+  if (!measurement_updated_rov_ && data.role == GnssRole::Rover) {
     gnss_measurement_rov_ = data;
     measurement_updated_rov_ = true;
   } 
 
-  if (data.role == GNSSRole::Reference) {
+  if (data.role == GnssRole::Reference) {
     gnss_measurements_ref_.push_back(data);
     if (gnss_measurements_ref_.size() > SIM_DELAY_PERIOD + 1) gnss_measurements_ref_.pop_front();
   }
 
-  if (!measurement_updated_ref_ && data.role == GNSSRole::Reference) {
+  if (!measurement_updated_ref_ && data.role == GnssRole::Reference) {
     if (gnss_measurements_ref_.size() == SIM_DELAY_PERIOD + 1) {
       gnss_measurement_ref_ = gnss_measurements_ref_.front();
       measurement_updated_ref_ = true;
@@ -61,16 +61,16 @@ int main(void)
 
   initializeSignalHandles();
 
-  RTKEstimatorOptions estimator_options;
+  RtkEstimatorOptions estimator_options;
   estimator_options.verbose = true;
   // estimator_options.system_exclude.push_back('C');
-  RTKEstimator estimator(estimator_options);
+  RtkEstimator estimator(estimator_options);
 
   YAML::Node stream_config = config["stream"];
   StreamHandle stream_handle(stream_config);
 
-  StreamHandle::GNSSCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
-  stream_handle.setGNSSCallback(gnss_callback);
+  StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
+  stream_handle.setGnssCallback(gnss_callback);
 
   std::ofstream outfile;
   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
@@ -84,17 +84,17 @@ int main(void)
     if (measurement_updated_rov_ && measurement_updated_ref_) {
       // For the first epoch, we add a position prior
       if (estimator.isFirstEpoch() && 
-          !SPPEstimator::setCoarsePosition(gnss_measurement_rov_)) {
+          !SppEstimator::setCoarsePosition(gnss_measurement_rov_)) {
         measurement_updated_rov_ = false;
         measurement_updated_ref_ = false;
         continue;
       }
 
-      if (estimator.addGNSSMeasurementAndState(
+      if (estimator.addGnssMeasurementAndState(
           gnss_measurement_rov_, gnss_measurement_ref_)) {
         estimator.optimize();
         Eigen::Vector3d position = estimator.getPositionEstimate();
-        GNSSSolutionStatus status = estimator.getSolutionStatus();
+        GnssSolutionStatus status = estimator.getSolutionStatus();
 
         LOG(INFO) << std::fixed << std::setprecision(9) << gnss_measurement_rov_.timestamp 
                   << " " << std::fixed << position.transpose();
@@ -103,8 +103,9 @@ int main(void)
         sol_t sol;
         for (int i = 0; i < 3; i++) sol.rr[i] = position(i);
         sol.time = gnss_common::doubleToGtime(gnss_measurement_rov_.timestamp);
-        if (status == GNSSSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
-        else if (status == GNSSSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
+        sol.time = utc2gpst(sol.time);
+        if (status == GnssSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
+        else if (status == GnssSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
         else sol.stat = SOLQ_DGPS;
         int size = outnmea_rmc(buff, &sol);
         outnmea_gga(buff + size, &sol);

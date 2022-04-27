@@ -31,6 +31,7 @@
  *      Author: Stefan Leutenegger (s.leutenegger@imperial.ac.uk)
  *    Modified: Andreas Forster (an.forster@gmail.com)
  *    Modified: Zurich Eye
+ *    Modified: Cheng Chi
  *********************************************************************************/
 
 /**
@@ -53,14 +54,14 @@ ImuError::ImuError(const ImuMeasurements &imu_measurements,
                    const double& t_0, const double& t_1)
 {
   std::lock_guard<std::mutex> lock(preintegration_mutex_);
-  setImuMeasurements(imu_measurements);
-  setImuParameters(imu_parameters);
   setT0(t_0 - imu_parameters.delay_imu_cam);
   setT1(t_1 - imu_parameters.delay_imu_cam);
+  setImuParameters(imu_parameters);
+  setImuMeasurements(imu_measurements);
 
-  CHECK(t0_ >= imu_measurements.back().timestamp)
+  CHECK(t0_ >= imu_measurements_.front().timestamp)
       << "First IMU measurement included in ImuError is not old enough!";
-  CHECK(t1_ <= imu_measurements.front().timestamp)
+  CHECK(t1_ <= imu_measurements_.back().timestamp)
       << "Last IMU measurement included in ImuError is not new enough!";
 }
 
@@ -75,11 +76,8 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   double time = t0_;
 
   // sanity check:
-  assert(imu_measurements_.back().timestamp<=time);
-  if (!(imu_measurements_.front().timestamp >= t1_))
-  {
-    return -1;  // nothing to do...
-  }
+  CHECK_LE(imu_measurements_.front().timestamp, time);
+  CHECK_GE(imu_measurements_.back().timestamp, t1_);
 
   // increments (initialise with identity)
   Delta_q_ = Eigen::Quaterniond(1, 0, 0, 0);
@@ -106,13 +104,15 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   bool has_started = false;
   bool last_iteration = false;
   int n_integrated = 0;
-  for (size_t i = imu_measurements_.size()-1; i != 0u; --i)
+  for (size_t i = 0; i < imu_measurements_.size(); i++)
   {
+    if (imu_measurements_[i].timestamp < t0_) continue;
+
     Eigen::Vector3d omega_S_0 = imu_measurements_[i].angular_velocity;
     Eigen::Vector3d acc_S_0 = imu_measurements_[i].linear_acceleration;
-    Eigen::Vector3d omega_S_1 = imu_measurements_[i-1].angular_velocity;
-    Eigen::Vector3d acc_S_1 = imu_measurements_[i-1].linear_acceleration;
-    double nexttime = imu_measurements_[i - 1].timestamp;
+    Eigen::Vector3d omega_S_1 = imu_measurements_[i + 1].angular_velocity;
+    Eigen::Vector3d acc_S_1 = imu_measurements_[i + 1].linear_acceleration;
+    double nexttime = imu_measurements_[i + 1].timestamp;
 
     // time delta
     double dt = nexttime - time;
@@ -297,12 +297,8 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   const double t_start_adjusted = t_start - imu_params.delay_imu_cam;
   const double t_end_adjusted = t_end - imu_params.delay_imu_cam;
   // sanity check:
-  assert(imu_measurements.back().timestamp<= t_start_adjusted);
-  if (!(imu_measurements.front().timestamp>= t_end_adjusted))
-  {
-    assert(false);
-    return -1;  // nothing to do...
-  }
+  CHECK_LE(imu_measurements.front().timestamp, t_start_adjusted);
+  CHECK_GE(imu_measurements.back().timestamp, t_end_adjusted);
 
   // initial condition
   Eigen::Vector3d r_0 = T_WS.getPosition();
@@ -332,17 +328,20 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   int num_propagated = 0;
 
   double time = t_start_adjusted;
-  for (size_t i = imu_measurements.size()-1; i!=0u; --i)
+  for (size_t i = 0; i < imu_measurements.size(); i++)
   {
+    if (imu_measurements[i].timestamp < t_start_adjusted) continue;
+
     Eigen::Vector3d omega_S_0 = imu_measurements[i].angular_velocity;
     Eigen::Vector3d acc_S_0 = imu_measurements[i].linear_acceleration;
-    Eigen::Vector3d omega_S_1 = imu_measurements[i-1].angular_velocity;
-    Eigen::Vector3d acc_S_1 = imu_measurements[i-1].linear_acceleration;
-    double nexttime = imu_measurements[i - 1].timestamp;
+    Eigen::Vector3d omega_S_1 = imu_measurements[i + 1].angular_velocity;
+    Eigen::Vector3d acc_S_1 = imu_measurements[i + 1].linear_acceleration;
+    double nexttime = imu_measurements[i + 1].timestamp;
 
     // time delta
     double dt = nexttime - time;
 
+    // interpolate to end time point
     if (t_end_adjusted < nexttime)
     {
       double interval = nexttime - imu_measurements[i].timestamp;
@@ -359,6 +358,7 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
     }
     Delta_t += dt;
 
+    // interpolate to first time point
     if (!has_started)
     {
       has_started = true;

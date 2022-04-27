@@ -25,7 +25,7 @@ class StreamHandle {
 public:
   using Ptr = std::shared_ptr<StreamHandle>;
 
-  using GNSSCallback = std::function<void(GNSSMeasurement&)>;
+  using GnssCallback = std::function<void(GnssMeasurement&)>;
   using IMUCallback = std::function<void(ImuMeasurement&)>;
   using ImageCallback = std::function<void(double, cv::Mat&)>;
 
@@ -38,7 +38,7 @@ public:
   ~StreamHandle();
 
   // Set GNSS epoch data callback
-  void setGNSSCallback(GNSSCallback& gnss_callback) {
+  void setGnssCallback(GnssCallback& gnss_callback) {
     gnss_callback_ = gnss_callback;
   }
 
@@ -74,7 +74,7 @@ protected:
   std::mutex mutex_gnss_, mutex_imu_, mutex_image_;
 
   // Outside callbacks to handle epoch data
-  GNSSCallback gnss_callback_;
+  GnssCallback gnss_callback_;
   IMUCallback imu_callback_;
   ImageCallback image_callback_;
 

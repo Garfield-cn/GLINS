@@ -50,6 +50,12 @@ class RelativeConstError :
     setInformation(information);
   }
 
+  /// \brief Construct with power density
+  /// @param[in] PSD The Power Spectral Density
+  RelativeConstError(const Eigen::Matrix<double, Dim, Dim>& psd, double dt) {
+    setInformation((psd * dt).inverse());
+  }
+
   /// \brief Trivial destructor.
   virtual ~RelativeConstError() {}
 

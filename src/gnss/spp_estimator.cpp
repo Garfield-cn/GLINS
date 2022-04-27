@@ -13,19 +13,19 @@
 namespace gici {
 
 // The default constructor
-SPPEstimator::SPPEstimator(const SPPEstimatorOptions& options) :
+SppEstimator::SppEstimator(const SppEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1))
 {}
 
 // The default destructor
-SPPEstimator::~SPPEstimator()
+SppEstimator::~SppEstimator()
 {}
 
 // Add GNSS measurements and state
-bool SPPEstimator::addGNSSMeasurementAndState(
-    const GNSSMeasurement& measurement)
+bool SppEstimator::addGnssMeasurementAndState(
+    const GnssMeasurement& measurement)
 {
   // Get last estimate
   Eigen::Vector3d last_position = getPositionEstimate();
@@ -41,7 +41,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   parameter_ids_.clear();
 
   // position block
-  BackendId position_id = createGNSSPositionId(measurement_.id);
+  BackendId position_id = createGnssPositionId(measurement_.id);
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
     std::make_shared<PositionParameterBlock>(last_position, position_id.asInteger());
   if (!graph_ptr_->addParameterBlock(position_parameter_block)) {
@@ -60,8 +60,8 @@ bool SPPEstimator::addGNSSMeasurementAndState(
       system_observation_cnt.insert(std::make_pair(system, 0));
     for (auto obs : satellite.observations) {
       if (gnss_common::checkObservationValid(measurement_, 
-          GNSSMeasurementIndex(satellite.prn, obs.first), 
-          GNSSObservationType::Pseudorange, options_.common)) {
+          GnssMeasurementIndex(satellite.prn, obs.first), 
+          ObservationType::Pseudorange, options_.common)) {
         system_observation_cnt.at(system)++;
       }
     }
@@ -72,7 +72,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
   for (auto& sat : measurement_.satellites) 
   {
     Satellite& satellite = sat.second;
-    BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_.id);
+    BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement_.id);
     if (gnss_common::useSystem(options_.common, satellite.getSystem()) && 
         system_observation_cnt.at(satellite.getSystem()) > 0 &&
         !graph_ptr_->parameterBlockExists(clock_id.asInteger())) 
@@ -109,13 +109,13 @@ bool SPPEstimator::addGNSSMeasurementAndState(
 
     for (auto obs : satellite.observations) {
       if (!gnss_common::checkObservationValid(measurement_, 
-        GNSSMeasurementIndex(satellite.prn, obs.first), 
-        GNSSObservationType::Pseudorange, options_.common)) continue;
+        GnssMeasurementIndex(satellite.prn, obs.first), 
+        ObservationType::Pseudorange, options_.common)) continue;
 
-      BackendId clock_id = createGNSSClockId(satellite.getSystem(), measurement_.id);
+      BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement_.id);
       std::shared_ptr<PseudorangeError<3, 1>> pseudorange_error = 
         std::make_shared<PseudorangeError<3, 1>>(measurement_, 
-        GNSSMeasurementIndex(satellite.prn, obs.first), options_.error_parameter);
+        GnssMeasurementIndex(satellite.prn, obs.first), options_.error_parameter);
       graph_ptr_->addResidualBlock(pseudorange_error, 
         huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
         graph_ptr_->parameterBlockPtr(position_id.asInteger()),
@@ -152,7 +152,7 @@ bool SPPEstimator::addGNSSMeasurementAndState(
 }
 
 // Start ceres optimization
-void SPPEstimator::optimize()
+void SppEstimator::optimize()
 {
   graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
   graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
@@ -176,7 +176,7 @@ void SPPEstimator::optimize()
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d SPPEstimator::getPositionEstimate()
+Eigen::Vector3d SppEstimator::getPositionEstimate()
 {
   if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
     return Eigen::Vector3d::Zero();
@@ -187,7 +187,7 @@ Eigen::Vector3d SPPEstimator::getPositionEstimate()
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
+    CHECK(block_ptr != nullptr);
     return block_ptr->estimate();
   }
 
@@ -195,7 +195,7 @@ Eigen::Vector3d SPPEstimator::getPositionEstimate()
 }
 
 // Get Satellite clock
-double SPPEstimator::getClockEstimate(const char system)
+double SppEstimator::getClockEstimate(const char system)
 {
   BackendId id = changeIdType(current_state_.id, IdType::gClock, system);
   if (!graph_ptr_->parameterBlockExists(id.asInteger())) {
@@ -207,7 +207,7 @@ double SPPEstimator::getClockEstimate(const char system)
   if (base_ptr != nullptr) {
     std::shared_ptr<ClockParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<ClockParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr) << "Incorrect pointer cast detected!";
+    CHECK(block_ptr != nullptr);
     return *block_ptr->estimate().data();
   }
 
@@ -215,23 +215,23 @@ double SPPEstimator::getClockEstimate(const char system)
 }
 
 // Correct DCB (or TGD)
-void SPPEstimator::correctDCB(GNSSMeasurement& measurement)
+void SppEstimator::correctDCB(GnssMeasurement& measurement)
 {
   // TODO
 }
 
 // Compute and set coarse position on measurement
-bool SPPEstimator::setCoarsePosition(GNSSMeasurement& measurement)
+bool SppEstimator::setCoarsePosition(GnssMeasurement& measurement)
 {
   // Already has a position
   if (!checkZero(measurement.position)) return true;
 
   // no elevation mask  
-  SPPEstimatorOptions options;
+  SppEstimatorOptions options;
   options.common.min_elevation = 0.0;
-  SPPEstimatorPtr estimator = std::make_shared<SPPEstimator>(options);
+  SppEstimatorPtr estimator = std::make_shared<SppEstimator>(options);
 
-  if (!estimator->addGNSSMeasurementAndState(measurement)) {
+  if (!estimator->addGnssMeasurementAndState(measurement)) {
     return false;
   }
 

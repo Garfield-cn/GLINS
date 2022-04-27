@@ -15,11 +15,11 @@ namespace gici {
 // Construct with measurement and information matrix
 template<int... Ns>
 PhaserangeErrorSD<Ns ...>::PhaserangeErrorSD(
-                    const GNSSMeasurement& measurement_rov,
-                    const GNSSMeasurement& measurement_ref,
-                    const GNSSMeasurementIndex index_rov,
-                    const GNSSMeasurementIndex index_ref,
-                    const GNSSErrorParameter& error_parameter)
+                    const GnssMeasurement& measurement_rov,
+                    const GnssMeasurement& measurement_ref,
+                    const GnssMeasurementIndex index_rov,
+                    const GnssMeasurementIndex index_ref,
+                    const GnssErrorParameter& error_parameter)
 {
   CHECK(measurement_ref.position != Eigen::Vector3d::Zero()) << 
     "The position of reference station is not setted!";
@@ -128,7 +128,7 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
     if (!coordinate_->isZeroSetted()) {
       LOG(FATAL) << "Coordinate zero not set!";
     }
-    t_WR_ECEF = coordinate_->getECEF(t_WR_W, GeoType::ENU);
+    t_WR_ECEF = coordinate_->convert(t_WR_W, GeoType::ENU, GeoType::ECEF);
   }
 
   double timestamp = measurement_rov_.timestamp;
@@ -319,7 +319,7 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
-        PoseLocalParameterization::liftJacobian(parameters[2], J_lift.data());
+        PoseLocalParameterization::liftJacobian(parameters[0], J_lift.data());
 
         J0 = J0_minimal * J_lift;
 
@@ -332,7 +332,7 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Relative position
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = J_t_SR_S;
+        J1 = square_root_information * J_t_SR_S;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -343,7 +343,7 @@ bool PhaserangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = J_clock;
+        J2 = square_root_information * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >

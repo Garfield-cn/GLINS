@@ -280,6 +280,9 @@ void Streaming::enableReplay(StreamerReplayOptions option)
     it->streamer_->close();
     it->streamer_->open(StreamerRWType::Read);
   }
+
+  // Synchronize streams to align timestamps
+  StreamerBase::syncStreams();
 }
 
 // Stream input processing

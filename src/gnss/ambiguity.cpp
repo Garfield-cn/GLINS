@@ -21,7 +21,7 @@ AmbiguityResolution::AmbiguityResolution(
   huber_loss_function_ptr_(new ceres::HuberLoss(1))
 {
   ambiguities_.push_back(std::vector<Spec>());
-  ambiguity_pairs_.push_back(std::vector<BSDPair>());
+  ambiguity_pairs_.push_back(std::vector<BsdPair>());
   ambiguity_lane_pairs_.push_back(std::vector<LanePair>());
 }
 
@@ -32,12 +32,12 @@ AmbiguityResolution::~AmbiguityResolution()
 // Solve ambiguity at given epoch
 bool AmbiguityResolution::solve(const BackendId& epoch_id, 
              const std::vector<BackendId>& ambiguity_ids,
-             const std::pair<GNSSMeasurement, GNSSMeasurement>& measurements)
+             const std::pair<GnssMeasurement, GnssMeasurement>& measurements)
 {
   // Prepare data -----------------------------------------------------------
   // Shift storage
   ambiguities_.push_back(std::vector<Spec>());
-  ambiguity_pairs_.push_back(std::vector<BSDPair>());
+  ambiguity_pairs_.push_back(std::vector<BsdPair>());
   ambiguity_lane_pairs_.push_back(std::vector<LanePair>());
   if (ambiguities_.size() > 2) {
     ambiguities_.pop_front();
@@ -265,8 +265,8 @@ void AmbiguityResolution::formSatellitePair()
     prn_to_wavelengths.insert(std::make_pair(prn, ambiguity.wavelength));
     id_to_spec_id.insert(std::make_pair(ambiguity.id.asInteger(), i));
   }
-  for (size_t i = 0; i < GNSSSystems.size(); i++) {
-    char system = GNSSSystems[i];
+  for (size_t i = 0; i < GnssSystems.size(); i++) {
+    char system = GnssSystems[i];
 
     system_to_num_phases.insert(std::make_pair(system, 0));
     for (auto it : prn_to_number_phases) {
@@ -294,8 +294,8 @@ void AmbiguityResolution::formSatellitePair()
 
   // Find reference satellites for each system and frequencies
   std::map<char, std::string> system_to_reference_prn;
-  for (size_t i = 0; i < GNSSSystems.size(); i++) {
-    char system = GNSSSystems[i];
+  for (size_t i = 0; i < GnssSystems.size(); i++) {
+    char system = GnssSystems[i];
     double max_elevation = 0.0;
     for (size_t j = 0; j < curAmbs().size(); j++) {
       Spec& ambiguity = curAmbs()[j];
@@ -329,7 +329,7 @@ void AmbiguityResolution::formSatellitePair()
          it != prn_to_specs.upper_bound(prn_ref); it++) {
       Spec& ambiguity_ref = it->second;
       if (ambiguity_ref.id.gPhaseId() == ambiguity.id.gPhaseId()) {
-        BSDPair ambiguity_pair(curAmbs(), i, id_to_spec_id.at(ambiguity_ref.id.asInteger()));
+        BsdPair ambiguity_pair(curAmbs(), i, id_to_spec_id.at(ambiguity_ref.id.asInteger()));
         curAmbPairs().push_back(ambiguity_pair);
         break;
       }
@@ -341,8 +341,8 @@ void AmbiguityResolution::formSatellitePair()
   // widelane combination between two adjacent frequecies from the lowest frequecy to base.
   // Sort frequencies for each system
   std::map<char, double> system_to_base_wavelength;
-  for (size_t i = 0; i < GNSSSystems.size(); i++) {
-    char system = GNSSSystems[i];
+  for (size_t i = 0; i < GnssSystems.size(); i++) {
+    char system = GnssSystems[i];
     std::vector<double> wavelengths;
     auto it = system_to_wavelengths.lower_bound(system);
     if (it == system_to_wavelengths.end()) continue;
@@ -412,20 +412,22 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
   }
 
   // Get convergence judge
-  int min_num_fixation = 0;
+  double min_percentage_fixation = 0.0;
   for (size_t i = 0; i < types.size(); i++) {
-    int num;
+    double percentage;
     if (types[i] == LaneType::UWL) {
-      num = options_.min_num_fixation_uwl;
+      percentage = options_.min_percentage_fixation_uwl;
     }
     else if (types[i] == LaneType::WL) {
-      num = options_.min_num_fixation_wl;
+      percentage = options_.min_percentage_fixation_wl;
     }
     else if (types[i] == LaneType::NL) {
-      num = options_.min_num_fixation_nl;
+      percentage = options_.min_percentage_fixation_nl;
     }
     // get biggest one
-    if (num > min_num_fixation) min_num_fixation = num;
+    if (percentage > min_percentage_fixation) {
+      min_percentage_fixation = percentage;
+    }
   }
 
   // Sort them by elevation to apply partial AR latter
@@ -465,6 +467,9 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
   // Sovle ambiguity by LAMBDA
   Eigen::VectorXd fixed_ambiguities;
   int num_active = float_ambiguities.size();
+  int min_num_fixation = static_cast<int>(
+    min_percentage_fixation * static_cast<double>(num_active));
+  if (min_num_fixation < 5) min_num_fixation = 5;
   Eigen::VectorXd active_float_ambiguities = float_ambiguities;
   Eigen::MatrixXd active_float_covariance = float_covariance;
   // Try full AR and then partial AR, until it successed or active number 
@@ -600,6 +605,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
     }
     // no outlier found, break this process
     if (!found) break;
+
     // outlier found
     // Note that we reject only one ambiguity in each iteration, we iterate multiple
     // outliers here to in case the outlier does not have corresponding fixed ambiguity.
@@ -624,7 +630,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
       }
       else {
         // find the corresponding BSD ambiguity pair
-        BSDPair ambiguity_pair;
+        BsdPair ambiguity_pair;
         for (size_t i = 0; i < curAmbPairs().size(); i++) {
           if (curAmbPairs()[i].spec_id == outlier_index) {
             ambiguity_pair = curAmbPairs()[i];
@@ -720,7 +726,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
 
   // Add a loosely constraint on RTK estimator, because we do not fully believe they
   // are accurate enough yet.
-  const double information_loosely = 1e2;   // 0.01 cycle
+  const double information_loosely = 1e2;   // 0.1 cycle
   for (size_t i = 0; i < ambiguity_lane_pairs.size(); i++) {
     if (!ambiguity_lane_pairs[i].is_fixed) continue;
     std::vector<double> coefficients;
@@ -878,14 +884,14 @@ bool AmbiguityResolution::useSystem(const char system)
 
 // ---------------------------------------------------------
 // Cycle slip detection
-void cycleSlipDetection(GNSSMeasurement& measurement_pre, 
-                        GNSSMeasurement& measurement_cur,
-                        const GNSSCommonOptions& options,
+void cycleSlipDetection(GnssMeasurement& measurement_pre, 
+                        GnssMeasurement& measurement_cur,
+                        const GnssCommonOptions& options,
                         const Eigen::Vector3d position_pre,
                         const Eigen::Vector3d position_cur)
 {
   // Detect by LLI
-  cycleSlipDetectionLLI(measurement_cur);
+  cycleSlipDetectionLLI(measurement_pre, measurement_cur);
 
   // Detect by MW
   cycleSlipDetectionMW(measurement_pre, measurement_cur, options.mw_slip_thres);
@@ -899,25 +905,29 @@ void cycleSlipDetection(GNSSMeasurement& measurement_pre,
     // cycleSlipDetectionPosition(measurement_pre, measurement_cur,
     //     position_pre, position_cur, option_tools.?);
   }
+
+  // Detect by time gap for single frequency
+  cycleSlipDetectionTimeGap(measurement_pre, measurement_cur, options.period * 1.5);
 }
 
 // Cycle slip detection after single difference
-void cycleSlipDetectionSD(GNSSMeasurement& measurement_rov_pre, 
-                        GNSSMeasurement& measurement_ref_pre, 
-                        GNSSMeasurement& measurement_rov_cur,
-                        GNSSMeasurement& measurement_ref_cur,
-                        const GNSSCommonOptions& options,
+void cycleSlipDetectionSD(GnssMeasurement& measurement_rov_pre, 
+                        GnssMeasurement& measurement_ref_pre, 
+                        GnssMeasurement& measurement_rov_cur,
+                        GnssMeasurement& measurement_ref_cur,
+                        const GnssCommonOptions& options,
                         const Eigen::Vector3d position_pre,
                         const Eigen::Vector3d position_cur)
 {
   // Detect by LLI
-  cycleSlipDetectionLLI(measurement_rov_cur);
-  cycleSlipDetectionLLI(measurement_ref_cur);
+  cycleSlipDetectionLLI(measurement_rov_pre, measurement_rov_cur);
+  cycleSlipDetectionLLI(measurement_ref_pre, measurement_ref_cur);
 
   // Apply single difference 
-  GNSSMeasurementSDIndexPairs pairs_pre = 
+  GnssMeasurementSDIndexPairs pairs_pre = 
     gnss_common::formPhaserangeSDPair(measurement_rov_pre, measurement_ref_pre);
-  GNSSMeasurement measurement_sd_pre;
+  GnssMeasurement measurement_sd_pre;
+  measurement_sd_pre.timestamp = measurement_rov_pre.timestamp;
   for (size_t i = 0; i < pairs_pre.size(); i++) {
     Observation& observation_rov = measurement_rov_pre.getObs(pairs_pre[i].rov);
     Observation& observation_ref = measurement_ref_pre.getObs(pairs_pre[i].ref);
@@ -942,9 +952,10 @@ void cycleSlipDetectionSD(GNSSMeasurement& measurement_rov_pre,
     measurement_sd_pre.position.setZero();
   }
 
-  GNSSMeasurementSDIndexPairs pairs_cur = 
+  GnssMeasurementSDIndexPairs pairs_cur = 
     gnss_common::formPhaserangeSDPair(measurement_rov_cur, measurement_ref_cur);
-  GNSSMeasurement measurement_sd_cur;
+  GnssMeasurement measurement_sd_cur;
+  measurement_sd_cur.timestamp = measurement_rov_cur.timestamp;
   for (size_t i = 0; i < pairs_cur.size(); i++) {
     Observation& observation_rov = measurement_rov_cur.getObs(pairs_cur[i].rov);
     Observation& observation_ref = measurement_ref_cur.getObs(pairs_cur[i].ref);
@@ -971,13 +982,16 @@ void cycleSlipDetectionSD(GNSSMeasurement& measurement_rov_pre,
   // Detect by GF
   cycleSlipDetectionGF(measurement_sd_pre, measurement_sd_cur, options.gf_sd_slip_thres);
 
+  // Detect by time gap for single frequency
+  cycleSlipDetectionTimeGap(measurement_sd_pre, measurement_sd_cur, options.period * 1.5);
+
   // Put slip flags
   for (size_t i = 0; i < pairs_cur.size(); i++) {
     Observation& observation_sd = measurement_sd_cur.getObs(pairs_cur[i].rov);
     Observation& observation_rov = measurement_rov_cur.getObs(pairs_cur[i].rov);
     Observation& observation_ref = measurement_ref_cur.getObs(pairs_cur[i].ref);
-    observation_rov.slip = observation_sd.slip;
-    observation_ref.slip = observation_sd.slip;
+    observation_rov.slip |= observation_sd.slip;
+    observation_ref.slip |= observation_sd.slip;
   }
 
   // Detect by relative position
@@ -989,22 +1003,37 @@ void cycleSlipDetectionSD(GNSSMeasurement& measurement_rov_pre,
 }
 
 // Cycle slip detection by Loss of Lock Indicator (LLI)
-void cycleSlipDetectionLLI(GNSSMeasurement& measurement)
+void cycleSlipDetectionLLI(GnssMeasurement& measurement_pre, 
+                           GnssMeasurement& measurement_cur)
 {
-  for (auto& sat : measurement.satellites) {
+  for (auto& sat : measurement_cur.satellites) {
     for (auto& obs : sat.second.observations) {
       Observation& observation = obs.second;
-      if (observation.LLI) observation.slip = true;
+      if (observation.LLI & 1) {
+        observation.slip = true;
+        continue;
+      }
+
+      // detect slip by parity unknown flag transition in LLI
+      uint8_t LLI_cur = observation.LLI;
+      auto it_sat = measurement_pre.satellites.find(sat.first);
+      if (it_sat == measurement_pre.satellites.end()) continue;
+      auto it_obs = it_sat->second.observations.find(obs.first);
+      if (it_obs == it_sat->second.observations.end()) continue;
+      uint8_t LLI_pre = it_obs->second.LLI;
+      if (((LLI_pre & 2) && !(LLI_cur & 2)) || (!(LLI_pre & 2) && (LLI_cur & 2))) {
+        observation.slip = true;
+      }
     }
   }
 }
 
 // Cycle slip detection by Melbourne-Wubbena (MW) combination
-void cycleSlipDetectionMW(GNSSMeasurement& measurement_pre, 
-                          GNSSMeasurement& measurement_cur,
+void cycleSlipDetectionMW(GnssMeasurement& measurement_pre, 
+                          GnssMeasurement& measurement_cur,
                           double threshold)
 {
-  GNSSMeasurementSDIndexPairs pairs = 
+  GnssMeasurementSDIndexPairs pairs = 
     gnss_common::formPhaserangeSDPair(measurement_pre, measurement_cur);
 
   // Find valid frequencies for each satellite
@@ -1027,10 +1056,10 @@ void cycleSlipDetectionMW(GNSSMeasurement& measurement_pre,
     if (pair_indexes[i].size() < 2) continue;
 
     for (size_t j = 1; j < pair_indexes[i].size(); j++) {
-      GNSSMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].rov;
-      GNSSMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].rov;
-      GNSSMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].ref;
-      GNSSMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].ref;
+      GnssMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].rov;
+      GnssMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].rov;
+      GnssMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].ref;
+      GnssMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].ref;
       Observation& observation_pre_0 = measurement_pre.getObs(index_pre_0);
       Observation& observation_pre_1 = measurement_pre.getObs(index_pre_1);
       Observation& observation_cur_0 = measurement_cur.getObs(index_cur_0);
@@ -1048,11 +1077,11 @@ void cycleSlipDetectionMW(GNSSMeasurement& measurement_pre,
 }
 
 // Cycle slip detection by Geometry-Free (GF) combination
-void cycleSlipDetectionGF(GNSSMeasurement& measurement_pre, 
-                          GNSSMeasurement& measurement_cur,
+void cycleSlipDetectionGF(GnssMeasurement& measurement_pre, 
+                          GnssMeasurement& measurement_cur,
                           double threshold)
 {
-  GNSSMeasurementSDIndexPairs pairs = 
+  GnssMeasurementSDIndexPairs pairs = 
     gnss_common::formPhaserangeSDPair(measurement_pre, measurement_cur);
 
   // Find valid frequencies for each satellite
@@ -1075,10 +1104,10 @@ void cycleSlipDetectionGF(GNSSMeasurement& measurement_pre,
     if (pair_indexes[i].size() < 2) continue;
 
     for (size_t j = 1; j < pair_indexes[i].size(); j++) {
-      GNSSMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].rov;
-      GNSSMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].rov;
-      GNSSMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].ref;
-      GNSSMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].ref;
+      GnssMeasurementIndex index_pre_0 = pairs[pair_indexes[i][0]].rov;
+      GnssMeasurementIndex index_pre_1 = pairs[pair_indexes[i][j]].rov;
+      GnssMeasurementIndex index_cur_0 = pairs[pair_indexes[i][0]].ref;
+      GnssMeasurementIndex index_cur_1 = pairs[pair_indexes[i][j]].ref;
       Observation& observation_pre_0 = measurement_pre.getObs(index_pre_0);
       Observation& observation_pre_1 = measurement_pre.getObs(index_pre_1);
       Observation& observation_cur_0 = measurement_cur.getObs(index_cur_0);
@@ -1097,8 +1126,8 @@ void cycleSlipDetectionGF(GNSSMeasurement& measurement_pre,
 
 // Cycle slip detection by relative position
 void cycleSlipDetectionPosition(
-                          GNSSMeasurement& measurement_pre, 
-                          GNSSMeasurement& measurement_cur,
+                          GnssMeasurement& measurement_pre, 
+                          GnssMeasurement& measurement_cur,
                           const Eigen::Vector3d position_pre,
                           const Eigen::Vector3d position_cur,
                           double threshold)
@@ -1106,6 +1135,49 @@ void cycleSlipDetectionPosition(
   // TODO: Detect by relative position
   // how to fix clock jump?
   return;
+}
+
+// Cycle slip detection by time gap for single frequency receiver
+void cycleSlipDetectionTimeGap(
+                          GnssMeasurement& measurement_pre, 
+                          GnssMeasurement& measurement_cur,
+                          double max_time_gap)
+{
+#ifndef NDEBUG
+  return; // disable in debug mode
+#endif
+
+  if (measurement_cur.timestamp - measurement_pre.timestamp < max_time_gap) {
+    return;
+  }
+
+  // Check if single frequency
+  std::vector<bool> is_single_frequency;
+  for (auto sat : measurement_cur.satellites) {
+    auto& satellite = sat.second;
+    int num_phases = 0;
+    for (auto obs : satellite.observations) {
+      if (gnss_common::checkObservationValid(measurement_cur, 
+          GnssMeasurementIndex(sat.first, obs.first), 
+          ObservationType::Phaserange)) {
+        num_phases++;
+      }
+    }
+    if (num_phases > 1) is_single_frequency.push_back(false);
+    else is_single_frequency.push_back(true);
+  }
+
+  // set slip flag
+  size_t index = 0;
+  for (auto& sat : measurement_cur.satellites) {
+    if (is_single_frequency[index]) {
+      auto& satellite = sat.second;
+      for (auto& obs : satellite.observations) {
+        obs.second.slip = true;
+      }
+    }
+    index++;
+  }
 }
 
 }

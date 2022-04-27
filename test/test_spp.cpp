@@ -12,14 +12,14 @@
 
 using namespace gici;
 
-GNSSMeasurement gnss_measurement_;
+GnssMeasurement gnss_measurement_;
 bool measurement_updated_ = false;
 
-void gnssCallback(GNSSMeasurement& data)
+void gnssCallback(GnssMeasurement& data)
 {
   LOG(INFO) << "* Got GNSS data at " << std::fixed << std::setprecision(9) << data.timestamp;
   
-  if (data.role != GNSSRole::Rover) return;
+  if (data.role != GnssRole::Rover) return;
   if (!measurement_updated_) {
     gnss_measurement_ = data;
     measurement_updated_ = true;
@@ -44,16 +44,16 @@ int main(void)
 
   initializeSignalHandles();
 
-  SPPEstimatorOptions spp_estimator_options;
+  SppEstimatorOptions spp_estimator_options;
   spp_estimator_options.verbose = true;
   // spp_estimator_options.system_exclude.push_back('C');
-  SPPEstimator estimator(spp_estimator_options);
+  SppEstimator estimator(spp_estimator_options);
 
   YAML::Node stream_config = config["stream"];
   StreamHandle stream_handle(stream_config);
 
-  StreamHandle::GNSSCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
-  stream_handle.setGNSSCallback(gnss_callback);
+  StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
+  stream_handle.setGnssCallback(gnss_callback);
 
   std::ofstream outfile;
   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
@@ -63,7 +63,7 @@ int main(void)
   while (SpinControl::ok()) {
 
     if (measurement_updated_) {
-      if (estimator.addGNSSMeasurementAndState(gnss_measurement_)) {
+      if (estimator.addGnssMeasurementAndState(gnss_measurement_)) {
         estimator.optimize();
         Eigen::Vector3d position = estimator.getPositionEstimate();
         Eigen::Vector2d clock;
