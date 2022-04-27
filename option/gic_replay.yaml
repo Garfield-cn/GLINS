@@ -10,15 +10,15 @@ stream:
 #       buffer-length: 32768
 #       loop-duration: 1e-2
 #       formator-tags: [gnss-rov]
-  - streamer:
-      tag: str-rov
-      type: file
-      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref_copy.rtcm3
-      enable_time_tag: true
-      swap_interval: 0
-      buffer-length: 32768
-      loop-duration: 1e-2
-      formator-tags: [gnss-rov]
+#   - streamer:
+#       tag: str-rov
+#       type: file
+#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref_copy.rtcm3
+#       enable_time_tag: true
+#       swap_interval: 0
+#       buffer-length: 32768
+#       loop-duration: 1e-2
+#       formator-tags: [gnss-rov]
   - streamer:
       tag: str-ref
       type: file
@@ -28,24 +28,24 @@ stream:
       buffer-length: 32768
       loop-duration: 1e-2
       formator-tags: [gnss-ref]
-#   - streamer:
-#       tag: str-head
-#       type: file
-#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/head.rtcm3
-#       enable_time_tag: true
-#       swap_interval: 0
-#       buffer-length: 32768
-#       loop-duration: 1e-2
-#       formator-tags: [gnss-head]
-#   - streamer:
-#       tag: str-imu
-#       type: file
-#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/imu.bin
-#       enable_time_tag: true
-#       swap_interval: 0
-#       buffer-length: 32768
-#       loop-duration: 1e-3
-#       formator-tags: [imu]
+  - streamer:
+      tag: str-head
+      type: file
+      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/head.rtcm3
+      enable_time_tag: true
+      swap_interval: 0
+      buffer-length: 32768
+      loop-duration: 1e-2
+      formator-tags: [gnss-head]
+  - streamer:
+      tag: str-imu
+      type: file
+      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/imu.bin
+      enable_time_tag: true
+      swap_interval: 0
+      buffer-length: 32768
+      loop-duration: 1e-3
+      formator-tags: [imu]
 #   - streamer:
 #       tag: str-camera
 #       type: file
@@ -58,24 +58,30 @@ stream:
 
 
   formators:
-  - formator:
-      io: input
-      tag: gnss-rov
-      type: gnss-rtcm-3
-      start_time: 1643508393
-      role: [rover, ephemeris]
+#   - formator:
+#       io: input
+#       tag: gnss-rov
+#       type: gnss-rtcm-3
+#       start_time: 1643508393
+#       role: [rover, ephemeris]
   - formator:
       io: input
       tag: gnss-ref
       type: gnss-rtcm-3
       start_time: 1643508393
       role: [reference]
+#   - formator:
+#       io: input
+#       tag: gnss-head
+#       type: gnss-rtcm-3
+#       start_time: 1643508393
+#       role: [heading]
   - formator:
       io: input
       tag: gnss-head
       type: gnss-rtcm-3
       start_time: 1643508393
-      role: [heading]
+      role: [rover, ephemeris]
   - formator:
       io: input
       tag: imu
@@ -91,5 +97,5 @@ stream:
 
   replay:
     enable: true
-    speed: 20.0
-    start-offset: 0.0
+    speed: 5.0
+    start-offset: 5.0

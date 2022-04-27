@@ -47,15 +47,17 @@ include_directories(
 aux_source_directory(src/utility DIR_utility)
 aux_source_directory(src/stream DIR_stream)
 aux_source_directory(src/gnss DIR_gnss)
-aux_source_directory(src/inertial DIR_inertial)
-aux_source_directory(src/visual DIR_visual)
-aux_source_directory(src/estimator DIR_estimator)
+aux_source_directory(src/imu DIR_imu)
+aux_source_directory(src/vision DIR_vision)
+aux_source_directory(src/optimizer DIR_optimizer)
+aux_source_directory(src/fusion DIR_fusion)
 list(APPEND DIR_ALL ${DIR_utility}
                     ${DIR_stream}
                     ${DIR_gnss}
-                    ${DIR_inertial}
-                    ${DIR_visual}
-                    ${DIR_estimator})
+                    ${DIR_imu}
+                    ${DIR_vision}
+                    ${DIR_optimizer}
+                    ${DIR_fusion})
 
 # library
 add_library(${PROJECT_NAME} SHARED ${DIR_ALL})
@@ -76,4 +78,28 @@ target_link_libraries(test_common
 
 add_executable(test_stream_handle test/test_stream_handle.cpp)
 target_link_libraries(test_stream_handle 
+                      ${PROJECT_NAME})
+
+add_executable(test_spp test/test_spp.cpp)
+target_link_libraries(test_spp 
+                      ${PROJECT_NAME})
+
+add_executable(test_sdgnss test/test_sdgnss.cpp)
+target_link_libraries(test_sdgnss 
+                      ${PROJECT_NAME})
+
+add_executable(test_dgnss test/test_dgnss.cpp)
+target_link_libraries(test_dgnss 
+                      ${PROJECT_NAME})
+
+add_executable(test_rtk test/test_rtk.cpp)
+target_link_libraries(test_rtk
+                      ${PROJECT_NAME})
+
+add_executable(test_gnss_imu_lc test/test_gnss_imu_lc.cpp)
+target_link_libraries(test_gnss_imu_lc
+                      ${PROJECT_NAME})
+
+add_executable(test_pose test/test_pose.cpp)
+target_link_libraries(test_pose
                       ${PROJECT_NAME})

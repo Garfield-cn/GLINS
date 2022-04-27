@@ -31,10 +31,9 @@ list(APPEND IMG_ALIGN_DIR
   src/svo_img_align/sparse_img_align.cpp)
 aux_source_directory(src/svo_vio_common VIO_COMMON)
 aux_source_directory(src/svo SVO_DIR)
-aux_source_directory(src/svo_ceres_backend BACKEND_DIR)
 set(SOURCEFILES ${COMMON_DIR} ${DIRECT_DIR} ${SVO_DIR}
   ${RPG_COMMON_DIR} ${TRACKER_DIR} ${IMG_ALIGN_DIR}
-  ${VIO_COMMON} ${BACKEND_DIR})
+  ${VIO_COMMON})
 
 # Create vikit library
 ADD_LIBRARY(${PROJECT_NAME} SHARED ${SOURCEFILES})

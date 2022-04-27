@@ -40,3 +40,18 @@ env/
 build/
 dist/
 *.log
+
+# ROS
+devel/
+.catkin_workspace
+
+# others
+trash/
+third_party/eigen/
+third_party/fast/
+third_party/glog/
+third_party/opencv/
+third_party/yaml-cpp/
+data*/
+bin/
+lib/

@@ -356,7 +356,7 @@ extern "C" {
 #define MAXCODE     68                  /* max number of obs code */
 
 #define PMODE_SINGLE 0                  /* positioning mode: single */
-#define PMODE_DGPS   1                  /* positioning mode: DGPS/DGNSS */
+#define PMODE_DGPS   1                  /* positioning mode: DGPS/SDGNSS */
 #define PMODE_KINEMA 2                  /* positioning mode: kinematic */
 #define PMODE_STATIC 3                  /* positioning mode: static */
 #define PMODE_MOVEB  4                  /* positioning mode: moving-base */
@@ -376,7 +376,7 @@ extern "C" {
 #define SOLQ_FIX    1                   /* solution status: fix */
 #define SOLQ_FLOAT  2                   /* solution status: float */
 #define SOLQ_SBAS   3                   /* solution status: SBAS */
-#define SOLQ_DGPS   4                   /* solution status: DGPS/DGNSS */
+#define SOLQ_DGPS   4                   /* solution status: DGPS/SDGNSS */
 #define SOLQ_SINGLE 5                   /* solution status: single */
 #define SOLQ_PPP    6                   /* solution status: PPP */
 #define SOLQ_DR     7                   /* solution status: dead reconing */
