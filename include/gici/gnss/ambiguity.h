@@ -269,5 +269,5 @@ void cycleSlipDetectionTimeGap(
                           GnssMeasurement& measurement_pre, 
                           GnssMeasurement& measurement_cur,
                           double max_time_gap);
-  
+
 }

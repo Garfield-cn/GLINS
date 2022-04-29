@@ -228,7 +228,7 @@ bool PseudorangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
     if (is_estimate_body_) {
       // Body position in ENU
       Eigen::Matrix<double, 1, 3> J_t_W = J_t_ECEF * 
-        coordinate_->rotationMatrix(GeoType::ECEF, GeoType::ENU);
+        coordinate_->rotationMatrix(GeoType::ENU, GeoType::ECEF);
 
       // Body rotation in ENU
       Eigen::Matrix<double, 1, 3> J_q_WS = J_t_W * 

@@ -275,7 +275,7 @@ bool GnssImuInitialization::addGnssMeasurement(const GnssSolution& gnss_solution
 }
 
 // Add IMU measurement
-void GnssImuInitialization::addIMUMeasurement(const ImuMeasurement& imu_measurement)
+void GnssImuInitialization::addImuMeasurement(const ImuMeasurement& imu_measurement)
 {
   if (finished_) return;
 
@@ -382,35 +382,35 @@ bool GnssImuInitialization::getResult(
     outfile.close();
   }
 
-  {
-    std::ofstream outfile;
-    outfile.open("/home/cc/datasets/tmp/log2.txt", std::ios::out | std::ios::trunc);
-    outfile << graph_ptr_->summary.BriefReport() << std::endl;
-    for (auto residual_map : graph_ptr_->residual_block_id_to_residual_block_spec_map_) {
-      auto residual = residual_map.first;
-      auto& error_interface_ptr = residual_map.second.error_interface_ptr;
-      size_t size = residual_map.second.error_interface_ptr->residualDim();
+  // {
+  //   std::ofstream outfile;
+  //   outfile.open("/home/cc/datasets/tmp/log2.txt", std::ios::out | std::ios::trunc);
+  //   outfile << graph_ptr_->summary.BriefReport() << std::endl;
+  //   for (auto residual_map : graph_ptr_->residual_block_id_to_residual_block_spec_map_) {
+  //     auto residual = residual_map.first;
+  //     auto& error_interface_ptr = residual_map.second.error_interface_ptr;
+  //     size_t size = residual_map.second.error_interface_ptr->residualDim();
 
-      Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(size);
-      graph_ptr_->problem_->EvaluateResidualBlock(
-          residual, false, nullptr, Residuals.data(), nullptr);
-      // if (Residuals.maxCoeff() > 1.0 || Residuals.minCoeff() < -1.0)
-      // if (size > 2)
-        outfile << "Residual " << static_cast<int>(error_interface_ptr->typeInfo()) << ": " 
-                << residual << ": " << Residuals.transpose() << std::endl;
+  //     Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(size);
+  //     graph_ptr_->problem_->EvaluateResidualBlock(
+  //         residual, false, nullptr, Residuals.data(), nullptr);
+  //     // if (Residuals.maxCoeff() > 1.0 || Residuals.minCoeff() < -1.0)
+  //     // if (size > 2)
+  //       outfile << "Residual " << static_cast<int>(error_interface_ptr->typeInfo()) << ": " 
+  //               << residual << ": " << Residuals.transpose() << std::endl;
 
-        // auto parameters = graph_ptr_->parameters(residual);
-        // for (Graph::ParameterBlockSpec &parameter : parameters) {
-        //   outfile << "    Parameter: " << parameter.rov << std::endl;
-        // }
-    }
-    outfile.close();
-  }
+  //       // auto parameters = graph_ptr_->parameters(residual);
+  //       // for (Graph::ParameterBlockSpec &parameter : parameters) {
+  //       //   outfile << "    Parameter: " << parameter.rov << std::endl;
+  //       // }
+  //   }
+  //   outfile.close();
+  // }
 
-  std::cout << speed_and_bias.transpose() << std::endl;
-  std::cout << t_SR_S.transpose() << std::endl;
+  // std::cout << speed_and_bias.transpose() << std::endl;
+  // std::cout << t_SR_S.transpose() << std::endl;
 
-  // LOG(FATAL) << "end";
+  // // LOG(FATAL) << "end";
 
   return true;
 }

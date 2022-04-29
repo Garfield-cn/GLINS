@@ -36,7 +36,7 @@ void gnssCallback(GnssMeasurement& data)
 
 void imuCallback(ImuMeasurement& data)
 {
-  gnss_imu_lc_estimator_->addIMUMeasurement(data);
+  gnss_imu_lc_estimator_->addImuMeasurement(data);
 }
 
 int main(void)

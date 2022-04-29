@@ -51,6 +51,11 @@ add_executable(test_ros_gnss_imu_lc
 target_link_libraries(test_ros_gnss_imu_lc 
       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
 
+add_executable(test_ros_rtk_imu_tc 
+      src/test/test_ros_rtk_imu_tc.cpp ${DIR_ROS_TOOLS})
+target_link_libraries(test_ros_rtk_imu_tc 
+      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+
 add_executable(test_ros_imu 
                src/test/test_ros_imu.cpp ${DIR_ROS_TOOLS})
 target_link_libraries(test_ros_imu 

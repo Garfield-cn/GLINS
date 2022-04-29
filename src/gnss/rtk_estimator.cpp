@@ -78,7 +78,6 @@ bool RtkEstimator::addGnssMeasurementAndState(
   GnssMeasurementDDIndexPairs dd_pairs = 
       gnss_common::formPhaserangeDDPair(curMeasRov(), curMeasRef(), options_.common);
 
-  // Pseudorange ---------------------------------------------------
   // Add pseudorange residual blocks
   int num_residual_block = dd_pairs.size();
   int num_satellites = 0;
@@ -125,7 +124,6 @@ bool RtkEstimator::addGnssMeasurementAndState(
 
   curState().status = GnssSolutionStatus::DGNSS;
 
-  // Phaserange ---------------------------------------------------
   // Add Phaserange residual blocks and ambiguity states
   for (auto dd_pair : dd_pairs) 
   {
@@ -189,7 +187,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
     curState().status = GnssSolutionStatus::Float;
   }
 
-  // Time constraints ---------------------------------------------------
+  // Time contraints
   if (!isFirstEpoch()) 
   {
     // Relative position

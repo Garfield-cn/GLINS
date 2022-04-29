@@ -30,9 +30,10 @@
 #include "gici/gnss/gnss_types.h"
 #include "gici/gnss/rtk_estimator.h"
 #include "gici/gnss/spp_estimator.h"
-#include "gici/fusion/gnss_imu_lc_estimator.h"
+#include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/gnss/gnss_common.h"
 #include "gici/imu/imu_common.h"
+#include "gici/imu/imu_error.hpp"
 #include "gici/ros_interface/publisher.h"
 
 using namespace gici;
@@ -49,10 +50,14 @@ GnssMeasurement gnss_measurement_rov_;
 GnssMeasurement gnss_measurement_ref_;
 bool gnss_measurement_updated_rov_ = false;
 bool gnss_measurement_updated_ref_ = false;
-std::list<GnssSolution> gnss_solutions_;
 std::unique_ptr<RtkEstimator> rtk_estimator_;
-std::unique_ptr<GnssImuLcEstimator> gnss_imu_lc_estimator_;
+std::unique_ptr<RtkImuTcEstimator> rtk_imu_tc_estimator_;
+std::list<std::pair<GnssMeasurement, GnssMeasurement>> gnss_measurements_;
+std::list<GnssSolution> gnss_solutions_;
 GeoCoordinatePtr coordinate_;
+double timestamp_ = 0.0;
+Transformation pose_;
+SpeedAndBias speed_and_bias_;
 
 void gnssCallback(GnssMeasurement& data)
 {
@@ -67,12 +72,11 @@ void gnssCallback(GnssMeasurement& data)
   }
 
   if (gnss_measurement_updated_rov_ && gnss_measurement_updated_ref_) {
-    // For the first epoch, we add a position prior
-    if (rtk_estimator_->isFirstEpoch() && 
-        !SppEstimator::setCoarsePosition(gnss_measurement_rov_)) {
-      gnss_measurement_updated_rov_ = false;
-      gnss_measurement_updated_ref_ = false;
-      return;
+
+    if (SppEstimator::setCoarsePosition(gnss_measurement_rov_) && 
+        coordinate_ == nullptr) {
+      coordinate_.reset(new GeoCoordinate(gnss_measurement_rov_.position, GeoType::ECEF));
+      rtk_imu_tc_estimator_->setCoordinate(coordinate_);
     }
 
     if (rtk_estimator_->addGnssMeasurementAndState(
@@ -80,28 +84,9 @@ void gnssCallback(GnssMeasurement& data)
       rtk_estimator_->optimize();
 
       gnss_solutions_.push_back(rtk_estimator_->getSolution());
-
-      // modify covariance
-      // if (gnss_solutions_.back().status == GnssSolutionStatus::Fixed) {
-      //   gnss_solutions_.back().covariance.topLeftCorner(3, 3) = 
-      //     Eigen::Matrix3d::Identity() * square(0.05);
-      // }
-
-      if (coordinate_ == nullptr) {
-        coordinate_.reset(new GeoCoordinate(gnss_solutions_.back().position, GeoType::ECEF));
-        gnss_imu_lc_estimator_->setCoordinate(coordinate_);
-      }
-
-      // // publish gnss pose
-      // Eigen::Vector3d gnss_position = coordinate_->convert(
-      //     gnss_solutions_.back().position, GeoType::ECEF, GeoType::ENU);
-      // Transformation gnss_pose = Transformation(gnss_position, Eigen::Quaterniond::Identity());
-      // ros::Time ros_time(gnss_solutions_.back().timestamp);
-      // publishPoseStamped(gnss_pose_pub_, gnss_pose, ros_time, "World");
-
-      // // publish GNSS path
-      // gnss_path_publisher_.addPoseAndPublish(gnss_path_pub_, gnss_pose, ros_time, "World");
+      gnss_measurements_.push_back(std::make_pair(gnss_measurement_rov_, gnss_measurement_ref_));
     }
+
     gnss_measurement_updated_rov_ = false;
     gnss_measurement_updated_ref_ = false;
   }
@@ -109,7 +94,7 @@ void gnssCallback(GnssMeasurement& data)
 
 void imuCallback(ImuMeasurement& data)
 {
-  gnss_imu_lc_estimator_->addImuMeasurement(data);
+  rtk_imu_tc_estimator_->addImuMeasurement(data);
 
   sensor_msgs::Imu imu_msg;
   imu_msg.header.stamp = ros::Time(data.timestamp);
@@ -156,21 +141,17 @@ int main(int argc, char** argv)
 
   RtkEstimatorOptions rtk_estimator_options;
   // rtk_estimator_options.use_ambiguity_resolution = false;
-  rtk_estimator_ = std::make_unique<RtkEstimator>(rtk_estimator_options);
+  rtk_estimator_ = std::make_unique<RtkEstimator>(rtk_estimator_options); 
 
   Eigen::Vector3d lla(31, 121, 0);
   lla = GeoCoordinate::degToRad(lla);
   double gravity = earthGravity(lla);
 
-  GnssImuLcEstimatorOptions gnss_imu_lc_estimator_options;
-  gnss_imu_lc_estimator_options.verbose = true;
-  gnss_imu_lc_estimator_options.window_length = 3;
-  gnss_imu_lc_estimator_options.max_iteration = 5;
-  gnss_imu_lc_estimator_options.imu_parameters.g = gravity;
-  gnss_imu_lc_estimator_options.imu_parameters.sigma_g_c = 1.0e-4;
-  gnss_imu_lc_estimator_options.imu_parameters.sigma_a_c = 2.0e-3;
-  gnss_imu_lc_estimator_options.imu_parameters.sigma_gw_c = 2.1e-5;
-  gnss_imu_lc_estimator_options.imu_parameters.sigma_aw_c = 8.4e-4;
+  RtkImuTcEstimatorOptions rtk_imu_tc_estimator_options;
+  rtk_imu_tc_estimator_options.verbose = true;
+  rtk_imu_tc_estimator_options.window_length = 3;
+  rtk_imu_tc_estimator_options.max_iteration = 10;
+  rtk_imu_tc_estimator_options.imu_parameters.g = gravity;
   GnssImuInitializationOptions gnss_imu_initialize_options;
   gnss_imu_initialize_options.gnss_extrinsic << 0.1, -0.4, -0.4;
   gnss_imu_initialize_options.gnss_extrinsic_initial_std = 0.3;
@@ -178,9 +159,9 @@ int main(int argc, char** argv)
   gnss_imu_initialize_options.window_length_optimize = 20;
   gnss_imu_initialize_options.max_iteration = 100;
   gnss_imu_initialize_options.min_velocity = 2.0;
-  gnss_imu_initialize_options.imu_parameters = gnss_imu_lc_estimator_options.imu_parameters;
-  gnss_imu_lc_estimator_ = std::make_unique<GnssImuLcEstimator>(
-    gnss_imu_lc_estimator_options, gnss_imu_initialize_options);
+  gnss_imu_initialize_options.imu_parameters = rtk_imu_tc_estimator_options.imu_parameters;
+  rtk_imu_tc_estimator_ = std::make_unique<RtkImuTcEstimator>(
+    rtk_imu_tc_estimator_options, gnss_imu_initialize_options);
 
   YAML::Node stream_config = config["stream"];
   StreamHandle stream_handle(stream_config);
@@ -205,22 +186,26 @@ int main(int argc, char** argv)
 
     ros::Time ros_time = ros::Time::now();
 
-    if (gnss_solutions_.size() > 0) {
-      if (gnss_imu_lc_estimator_->addGnssMeasurementAndState(gnss_solutions_.front())) {
-        gnss_imu_lc_estimator_->optimize();
+    if (gnss_measurements_.size() > 0) {
 
-        Transformation cur_pose = gnss_imu_lc_estimator_->getPoseEstimate();
+      if (rtk_imu_tc_estimator_->addGnssMeasurementAndState(
+          gnss_measurements_.front().first, gnss_measurements_.front().second)) {
+        rtk_imu_tc_estimator_->optimize();
 
-        LOG(INFO) << std::fixed << std::setprecision(9) << gnss_solutions_.front().timestamp 
+        Transformation cur_pose = rtk_imu_tc_estimator_->getPoseEstimate();
+
+        LOG(INFO) << std::fixed << std::setprecision(9) << gnss_measurements_.front().first.timestamp 
                   << " " << std::fixed << cur_pose.getPosition().transpose();
 
-        if (gnss_solutions_.size() > 1) {
-          // // publish body pose and transform
-          // publishPoseWithTransform(pose_pub_, body_broadcaster, cur_pose, ros_time, "Body", "World");
+        timestamp_ = rtk_imu_tc_estimator_->getTimestamp();
+        pose_ = rtk_imu_tc_estimator_->getPoseEstimate();
+        speed_and_bias_ = rtk_imu_tc_estimator_->getSpeedAndBias();
 
-          // // publish path
-          // path_publisher_.addPoseAndPublish(path_pub_, cur_pose, ros_time, "World");
-        }
+        // // publish body pose and transform
+        // publishPoseWithTransform(pose_pub_, body_broadcaster, cur_pose, ros_time, "World", "Imu");
+
+        // // publish path
+        // path_publisher_.addPoseAndPublish(path_pub_, cur_pose, ros_time, "World");
 
         // publish gnss pose
         Eigen::Vector3d gnss_position = coordinate_->convert(
@@ -231,39 +216,49 @@ int main(int argc, char** argv)
         // publish GNSS path
         gnss_path_publisher_.addPoseAndPublish(gnss_path_pub_, gnss_pose, ros_time, "World");
 
-        uint8_t buff[256];
-        sol_t sol;
-        Eigen::Vector3d position = coordinate_->convert(cur_pose.getPosition(), GeoType::ENU, GeoType::ECEF);
-        for (int i = 0; i < 3; i++) sol.rr[i] = position(i);
-        sol.time = gnss_common::doubleToGtime(gnss_measurement_rov_.timestamp);
-        sol.time = utc2gpst(sol.time);
-        GnssSolutionStatus status = gnss_solutions_.front().status;
-        if (status == GnssSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
-        else if (status == GnssSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
-        else sol.stat = SOLQ_DGPS;
-        int size = outnmea_rmc(buff, &sol);
-        outnmea_gga(buff + size, &sol);
-        outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::app);
-        outfile << buff;
-        outfile.close();
+        // uint8_t buff[256];
+        // sol_t sol;
+        // Eigen::Vector3d position = coordinate_->convert(cur_pose.getPosition(), GeoType::ENU, GeoType::ECEF);
+        // for (int i = 0; i < 3; i++) sol.rr[i] = position(i);
+        // sol.time = gnss_common::doubleToGtime(gnss_measurement_rov_.timestamp);
+        // sol.time = utc2gpst(sol.time);
+        // GnssSolutionStatus status = rtk_imu_tc_estimator_->getSolutionStatus();
+        // if (status == GnssSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
+        // else if (status == GnssSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
+        // else sol.stat = SOLQ_DGPS;
+        // int size = outnmea_rmc(buff, &sol);
+        // outnmea_gga(buff + size, &sol);
+        // outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::app);
+        // outfile << buff;
+        // outfile.close();
       }
       else {
         LOG(INFO) << "Failed to add measurement on LC estimator!";
       }
       gnss_solutions_.pop_front();
-      LOG(INFO) << "GNSS solutions pendding " << gnss_solutions_.size();
+      gnss_measurements_.pop_front();
+      LOG(INFO) << "GNSS pendding " << gnss_solutions_.size();
     }
     
-    if (gnss_solutions_.size() == 0) {
+    if (gnss_solutions_.size() == 0 && !rtk_imu_tc_estimator_->isFirstEpoch()) {
       // publish body pose and transform
-      pose = gnss_imu_lc_estimator_->getPoseIntegrated();
-      publishPoseWithTransform(pose_pub_, body_broadcaster, pose, ros_time, "World", "Imu");
+      ImuMeasurements& imu_measurements = rtk_imu_tc_estimator_->getImuMeasurements();
+      if (imu_measurements.size() == 0) continue;
+      double timestamp = imu_measurements.back().timestamp;
+      ImuError::propagation(
+        imu_measurements, rtk_imu_tc_estimator_options.imu_parameters, 
+        pose_, speed_and_bias_, timestamp_, 
+        timestamp, nullptr, nullptr);
+      pose_.getRotation().normalize();
+      timestamp_ = timestamp;
+
+      publishPoseWithTransform(pose_pub_, body_broadcaster, pose_, ros_time, "World", "Imu");
 
       // publish path
-      path_publisher_.addPoseAndPublish(path_pub_, pose, ros_time, "World");
+      path_publisher_.addPoseAndPublish(path_pub_, pose_, ros_time, "World");
     }
 
-    if (gnss_imu_lc_estimator_->getTimeIntegrated() > 1643523550.0) break;
+    if (gnss_solutions_.front().timestamp > 1643523550.0) break;
 
 		loop_rate.sleep();
 	}

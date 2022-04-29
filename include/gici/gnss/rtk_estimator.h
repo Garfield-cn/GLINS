@@ -68,7 +68,6 @@ public:
   ~RtkEstimator();
 
   // Add GNSS measurements and state
-  // measurement_ref should from the reference station
   bool addGnssMeasurementAndState(const GnssMeasurement& measurement_rov, 
                                   const GnssMeasurement& measurement_ref);
 
@@ -87,13 +86,13 @@ public:
   // Check if it is the first epoch
   bool isFirstEpoch() { return states_.size() < 2; }
 
-private:
   // Compute initial ambiguity
   double getInitialAmbiguity(const GnssMeasurement& measurement_rov, 
                              const GnssMeasurement& measurement_ref,
                              const GnssMeasurementIndex& index_rov,
                              const GnssMeasurementIndex& index_ref);
 
+private:
   // Marginalization
   bool marginalization();
 

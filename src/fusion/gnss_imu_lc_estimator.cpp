@@ -189,7 +189,7 @@ bool GnssImuLcEstimator::addGnssMeasurementAndState(const GnssSolution& gnss_sol
 }
 
 // Add IMU measurement
-void GnssImuLcEstimator::addIMUMeasurement(const ImuMeasurement& imu_measurement)
+void GnssImuLcEstimator::addImuMeasurement(const ImuMeasurement& imu_measurement)
 {
   if (imu_measurements_.size() != 0 && 
       imu_measurements_.back().timestamp > imu_measurement.timestamp) {
@@ -197,7 +197,7 @@ void GnssImuLcEstimator::addIMUMeasurement(const ImuMeasurement& imu_measurement
   }
   else {
     imu_measurements_.push_back(imu_measurement);
-    initializer_->addIMUMeasurement(imu_measurement);
+    initializer_->addImuMeasurement(imu_measurement);
   }
 }
 

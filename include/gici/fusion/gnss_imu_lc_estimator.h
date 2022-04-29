@@ -31,7 +31,7 @@ struct GnssImuLcEstimatorOptions {
   bool verbose = false;
 
   // State window length
-  int window_length = 5;
+  int window_length = 3;
 
   // GNSS extrinsic variation variance
   double gnss_relative_extrinsic_std = 1.0e-4;
@@ -59,7 +59,7 @@ public:
   bool addGnssMeasurementAndState(const GnssSolution& gnss_solution);
 
   // Add IMU measurement
-  void addIMUMeasurement(const ImuMeasurement& imu_measurement);
+  void addImuMeasurement(const ImuMeasurement& imu_measurement);
 
   // Start ceres optimization
   void optimize();
@@ -140,7 +140,7 @@ private:
   GeoCoordinatePtr coordinate_;
 
   // Initialization
-  GnssImuInitializationPtr initializer_;
+  std::unique_ptr<GnssImuInitialization> initializer_;
   bool imu_initialized_ = false;
 
   // the marginalized error term

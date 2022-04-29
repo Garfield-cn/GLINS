@@ -34,7 +34,7 @@ struct GnssImuInitializationOptions {
 
   // GNSS measurement window length, we use GNSS measurements and the corresponding 
   // IMU measurments in this window to optimize the initial values.
-  int window_length_optimize = 10;
+  int window_length_optimize = 20;
 
   // Relative position from IMU to GNSS in IMU frame
   Eigen::Vector3d gnss_extrinsic;
@@ -72,7 +72,7 @@ public:
   bool addGnssMeasurement(const GnssSolution& gnss_solution);
 
   // Add IMU measurement
-  void addIMUMeasurement(const ImuMeasurement& imu_measurement);
+  void addImuMeasurement(const ImuMeasurement& imu_measurement);
 
   // Get initialization result
   bool getResult(Transformation& T_WS, Eigen::Matrix<double, 7, 7>& cov_T_WS,
@@ -114,7 +114,5 @@ private:
   // Debug
   std::unique_ptr<CeresDebugCallback> debug_callback_;
 };
-
-using GnssImuInitializationPtr = std::shared_ptr<GnssImuInitialization>;
 
 }
