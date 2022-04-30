@@ -28,6 +28,10 @@ void convert(const InType& in, OutType& out);
 // Get sensor type from options
 SensorType sensorType(std::string in);
 
+// Load options
+template <typename OptionType>
+void loadOptions(YAML::Node& node, OptionType& options);
+
 /// \brief A function to get a value from a YAML node with non-exception error handling.
 /// \param[in] node The YAML node.
 /// \param[in] key The key used to dereference the node (node[key]).

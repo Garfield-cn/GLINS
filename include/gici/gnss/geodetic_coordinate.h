@@ -41,7 +41,7 @@ public:
                const GeoType type);
 
   // Check if zero position was setted
-  bool isZeroSetted(void) { return lla_zero_setted_; }
+  bool isZeroSetted() { return lla_zero_setted_; }
 
   // Get position
   Eigen::Vector3d get(const GeoType type);
@@ -69,16 +69,16 @@ public:
 
 private:
   // Get position in LLA coordinate
-  Eigen::Vector3d getLLA(void);
+  Eigen::Vector3d getLLA();
 
   // Get position in ECEF coordinate
-  Eigen::Vector3d getECEF(void);
+  Eigen::Vector3d getECEF();
 
   // Get position in ENU coordinate
-  Eigen::Vector3d getENU(void);
+  Eigen::Vector3d getENU();
 
   // Get position in NED coordinate
-  Eigen::Vector3d getNED(void);
+  Eigen::Vector3d getNED();
 
   // Latitude, Longitude and Altitude stored in rad
   Eigen::Vector3d lla_;

@@ -21,7 +21,7 @@ std::vector<StreamerBase *> StreamerBase::static_this_;
 // Load option with info
 #define LOAD_COMMON(opt) \
   if (!option_tools::safeGet(node, #opt, &config_.opt)) { \
-  LOG(ERROR) << __FUNCTION__ << ": Unable to load " << #opt \
+  LOG(INFO) << __FUNCTION__ << ": Unable to load " << #opt \
          << ". Using default instead."; }
 // Load option with fatal error
 #define LOAD_REQUIRED(opt) \
@@ -43,7 +43,7 @@ void StreamerBase::enableReplay(StreamerReplayOptions option)
 }
 
 // Synchronize streams for replay
-void StreamerBase::syncStreams(void)
+void StreamerBase::syncStreams()
 {
   // Declare here becasue it was a local structure
   // we only read tag here, so we neglect the followings
@@ -286,7 +286,7 @@ int V4l2Streamer::open(StreamerRWType type)
 }
 
 // Close stream
-void V4l2Streamer::close(void)
+void V4l2Streamer::close()
 {
   if (dev_ < 0) return;
 

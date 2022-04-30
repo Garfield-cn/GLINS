@@ -13,7 +13,7 @@ double acc_encode_factor;
 double gyro_encode_factor;
 
 /* init scale  --------------------------------------------------------*/
-static void init_scale(void)
+static void init_scale()
 {
   acc_encode_factor=1.0/(9.8*24)*pow(2.0,20);
   gyro_encode_factor=R2D/4000.0*pow(2.0,20);

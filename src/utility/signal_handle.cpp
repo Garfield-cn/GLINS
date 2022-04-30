@@ -17,7 +17,7 @@ static void handlePipe(int sig)
 }
 
 // Initialize all signal handles
-extern void initializeSignalHandles(void)
+extern void initializeSignalHandles()
 {
   struct sigaction sa;
   sa.sa_handler = handlePipe;

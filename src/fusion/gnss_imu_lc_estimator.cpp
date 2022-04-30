@@ -9,10 +9,10 @@
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_relative_errors.h"
 #include "gici/imu/imu_common.h"
-#include "gici/imu/imu_error.hpp"
+#include "gici/imu/imu_error.h"
 #include "gici/utility/common.h"
-#include "gici/optimizer/pose_error.hpp"
-#include "gici/imu/speed_and_bias_error.hpp"
+#include "gici/estimate/pose_error.h"
+#include "gici/imu/speed_and_bias_error.h"
 #include "gici/imu/yaw_error.h"
 
 namespace gici {

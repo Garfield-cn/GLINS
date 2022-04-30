@@ -6,8 +6,8 @@
 **/
 #pragma once
 
-#include "gici/optimizer/relative_const_error.h"
-#include "gici/optimizer/relative_integration_error.h"
+#include "gici/estimate/relative_const_error.h"
+#include "gici/estimate/relative_integration_error.h"
 
 namespace gici {
 

@@ -121,6 +121,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
     clearCurrentStateAndMeasurement();
     return false;
   }
+  num_satellites_ = num_satellites;
 
   curState().status = GnssSolutionStatus::DGNSS;
 
@@ -326,6 +327,7 @@ GnssSolution RtkEstimator::getSolution()
   solution.covariance.setZero();
   solution.position.setZero();
   solution.velocity.setZero();
+  solution.num_satellites = num_satellites_;
   if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
     return solution;
   }

@@ -6,7 +6,7 @@
 **/
 #pragma once
 
-#include "gici/optimizer/common_parameter_block.h"
+#include "gici/estimate/common_parameter_block.h"
 
 namespace gici {
 

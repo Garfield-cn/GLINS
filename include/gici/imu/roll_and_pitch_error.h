@@ -13,7 +13,7 @@
 #include <ceres/ceres.h>
 #pragma diagnostic pop
 
-#include "gici/optimizer/error_interface.hpp"
+#include "gici/estimate/error_interface.h"
 
 namespace gici {
 

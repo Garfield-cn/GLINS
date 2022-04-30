@@ -49,14 +49,14 @@ aux_source_directory(src/stream DIR_stream)
 aux_source_directory(src/gnss DIR_gnss)
 aux_source_directory(src/imu DIR_imu)
 aux_source_directory(src/vision DIR_vision)
-aux_source_directory(src/optimizer DIR_optimizer)
+aux_source_directory(src/estimate DIR_estimate)
 aux_source_directory(src/fusion DIR_fusion)
 list(APPEND DIR_ALL ${DIR_utility}
                     ${DIR_stream}
                     ${DIR_gnss}
                     ${DIR_imu}
                     ${DIR_vision}
-                    ${DIR_optimizer}
+                    ${DIR_estimate}
                     ${DIR_fusion})
 
 # library
@@ -71,35 +71,40 @@ target_include_directories(${PROJECT_NAME}
     PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
 
-# test
-add_executable(test_common test/test_common.cpp)
-target_link_libraries(test_common 
+# executable
+add_executable(gici_main src/gici_main.cpp)
+target_link_libraries(gici_main 
                       ${PROJECT_NAME})
 
-add_executable(test_stream_handle test/test_stream_handle.cpp)
-target_link_libraries(test_stream_handle 
-                      ${PROJECT_NAME})
+# # test
+# add_executable(test_common test/test_common.cpp)
+# target_link_libraries(test_common 
+#                       ${PROJECT_NAME})
 
-add_executable(test_spp test/test_spp.cpp)
-target_link_libraries(test_spp 
-                      ${PROJECT_NAME})
+# add_executable(test_stream_handle test/test_stream_handle.cpp)
+# target_link_libraries(test_stream_handle 
+#                       ${PROJECT_NAME})
 
-add_executable(test_sdgnss test/test_sdgnss.cpp)
-target_link_libraries(test_sdgnss 
-                      ${PROJECT_NAME})
+# add_executable(test_spp test/test_spp.cpp)
+# target_link_libraries(test_spp 
+#                       ${PROJECT_NAME})
 
-add_executable(test_dgnss test/test_dgnss.cpp)
-target_link_libraries(test_dgnss 
-                      ${PROJECT_NAME})
+# add_executable(test_sdgnss test/test_sdgnss.cpp)
+# target_link_libraries(test_sdgnss 
+#                       ${PROJECT_NAME})
 
-add_executable(test_rtk test/test_rtk.cpp)
-target_link_libraries(test_rtk
-                      ${PROJECT_NAME})
+# add_executable(test_dgnss test/test_dgnss.cpp)
+# target_link_libraries(test_dgnss 
+#                       ${PROJECT_NAME})
 
-add_executable(test_gnss_imu_lc test/test_gnss_imu_lc.cpp)
-target_link_libraries(test_gnss_imu_lc
-                      ${PROJECT_NAME})
+# add_executable(test_rtk test/test_rtk.cpp)
+# target_link_libraries(test_rtk
+#                       ${PROJECT_NAME})
 
-add_executable(test_pose test/test_pose.cpp)
-target_link_libraries(test_pose
-                      ${PROJECT_NAME})
+# add_executable(test_gnss_imu_lc test/test_gnss_imu_lc.cpp)
+# target_link_libraries(test_gnss_imu_lc
+#                       ${PROJECT_NAME})
+
+# add_executable(test_pose test/test_pose.cpp)
+# target_link_libraries(test_pose
+#                       ${PROJECT_NAME})

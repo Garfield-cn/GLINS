@@ -8,7 +8,7 @@
 #include <Eigen/Core>
 
 #include "gici/utility/transform.h"
-#include "gici/optimizer/common_parameter_block.h"
+#include "gici/estimate/common_parameter_block.h"
 
 using namespace std;
 using namespace gici;

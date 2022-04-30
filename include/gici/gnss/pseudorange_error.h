@@ -14,7 +14,7 @@
 #include <Eigen/Core>
 #pragma diagnostic pop
 
-#include "gici/optimizer/error_interface.hpp"
+#include "gici/estimate/error_interface.h"
 #include "gici/gnss/geodetic_coordinate.h"
 #include "gici/gnss/gnss_types.h"
 

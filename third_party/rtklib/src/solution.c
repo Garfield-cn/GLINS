@@ -62,7 +62,7 @@
 #define SQR(x)     ((x)<0.0?-(x)*(x):(x)*(x))
 #define SQRT(x)    ((x)<0.0||(x)!=(x)?0.0:sqrt(x))
 
-#define NMEA_TID   "GP"         /* NMEA talker ID for RMC and GGA sentences */
+#define NMEA_TID   "GN"         /* NMEA talker ID for RMC and GGA sentences */
 #define MAXFIELD   64           /* max number of fields in a record */
 #define MAXNMEA    256          /* max length of nmea sentence */
 

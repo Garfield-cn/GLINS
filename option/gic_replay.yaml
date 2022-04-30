@@ -7,54 +7,63 @@ stream:
 #       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/rov.rtcm3
 #       enable_time_tag: true
 #       swap_interval: 0
-#       buffer-length: 32768
-#       loop-duration: 1e-2
-#       formator-tags: [gnss-rov]
+#       buffer_length: 32768
+#       loop_duration: 1e-2
+#       formator_tags: [gnss-rov]
 #   - streamer:
 #       tag: str-rov
 #       type: file
 #       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref_copy.rtcm3
 #       enable_time_tag: true
 #       swap_interval: 0
-#       buffer-length: 32768
-#       loop-duration: 1e-2
-#       formator-tags: [gnss-rov]
+#       buffer_length: 32768
+#       loop_duration: 1e-2
+#       formator_tags: [gnss-rov]
   - streamer:
       tag: str-ref
       type: file
       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      buffer-length: 32768
-      loop-duration: 1e-2
-      formator-tags: [gnss-ref]
+      buffer_length: 32768
+      loop_duration: 1e-2
+      formator_tags: [gnss-ref]
   - streamer:
       tag: str-head
       type: file
       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/head.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      buffer-length: 32768
-      loop-duration: 1e-2
-      formator-tags: [gnss-head]
+      buffer_length: 32768
+      loop_duration: 1e-2
+      formator_tags: [gnss-head]
   - streamer:
       tag: str-imu
       type: file
       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/imu.bin
       enable_time_tag: true
       swap_interval: 0
-      buffer-length: 32768
-      loop-duration: 1e-3
-      formator-tags: [imu]
+      buffer_length: 32768
+      loop_duration: 1e-3
+      formator_tags: [imu]
 #   - streamer:
 #       tag: str-camera
 #       type: file
 #       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/camera.bin
 #       enable_time_tag: true
 #       swap_interval: 0
-#       buffer-length: 361472  # 752 * 480 + 512
-#       loop-duration: 1e-2
-#       formator-tags: [camera]
+#       buffer_length: 361472  # 752 * 480 + 512
+#       loop_duration: 1e-2
+#       formator_tags: [camera]
+  - streamer:
+      tag: solution
+      type: file
+      path: /home/cc/datasets/tmp/solution.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution]
 
 
   formators:
@@ -94,8 +103,32 @@ stream:
       height: 480
       type: image-pack
       role: [mono]
+  - formator:
+      io: output
+      tag: solution
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: true
 
   replay:
     enable: true
     speed: 5.0
-    start-offset: 5.0
+    start_offset: 5.0
+
+estimate:
+- estimator:
+    tag: rtk
+    type: rtk
+    input_formator_tags: [gnss-head, gnss-ref]
+    output_formator_tags: [solution]
+    loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
+    loop_duration_align_tag: gnss-head
+
+
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: /home/cc/datasets/log

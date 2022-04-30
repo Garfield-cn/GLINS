@@ -102,8 +102,8 @@ int main(int argc, char** argv)
   YAML::Node stream_config = config["stream"];
   StreamHandle stream_handle(stream_config);
 
-  StreamHandle::IMUCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
-  stream_handle.setIMUCallback(imu_callback);
+  StreamHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
+  stream_handle.setImuCallback(imu_callback);
 
   std::ofstream outfile;
   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);

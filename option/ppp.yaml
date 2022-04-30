@@ -9,9 +9,9 @@ stream:
       username: chichengcn
       passward: chi671003
       mountpoint: BRUX0
-      buffer-length: 32768
-      loop-duration: 0.01
-      formator-tags: [gnss-brux0]
+      buffer_length: 32768
+      loop_duration: 0.01
+      formator_tags: [gnss-brux0]
   - streamer:
       tag: str-bkg0
       type: ntrip-client
@@ -20,9 +20,9 @@ stream:
       username: chichengcn
       passward: chi671003
       mountpoint: BCEP00BKG0
-      buffer-length: 32768
-      loop-duration: 0.01
-      formator-tags: [gnss-bkg0]
+      buffer_length: 32768
+      loop_duration: 0.01
+      formator_tags: [gnss-bkg0]
   - streamer:
       tag: str-ssr
       type: ntrip-client
@@ -31,9 +31,9 @@ stream:
       username: chichengcn
       passward: chi671003
       mountpoint: SSRA00CAS0
-      buffer-length: 32768
-      loop-duration: 0.01
-      formator-tags: [gnss-ssr]
+      buffer_length: 32768
+      loop_duration: 0.01
+      formator_tags: [gnss-ssr]
 
   - streamer:
       tag: str-log-brux0
@@ -41,7 +41,7 @@ stream:
       path: /home/cc/datasets/ntrip/20220411/brux0.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
+      loop_duration: 0.01
       input-tag: str-brux0
   - streamer:
       tag: str-log-bkg0
@@ -49,7 +49,7 @@ stream:
       path: /home/cc/datasets/ntrip/20220411/bkg0.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
+      loop_duration: 0.01
       input-tag: str-bkg0
   - streamer:
       tag: str-log-ssr
@@ -57,7 +57,7 @@ stream:
       path: /home/cc/datasets/ntrip/20220411/ssr.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
+      loop_duration: 0.01
       input-tag: str-ssr
 
   formators:
@@ -80,4 +80,4 @@ stream:
   replay:
     enable: false
     speed: 1.0
-    start-offset: 0.0
+    start_offset: 0.0

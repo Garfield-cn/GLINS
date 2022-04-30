@@ -7,24 +7,24 @@ stream:
       path: /home/cc/datasets/ntrip/20220411/brux0.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
-      formator-tags: [gnss-brux0]
+      loop_duration: 0.01
+      formator_tags: [gnss-brux0]
   - streamer:
       tag: str-log-bkg0
       type: file
       path: /home/cc/datasets/ntrip/20220324/bkg0.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
-      formator-tags: [gnss-bkg0]
+      loop_duration: 0.01
+      formator_tags: [gnss-bkg0]
   - streamer:
       tag: str-log-ssr
       type: file
       path: /home/cc/datasets/ntrip/20220324/ssr.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
-      formator-tags: [gnss-ssr]
+      loop_duration: 0.01
+      formator_tags: [gnss-ssr]
 
   formators:
   - formator:
@@ -49,4 +49,4 @@ stream:
   replay:
     enable: true
     speed: 10.0
-    start-offset: 0.0
+    start_offset: 0.0

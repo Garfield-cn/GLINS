@@ -8,7 +8,6 @@
 
 #include <svo/svo.h>
 #include <svo/tracker/feature_tracking_utils.h>
-#include <svo/outlier_rejection.hpp>
 #include <svo/img_align/sparse_img_align.h>
 #include <svo/direct/feature_detection_utils.h>
 #include <svo/direct/feature_alignment.h>
@@ -74,7 +73,6 @@ using BundleId = svo::BundleId;
 using Position = svo::Position;
 using KeypointIdentifier = svo::KeypointIdentifier;
 using PerformanceMonitorPtr = svo::PerformanceMonitorPtr;
-using OutlierRejection = svo::OutlierRejection;
 using EnumClassHash = svo::EnumClassHash;
 using Quaternion = svo::Quaternion;
 using BundleAdjustmentType = svo::BundleAdjustmentType;

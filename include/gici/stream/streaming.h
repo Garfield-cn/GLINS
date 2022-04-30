@@ -12,17 +12,17 @@
 #include <vector>
 #include <functional>
 #include <glog/logging.h>
-#include <aslam/common/yaml-serialization.h>
 
 #include "gici/stream/formator.h"
 #include "gici/stream/streamer.h"
+#include "gici/estimate/estimator_types.h"
 
 namespace gici {
 
 // I/O type
 enum class StreamIOType {
   Input,
-  Ouput,
+  Output,
   Log
 };
 
@@ -46,16 +46,16 @@ public:
   ~Streaming();
 
   // Get formators
-  std::vector<FormatorCtrl>& getFormators(void) { return formators_; }
+  std::vector<FormatorCtrl>& getFormators() { return formators_; }
 
   // Set data callbacks from outside
   void setDataCallback(DataCallback& callback);
 
   // Start thread
-  void start(void);
+  void start();
 
   // Stop thread
-  void stop(void);
+  void stop();
 
   // Pipeline sends input data directly to logging stream
   void pipelineDirectCallback(const uint8_t *buf, int size);
@@ -64,8 +64,19 @@ public:
   void pipelineConvertCallback(
     const std::string& tag, const DataFormat::Ptr& data);
 
+  // Send solution data to output stream
+  void solutionOutputCallback(const Solution& solution);
+
+  // Check if has formator tag
+  inline bool hasFormatorTag(std::string tag) {
+    for (size_t i = 0; i < formators_.size(); i++) {
+      if (formators_[i].tag == tag) return true;
+    }
+    return false;
+  }
+
   // Bind input and logging streams
-  static void bindLogWithInput(void);
+  static void bindLogWithInput();
 
   // Enable replay
   // This function should be called after all the streamers are opened
@@ -73,16 +84,16 @@ public:
 
 private:
   // Stream input processing
-  void processInput(void);
+  void processInput();
 
   // Stream logging processing
-  void processLogging(void);
+  void processLogging();
 
   // Stream output processing
-  void processOutput(void);
+  void processOutput();
 
 	// Loop processing
-	void run(void);
+	void run();
 
 protected:
 	// Thread handles

@@ -14,6 +14,7 @@
 #include "gici/stream/format_imu.h"
 #include "gici/utility/option.h"
 #include "gici/utility/rtklib_safe.h"
+#include "gici/estimate/estimator_types.h"
 
 namespace gici {
 
@@ -26,6 +27,7 @@ enum class FormatorType {
   ImagePack,  
   IMUPack,
   OptionPack, 
+  NMEA
 };
 
 // GNSS data types
@@ -50,8 +52,8 @@ public:
   // GNSS data format
   struct GNSS {
     using Ptr = std::shared_ptr<GNSS>;
-    void init(void);
-    void free(void);
+    void init();
+    void free();
 
     std::vector<GnssDataType> types;
     obs_t *observation;
@@ -63,7 +65,7 @@ public:
   struct Image {
     using Ptr = std::shared_ptr<Image>;
     void init(int _width, int _height);
-    void free(void);
+    void free();
 
     double time;
     int width;
@@ -90,6 +92,7 @@ public:
   Image::Ptr image;
   IMU::Ptr imu;
   Option::Ptr option;
+  Solution::Ptr solution;
 };
 
 // Formats of FormatorType::GNSS_Raw
@@ -156,10 +159,10 @@ public:
     const DataFormat::Ptr& data, uint8_t *buf) = 0;
 
   // Get formator type
-  FormatorType getType(void) { return type_; }
+  FormatorType getType() { return type_; }
 
   // Get data handle
-  std::vector<DataFormat::Ptr>& getDataHandle(void) { return data_; }
+  std::vector<DataFormat::Ptr>& getDataHandle() { return data_; }
 
 protected:
   std::vector<DataFormat::Ptr> data_;
@@ -324,6 +327,45 @@ protected:
 
 };
 
+// NMEA (for solution)
+class NmeaFormator : public FormatorBase {
+public:
+  struct Config {
+    bool use_gga = true;
+    bool use_rmc = true;
+    bool use_esa = true;
+    std::string talker_id = "GN";
+  };
+
+  NmeaFormator(Config& config);
+  NmeaFormator(YAML::Node& node);
+  ~NmeaFormator();
+
+  // Decode stream to data
+  int decode(const uint8_t *buf, int size, 
+    std::vector<DataFormat::Ptr>& data) override;
+
+  // Encode data to stream
+  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+
+protected:
+  // Encode GNGGA message
+  int encodeGGA(const Solution& solution, uint8_t* buf);
+
+  // Encode GNRMC message
+  int encodeRMC(const Solution& solution, uint8_t* buf);
+
+  // Encode GNESA (self-defined Extended Speed and Attitude) message
+  // Format: $GNESA,tod,Ve,Vn,Vu,Ar,Ap,Ay*checksum
+  int encodeESA(const Solution& solution, uint8_t* buf);
+
+  // Convert Solution to sol_t
+  void convertSolution(const Solution& solution, sol_t& sol);
+
+  // Configure
+  Config config_;
+};
+
 // Get formator handle from configure
 #define MAKE_FORMATOR(Formator) \
 inline FormatorBase::Ptr makeFormator( \
@@ -337,6 +379,7 @@ MAKE_FORMATOR(ImageV4L2Formator);
 MAKE_FORMATOR(ImagePackFormator);
 MAKE_FORMATOR(IMUPackFormator);
 MAKE_FORMATOR(OptionFormator);
+MAKE_FORMATOR(NmeaFormator);
 
 // Get formator handle from yaml
 FormatorBase::Ptr makeFormator(YAML::Node& node);

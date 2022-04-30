@@ -41,9 +41,9 @@
  * @author Andreas Forster
  */
 
-#include "gici/imu/imu_error.hpp"
+#include "gici/imu/imu_error.h"
 
-#include "gici/optimizer/pose_local_parameterization.hpp"
+#include "gici/estimate/pose_local_parameterization.h"
 #include "gici/utility/transform.h"
 
 namespace gici {

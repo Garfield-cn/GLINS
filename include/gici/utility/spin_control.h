@@ -15,16 +15,19 @@ namespace gici {
 class SpinControl {
 public:
   SpinControl(double duration);
-  ~SpinControl(void) { }
+  ~SpinControl() { }
 
   // Sleep to ensure spinning rate and restart timer
-  void sleep(void);
+  void sleep();
+
+  // (Re)set loop duration
+  void setDuration(double duration) { duration_ = duration; }
 
   // Check global status
-  static bool ok(void) { return ok_; }
+  static bool ok() { return ok_; }
 
   // Shutdown all spin controllers
-  static void kill(void) { ok_ = false; }
+  static void kill() { ok_ = false; }
 
 private:
   // Tick controllers

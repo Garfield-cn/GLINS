@@ -8,10 +8,10 @@
 
 #include <memory>
 
-#include "gici/optimizer/graph.hpp"
+#include "gici/estimate/graph.h"
 #include "gici/gnss/gnss_types.h"
-#include "gici/optimizer/estimator_types.hpp"
-#include "gici/optimizer/ceres_iteration_callback.h"
+#include "gici/estimate/estimator_types.h"
+#include "gici/estimate/ceres_iteration_callback.h"
 
 namespace gici {
 

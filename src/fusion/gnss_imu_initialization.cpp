@@ -9,12 +9,12 @@
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_relative_errors.h"
 #include "gici/imu/imu_common.h"
-#include "gici/imu/imu_error.hpp"
+#include "gici/imu/imu_error.h"
 #include "gici/utility/common.h"
-#include "gici/optimizer/pose_parameter_block.hpp"
-#include "gici/optimizer/speed_and_bias_parameter_block.hpp"
-#include "gici/imu/speed_and_bias_error.hpp"
-#include "gici/optimizer/pose_error.hpp"
+#include "gici/estimate/pose_parameter_block.h"
+#include "gici/estimate/speed_and_bias_parameter_block.h"
+#include "gici/imu/speed_and_bias_error.h"
+#include "gici/estimate/pose_error.h"
 #include "gici/imu/yaw_error.h"
 #include "gici/imu/roll_and_pitch_error.h"
 
@@ -362,25 +362,25 @@ bool GnssImuInitialization::getResult(
     cov_t_SR_S = cov_t_SR_S_0;
   }
 
-  {
-    std::ofstream outfile;
-    outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
-    for (size_t i = 0; i < gnss_solutions_.size(); i++) {
-      BackendId pose_id = createGnssPoseId(gnss_solutions_[i].id);
-      CHECK(graph_ptr_->parameterBlockExists(pose_id.asInteger()));
-      std::shared_ptr<PoseParameterBlock> pose_ptr = 
-        std::dynamic_pointer_cast<PoseParameterBlock>(
-        graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
-      CHECK(pose_ptr != nullptr);
-      T_WS = pose_ptr->estimate();
+  // {
+  //   std::ofstream outfile;
+  //   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
+  //   for (size_t i = 0; i < gnss_solutions_.size(); i++) {
+  //     BackendId pose_id = createGnssPoseId(gnss_solutions_[i].id);
+  //     CHECK(graph_ptr_->parameterBlockExists(pose_id.asInteger()));
+  //     std::shared_ptr<PoseParameterBlock> pose_ptr = 
+  //       std::dynamic_pointer_cast<PoseParameterBlock>(
+  //       graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+  //     CHECK(pose_ptr != nullptr);
+  //     T_WS = pose_ptr->estimate();
 
-      outfile << std::fixed << std::setw(8) << std::setprecision(4) 
-        << T_WS.getPosition().transpose() << " " << coordinate_->convert(
-        gnss_solutions_[i].position, GeoType::ECEF, GeoType::ENU).transpose() << " "
-        << T_WS.getRotation().vector().transpose() << std::endl;
-    }
-    outfile.close();
-  }
+  //     outfile << std::fixed << std::setw(8) << std::setprecision(4) 
+  //       << T_WS.getPosition().transpose() << " " << coordinate_->convert(
+  //       gnss_solutions_[i].position, GeoType::ECEF, GeoType::ENU).transpose() << " "
+  //       << T_WS.getRotation().vector().transpose() << std::endl;
+  //   }
+  //   outfile.close();
+  // }
 
   // {
   //   std::ofstream outfile;

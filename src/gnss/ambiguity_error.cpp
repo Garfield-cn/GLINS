@@ -8,7 +8,7 @@
 
 #include "gici/gnss/gnss_common.h"
 #include "gici/utility/transform.h"
-#include "gici/optimizer/pose_local_parameterization.hpp"
+#include "gici/estimate/pose_local_parameterization.h"
 
 namespace gici {
 

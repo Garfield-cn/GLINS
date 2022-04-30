@@ -84,7 +84,7 @@ struct Satellite {
   // in RTK, we donot use GLONASS code and disable its AR
 
   // Get satellite system
-  inline char getSystem(void) const { return prn[0]; }
+  inline char getSystem() const { return prn[0]; }
 };
 
 using Satellites = std::map<std::string, Satellite, std::less<std::string>, 
@@ -130,7 +130,7 @@ struct GnssMeasurement {
 
   double timestamp;
   GnssRole role;
-  std::string mount_id;
+  std::string tag;
   int32_t id;  // ID for bundle adjustment
   Satellites satellites;
   Eigen::Vector3d position;  // for reference station
@@ -203,6 +203,7 @@ struct GnssSolution {
   Eigen::Vector3d velocity;
   Eigen::Matrix<double, 6, 6> covariance;
   GnssSolutionStatus status;
+  int num_satellites;
 };
 
 // GNSS common options
@@ -241,7 +242,7 @@ struct GnssErrorParameter {
   double code_to_phase_ratio = 100.0;
 
   // Error factor according to RTKLIB
-  double phase_error_factor[3] = {0.005, 0.005, 0.0};
+  std::vector<double> phase_error_factor{0.005, 0.005, 0.0};
 
   // System error ratio
   std::map<char, double> system_error_ratio = 

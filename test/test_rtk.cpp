@@ -70,7 +70,8 @@ int main(void)
   StreamHandle stream_handle(stream_config);
 
   StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
-  stream_handle.setGnssCallback(gnss_callback);
+  std::vector<std::string> tags{"str-ref", "str-head"};
+  stream_handle.setGnssCallback(gnss_callback, tags);
 
   std::ofstream outfile;
   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);

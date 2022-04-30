@@ -38,9 +38,9 @@
  * @author Stefan Leutenegger
  */
 
-#include "gici/vision/homogeneous_point_error.hpp"
+#include "gici/vision/homogeneous_point_error.h"
 
-#include "gici/optimizer/homogeneous_point_local_parameterization.hpp"
+#include "gici/estimate/homogeneous_point_local_parameterization.h"
 
 namespace gici {
 

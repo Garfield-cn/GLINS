@@ -37,7 +37,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   std::vector<YAML::Node> formator_nodes; 
   bool any_option_got = false;
   // Get formator option
-  if (option_tools::safeGet(streamer_node, "formator-tags", &formator_tags)) {
+  if (option_tools::safeGet(streamer_node, "formator_tags", &formator_tags)) {
     any_option_got = true;
     if (!node["formators"].IsDefined()) {
       LOG(ERROR) << "Unable to load formators!";
@@ -92,7 +92,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
 
       if (type == StreamIOType::Input) has_input_ = true;
       if (type == StreamIOType::Log) has_logging_ = true;
-      if (type == StreamIOType::Ouput) has_output_ = true;
+      if (type == StreamIOType::Output) has_output_ = true;
     }
   }
 
@@ -103,12 +103,12 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   }
 
   if (!any_option_got) {
-    LOG(ERROR) << "Unable to load either formator-tags nor input-tag!";
+    LOG(ERROR) << "Unable to load either formator_tags nor input-tag!";
     return;
   }
 
   // Initialize buffer
-  if (!option_tools::safeGet(streamer_node, "buffer-length", &max_buf_size_)) {
+  if (!option_tools::safeGet(streamer_node, "buffer_length", &max_buf_size_)) {
     LOG(INFO) << "Unable to load buffer length! Using default instead.";
     max_buf_size_ = 32768;
   }
@@ -123,7 +123,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   }
 
   // Get loop rate
-  if (!option_tools::safeGet(streamer_node, "loop-duration", &loop_duration_)) {
+  if (!option_tools::safeGet(streamer_node, "loop_duration", &loop_duration_)) {
     LOG(INFO) << "Unable to load loop duration! Using default instead.";
     loop_duration_ = 0.001;
   }
@@ -132,7 +132,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   int n_write = 0, n_read = 0;
   for (auto it : formators_) {
     if (it.type == StreamIOType::Input) n_read++;
-    if (it.type == StreamIOType::Ouput || 
+    if (it.type == StreamIOType::Output || 
       it.type == StreamIOType::Log) n_write++;
   }
   StreamerRWType rw;
@@ -165,7 +165,7 @@ void Streaming::setDataCallback(DataCallback& callback)
 }
 
 // Start thread
-void Streaming::start(void)
+void Streaming::start()
 {
   // Create thread
   quit_thread_ = false;
@@ -173,7 +173,7 @@ void Streaming::start(void)
 }
 
 // Stop thread
-void Streaming::stop(void)
+void Streaming::stop()
 {
   // Kill thread
   if(thread_ != nullptr) {
@@ -223,8 +223,31 @@ void Streaming::pipelineConvertCallback(
   mutex_logging_.unlock();
 }
 
+// Send solution data to output stream
+void Streaming::solutionOutputCallback(const Solution& solution)
+{
+  // Find formator
+  FormatorBase::Ptr formator = nullptr;
+  for (size_t i = 0; i < formators_.size(); i++) {
+    if (formators_[i].type != StreamIOType::Output) continue;
+    formator = formators_[i].formator;
+  }
+  if (!formator) {
+    LOG(ERROR) << "No output formator was specified for this streamer!";
+    return;
+  }
+
+  // Encode
+  mutex_output_.lock();
+  DataFormat::Ptr data = std::make_shared<DataFormat>(FormatorType::NMEA);
+  *data->solution = solution;
+  buf_size_output_ = formator->encode(data, buf_output_);
+  need_output_ = true;
+  mutex_output_.unlock();
+}
+
 // Bind input and logging streams
-void Streaming::bindLogWithInput(void)
+void Streaming::bindLogWithInput()
 {
   // Bind through formator pipeline
   for (size_t i = 0; i < static_this_.size(); i++) 
@@ -277,8 +300,9 @@ void Streaming::enableReplay(StreamerReplayOptions option)
 
   // Reopen streams to apply options
   for (auto it : static_this_) {
+    StreamerRWType rw_type = it->streamer_->getRwType();
     it->streamer_->close();
-    it->streamer_->open(StreamerRWType::Read);
+    it->streamer_->open(rw_type);
   }
 
   // Synchronize streams to align timestamps
@@ -286,7 +310,7 @@ void Streaming::enableReplay(StreamerReplayOptions option)
 }
 
 // Stream input processing
-void Streaming::processInput(void)
+void Streaming::processInput()
 {
   // Read data from stream
   buf_size_input_ = streamer_->read(buf_input_, max_buf_size_);
@@ -329,7 +353,7 @@ void Streaming::processInput(void)
 }
 
 // Stream logging processing
-void Streaming::processLogging(void)
+void Streaming::processLogging()
 {
   if (!need_logging_) return;
 
@@ -339,16 +363,17 @@ void Streaming::processLogging(void)
 }
 
 // Stream output processing
-void Streaming::processOutput(void)
+void Streaming::processOutput()
 {
   if (!need_output_) return;
 
+  streamer_->write(buf_output_, buf_size_output_);
 
-  need_output_ = true;
+  need_output_ = false;
 }
 
 // Loop processing
-void Streaming::run(void)
+void Streaming::run()
 {
   // Spin until quit command or global shutdown called 
   SpinControl spin(loop_duration_);

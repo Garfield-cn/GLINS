@@ -1,5 +1,8 @@
 # Gici board configurations
 stream:
+# A stream can link to multiple formators, but a formator can only link to one stream
+# A stream can only link to one log formator.
+# A stream can only link to one output formator.
   streamers:
   - streamer:
       tag: str-brux0
@@ -9,9 +12,9 @@ stream:
       username: chichengcn
       passward: chi671003
       mountpoint: BRUX0
-      buffer-length: 32768
-      loop-duration: 0.01
-      formator-tags: [gnss-brux0]
+      buffer_length: 32768
+      loop_duration: 0.01
+      formator_tags: [gnss-brux0]
   - streamer:
       tag: str-bkg0
       type: ntrip-client
@@ -20,9 +23,9 @@ stream:
       username: chichengcn
       passward: chi671003
       mountpoint: BCEP00BKG0
-      buffer-length: 32768
-      loop-duration: 0.01
-      formator-tags: [gnss-bkg0]
+      buffer_length: 32768
+      loop_duration: 0.01
+      formator_tags: [gnss-bkg0]
   - streamer:
       tag: str-ssr
       type: ntrip-client
@@ -31,39 +34,39 @@ stream:
       username: chichengcn
       passward: chi671003
       mountpoint: SSRA00CAS0
-      buffer-length: 32768
-      loop-duration: 0.01
-      formator-tags: [gnss-ssr]
+      buffer_length: 32768
+      loop_duration: 0.01
+      formator_tags: [gnss-ssr]
   # - streamer:
   #     tag: str-2
   #     type: tcp-client
   #     ip: 192.168.1.103
   #     port: 9002
-  #     loop-duration: 0.01
-  #     formator-tags: [gnss-2]
+  #     loop_duration: 0.01
+  #     formator_tags: [gnss-2]
   - streamer:
       tag: str-3
       type: tcp-server
       port: 9001
-      loop-duration: 0.01
+      loop_duration: 0.01
       input-tag: str-1
-    #   formator-tags: [gnss-1-log-1]
+    #   formator_tags: [gnss-1-log-1]
   - streamer:
       tag: str-5
       type: tcp-server
       port: 9002
-      loop-duration: 0.01
+      loop_duration: 0.01
     #   input-tag: str-1
-      formator-tags: [gnss-1-log-1]
+      formator_tags: [gnss-1-log-1]
   - streamer:
       tag: str-4
       type: file
       path: /home/cc/linux/softwares/gici/data/heading.rtcm3
       enable_time_tag: true
       swap_interval: 0
-      loop-duration: 0.01
+      loop_duration: 0.01
       input-tag: str-2
-    #   formator-tags: [gnss-2-log-1]
+    #   formator_tags: [gnss-2-log-1]
 
   formators:
   - formator:
@@ -96,4 +99,4 @@ stream:
   replay:
     enable: false
     speed: 1.0
-    start-offset: 0.0
+    start_offset: 0.0

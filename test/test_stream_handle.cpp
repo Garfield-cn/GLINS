@@ -57,8 +57,8 @@ int main(void)
 
   gici::StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
   stream_handle.setGnssCallback(gnss_callback);
-  gici::StreamHandle::IMUCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
-  stream_handle.setIMUCallback(imu_callback);
+  gici::StreamHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
+  stream_handle.setImuCallback(imu_callback);
   gici::StreamHandle::ImageCallback image_callback = std::bind(imageCallback, std::placeholders::_1, std::placeholders::_2);
   stream_handle.setImageCallback(image_callback);
 

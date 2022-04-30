@@ -38,10 +38,10 @@
  * @author Stefan Leutenegger
  */
 
-#include "gici/vision/relative_pose_error.hpp"
+#include "gici/vision/relative_pose_error.h"
 
-#include "gici/optimizer/estimator_types.hpp"
-#include "gici/optimizer/pose_local_parameterization.hpp"
+#include "gici/estimate/estimator_types.h"
+#include "gici/estimate/pose_local_parameterization.h"
 #include "gici/utility/transform.h"
 
 namespace gici {

@@ -38,7 +38,7 @@
  * @author Stefan Leutenegger
  */
 
-#include "gici/imu/speed_and_bias_error.hpp"
+#include "gici/imu/speed_and_bias_error.h"
 
 namespace gici {
 

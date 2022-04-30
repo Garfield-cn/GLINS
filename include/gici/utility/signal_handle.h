@@ -11,6 +11,6 @@
 namespace gici {
 
 // Initialize all signal handles
-extern void initializeSignalHandles(void);
+extern void initializeSignalHandles();
 
 }

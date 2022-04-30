@@ -8,7 +8,7 @@
 
 #include "gici/gnss/gnss_common.h"
 #include "gici/utility/transform.h"
-#include "gici/optimizer/pose_local_parameterization.hpp"
+#include "gici/estimate/pose_local_parameterization.h"
 
 namespace gici {
 
@@ -218,7 +218,8 @@ bool PhaserangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
-  Eigen::Vector3d factor(error_parameter_.phase_error_factor);
+  Eigen::Vector3d factor;
+  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
   double variance = (square(factor(0)) + square(factor(1) / sin(elevation_rov))) * 4.0;
   char system = satellite_rov_.getSystem();
   variance *= square(error_parameter_.system_error_ratio.at(system));

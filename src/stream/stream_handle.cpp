@@ -1,5 +1,5 @@
 /**
-* @Function: Handle stream data output
+* @Function: Handle stream data input, log, and output
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -72,7 +72,7 @@ StreamHandle::StreamHandle(YAML::Node& node)
       LOG(INFO) << "Unable to load replay speed! Using default instead";
       replay_options.speed = 1.0;
     }
-    if (!option_tools::safeGet(node["replay"], "start-offset", 
+    if (!option_tools::safeGet(node["replay"], "start_offset", 
         &replay_options.start_offset)) {
       LOG(INFO) << "Unable to load replay start offset! Using default instead";
       replay_options.start_offset = 0.0;
@@ -90,7 +90,7 @@ StreamHandle::StreamHandle(YAML::Node& node)
     streamings_[i]->setDataCallback(callback);
   }
 
-  // Initialize handles
+  // Initialize data handles
   gnss_local_ = std::make_shared<DataFormat::GNSS>();
   gnss_local_->init();
 
@@ -138,9 +138,6 @@ void StreamHandle::handleGNSS(const std::string& tag,
         { found = true; break; }
       }
       if (!found) continue;
-      // for (int i = 0; i < MAXSAT; i++) {
-      //   gnss_common::updateEphemeris(gnss->ephemeris, i, gnss_local_);
-      // }
       memcpy(gnss_local_->ephemeris->eph, 
         gnss->ephemeris->eph, sizeof(eph_t) * 2 * MAXSAT);
       memcpy(gnss_local_->ephemeris->geph, 
@@ -189,7 +186,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
   epoch.timestamp = gnss_common::gpsTimeToUtc(
     gnss_common::gtimeToDouble(gnss->observation->data[0].time));
   epoch.role = role_out;
-  epoch.mount_id = tag;
+  epoch.tag = tag;
   double *rs, *dts, *var;
   double *rs_ssr, *dts_ssr, *var_ssr;
   auto& obs = gnss->observation;
@@ -318,7 +315,13 @@ void StreamHandle::handleGNSS(const std::string& tag,
   gnss_common::deleteDuplicatePhases(epoch);
 
   // Call GNSS observation processor
-  gnss_callback_(epoch);
+  for (auto it_gnss_callback : gnss_callbacks_) {
+    std::vector<std::string>& tags = it_gnss_callback.second;
+    GnssCallback& callback = it_gnss_callback.first;
+    auto it_tag = std::find(tags.begin(), tags.end(), tag);
+    if (it_tag == tags.end()) continue;
+    callback(epoch);
+  }
 }
 
 // Handle IMU data
@@ -330,17 +333,24 @@ void StreamHandle::handleIMU(const std::string& tag,
     LOG(ERROR) << "Formator tag " << tag << " not registored!";
     return;
   }
-  std::vector<IMURole> roles;
+  std::vector<ImuRole> roles;
   bool has_major = false;
   for (size_t i = 0; i < behaviors_.at(tag).role.size(); i++) {
-    roles.push_back(IMURole());
+    roles.push_back(ImuRole());
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
-    if (roles[i] == IMURole::Minor) {
+    if (roles[i] == ImuRole::Minor) {
       LOG(WARNING) << "We do not support multiple IMUs currently!";
+      return;
     }
-    if (roles[i] == IMURole::Major) has_major = true;
+    if (roles[i] == ImuRole::Major) has_major = true;
   }
-  if (!has_major) return;
+  if (roles.size() > 1) {
+    LOG(ERROR) << "A IMU should has only one role!";
+  }
+  else if (roles.size() == 0) {
+    LOG(ERROR) << "No role for current IMU was specified!";
+    return;
+  }
 
   // Convert IMU data
   ImuMeasurement epoch(imu->time, 
@@ -348,7 +358,13 @@ void StreamHandle::handleIMU(const std::string& tag,
     Eigen::Map<Eigen::Vector3d>(imu->acceleration));
 
   // Call INS processor
-  imu_callback_(epoch);
+  for (auto it_imu_callback : imu_callbacks_) {
+    std::vector<std::string>& tags = it_imu_callback.second;
+    ImuCallback& callback = it_imu_callback.first;
+    auto it_tag = std::find(tags.begin(), tags.end(), tag);
+    if (it_tag == tags.end()) continue;
+    callback(tag, roles[0], epoch);
+  }
 }
 
 // Handle Image data
@@ -367,16 +383,30 @@ void StreamHandle::handleImage(const std::string& tag,
     option_tools::convert(behaviors_.at(tag).role[i], roles[i]);
     if (roles[i] != CameraRole::Mono) {
       LOG(WARNING) << "We do not support multiple Cameras currently!";
+      return;
     }
     else has_mono = true;
   }
   if (!has_mono) return;
+  if (roles.size() > 1) {
+    LOG(ERROR) << "A camera should has only one role!";
+  }
+  else if (roles.size() == 0) {
+    LOG(ERROR) << "No role for current camera was specified!";
+    return;
+  }
 
   // Convert Image data
   cv::Mat image_mat(image->height, image->width, CV_8UC1, image->image);
 
   // Call Image processor
-  image_callback_(image->time, image_mat);
+  for (auto it_image_callback : image_callbacks_) {
+    std::vector<std::string>& tags = it_image_callback.second;
+    ImageCallback& callback = it_image_callback.first;
+    auto it_tag = std::find(tags.begin(), tags.end(), tag);
+    if (it_tag == tags.end()) continue;
+    callback(image->time, tag, roles[0], image_mat);
+  }
 }
 
 // Data callback
@@ -384,21 +414,21 @@ void StreamHandle::dataCallback(
     const std::string& tag, const DataFormat::Ptr& data)
 {
   // GNSS data
-  if (data->gnss && gnss_callback_) {
+  if (data->gnss && gnss_callbacks_.size() > 0) {
     mutex_gnss_.lock();
     handleGNSS(tag, data->gnss);
     mutex_gnss_.unlock();
   }
 
   // IMU data
-  if (data->imu && imu_callback_) {
+  if (data->imu && imu_callbacks_.size() > 0) {
     mutex_imu_.lock();
     handleIMU(tag, data->imu);
     mutex_imu_.unlock();
   }
 
   // Image data
-  if (data->image && image_callback_) {
+  if (data->image && image_callbacks_.size() > 0) {
     mutex_image_.lock();
     handleImage(tag, data->image);
     mutex_image_.unlock();

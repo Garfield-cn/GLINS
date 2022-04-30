@@ -19,7 +19,7 @@ SpinControl::SpinControl(double duration) : duration_(duration)
 }
 
 // Sleep to ensure spinning rate and restart timer
-void SpinControl::sleep(void)
+void SpinControl::sleep()
 {
   double duration = timer_.stop();
   if (duration < duration_) {

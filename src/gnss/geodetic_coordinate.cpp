@@ -133,13 +133,13 @@ Eigen::Matrix3d GeoCoordinate::rotationMatrix(GeoType from, GeoType to)
 }
 
 // Get position in LLA coordinate
-Eigen::Vector3d GeoCoordinate::getLLA(void)
+Eigen::Vector3d GeoCoordinate::getLLA()
 {
   return lla_;
 }
 
 // Get position in ECEF coordinate
-Eigen::Vector3d GeoCoordinate::getECEF(void)
+Eigen::Vector3d GeoCoordinate::getECEF()
 {
   double r[3];
   pos2ecef(lla_.data(), r);
@@ -147,7 +147,7 @@ Eigen::Vector3d GeoCoordinate::getECEF(void)
 }
 
 // Get position in ENU coordinate
-Eigen::Vector3d GeoCoordinate::getENU(void)
+Eigen::Vector3d GeoCoordinate::getENU()
 {
   if (!lla_zero_setted_) {
     LOG(ERROR) << "Inital position not setted!";
@@ -163,7 +163,7 @@ Eigen::Vector3d GeoCoordinate::getENU(void)
 }
 
 // Get position in NED coordinate
-Eigen::Vector3d GeoCoordinate::getNED(void)
+Eigen::Vector3d GeoCoordinate::getNED()
 {
   Eigen::Vector3d enu = getENU();
   return Eigen::Vector3d(enu(1), enu(0), -enu(2));

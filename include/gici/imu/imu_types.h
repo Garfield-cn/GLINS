@@ -15,7 +15,7 @@
 namespace gici {
 
 // Role of formator
-enum class IMURole {
+enum class ImuRole {
   None,
   Major, 
   Minor

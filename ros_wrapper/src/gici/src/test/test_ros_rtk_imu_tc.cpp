@@ -92,7 +92,7 @@ void gnssCallback(GnssMeasurement& data)
   }
 }
 
-void imuCallback(ImuMeasurement& data)
+void imuCallback(ImuRole role, ImuMeasurement& data)
 {
   rtk_imu_tc_estimator_->addImuMeasurement(data);
 
@@ -169,8 +169,8 @@ int main(int argc, char** argv)
   StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
   stream_handle.setGnssCallback(gnss_callback);
 
-  StreamHandle::IMUCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
-  stream_handle.setIMUCallback(imu_callback);
+  StreamHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1, std::placeholders::_2);
+  stream_handle.setImuCallback(imu_callback);
 
   std::ofstream outfile;
   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);

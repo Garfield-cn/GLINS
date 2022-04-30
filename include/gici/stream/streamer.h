@@ -52,7 +52,7 @@ public:
   virtual int open(StreamerRWType type) = 0;
 
   // Close stream
-  virtual void close(void) {
+  virtual void close() {
     strclose(&stream_);
   }
 
@@ -69,20 +69,24 @@ public:
   }
 
   // Get type
-  StreamerType getType(void) { return type_; }
+  StreamerType getType() { return type_; }
+
+  // Get Read/Write mode
+  StreamerRWType getRwType() 
+  { return static_cast<StreamerRWType>(stream_.mode); }
 
   // Pause stream
-  void disable(void) { disable_ = true; }
+  void disable() { disable_ = true; }
 
   // Resume stream
-  void enable(void) { disable_ = false; }
+  void enable() { disable_ = false; }
 
   // Enable replay mode
   // This function should be called after all the streamers are initialized
   static void enableReplay(StreamerReplayOptions option);
 
   // Synchronize streams for replay
-  static void syncStreams(void);
+  static void syncStreams();
 
 private:
 
@@ -256,7 +260,7 @@ public:
   int open(StreamerRWType type) override;
 
   // Close stream
-  void close(void) override;
+  void close() override;
 
   // Read data from stream
   int read(uint8_t *buf, int max_size) override;

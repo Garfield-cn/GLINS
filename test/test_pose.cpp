@@ -4,12 +4,12 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/optimizer/graph.hpp"
-#include "gici/optimizer/pose_parameter_block.hpp"
-#include "gici/optimizer/pose_error.hpp"
+#include "gici/estimate/graph.h"
+#include "gici/estimate/pose_parameter_block.h"
+#include "gici/estimate/pose_error.h"
 #include "gici/imu/yaw_error.h"
 #include "gici/imu/roll_and_pitch_error.h"
-#include "gici/optimizer/estimator_types.hpp"
+#include "gici/estimate/estimator_types.h"
 
 using namespace gici;
 

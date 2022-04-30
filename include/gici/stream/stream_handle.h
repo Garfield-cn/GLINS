@@ -1,5 +1,5 @@
 /**
-* @Function: Handle stream data output
+* @Function: Handle stream data input, log, and output
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -11,7 +11,6 @@
 #include <unordered_map>
 #include <functional>
 #include <glog/logging.h>
-#include <aslam/common/yaml-serialization.h>
 #include <opencv2/opencv.hpp>
 
 #include "gici/stream/streaming.h"
@@ -26,8 +25,11 @@ public:
   using Ptr = std::shared_ptr<StreamHandle>;
 
   using GnssCallback = std::function<void(GnssMeasurement&)>;
-  using IMUCallback = std::function<void(ImuMeasurement&)>;
-  using ImageCallback = std::function<void(double, cv::Mat&)>;
+  using ImuCallback = std::function<void(std::string, ImuRole, ImuMeasurement&)>;
+  using ImageCallback = std::function<void(double, std::string, CameraRole, cv::Mat&)>;
+  using GnssCallbacks = std::vector<std::pair<GnssCallback, std::vector<std::string>>>;
+  using ImuCallbacks = std::vector<std::pair<ImuCallback, std::vector<std::string>>>;
+  using ImageCallbacks = std::vector<std::pair<ImageCallback, std::vector<std::string>>>;
 
   // Behavior of a formator
   struct Behaviors {
@@ -38,18 +40,29 @@ public:
   ~StreamHandle();
 
   // Set GNSS epoch data callback
-  void setGnssCallback(GnssCallback& gnss_callback) {
-    gnss_callback_ = gnss_callback;
+  void setGnssCallback(const GnssCallback& gnss_callback, 
+                       const std::vector<std::string>& tags) {
+    gnss_callbacks_.push_back(std::make_pair(gnss_callback, tags));
   }
 
   // Set IMU epoch data callback
-  void setIMUCallback(IMUCallback& imu_callback) {
-    imu_callback_ = imu_callback;
+  void setImuCallback(const ImuCallback& imu_callback,
+                      const std::vector<std::string>& tags) {
+    imu_callbacks_.push_back(std::make_pair(imu_callback, tags));
   }
 
   // Set Image epoch data callback
-  void setImageCallback(ImageCallback& image_callback) {
-    image_callback_ = image_callback;
+  void setImageCallback(const ImageCallback& image_callback,
+                        const std::vector<std::string>& tags) {
+    image_callbacks_.push_back(std::make_pair(image_callback, tags));
+  }
+
+  // Get streamer from given formator tag
+  inline Streaming::Ptr getStreamFromFormatorTag(std::string tag) {
+    for (size_t i = 0; i < streamings_.size(); i++) {
+      if (streamings_[i]->hasFormatorTag(tag)) return streamings_[i];
+    }
+    return nullptr;
   }
 
 private:
@@ -74,9 +87,9 @@ protected:
   std::mutex mutex_gnss_, mutex_imu_, mutex_image_;
 
   // Outside callbacks to handle epoch data
-  GnssCallback gnss_callback_;
-  IMUCallback imu_callback_;
-  ImageCallback image_callback_;
+  GnssCallbacks gnss_callbacks_;
+  ImuCallbacks imu_callbacks_;
+  ImageCallbacks image_callbacks_;
 
   // Local GNSS data to select ephemeris and SSR corrections
   DataFormat::GNSS::Ptr gnss_local_;
