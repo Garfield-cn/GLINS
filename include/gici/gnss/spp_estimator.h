@@ -58,6 +58,9 @@ public:
   // Get Satellite clock
   double getClockEstimate(const char system);
 
+  // Get solution
+  GnssSolution getSolution();
+
   // Correct DCB (or TGD)
   void correctDCB(GnssMeasurement& measurement);
 
@@ -81,8 +84,7 @@ private:
   // States
   State current_state_;
   std::vector<BackendId> parameter_ids_;
+  int num_satellites_;
 };
-
-using SppEstimatorPtr = std::shared_ptr<SppEstimator>;
 
 }

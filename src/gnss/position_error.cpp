@@ -1,5 +1,5 @@
 /**
-* @Function: Single-differenced (between stations) pseudorange residual block for ceres backend
+* @Function: GNSS Position error used of loosely integration with other sensors
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -106,7 +106,7 @@ bool PositionError<Ns ...>::EvaluateWithMinimalJacobians(
 
       // Body rotation in ENU
       Eigen::Matrix<double, 3, 3> J_q_WS = J_t_W * 
-        q_WS.toRotationMatrix() * skewSymmetric(t_SR_S);
+        skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
 
       // Body pose in ENU
       J_T_WS.setZero();

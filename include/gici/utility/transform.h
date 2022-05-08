@@ -42,6 +42,11 @@ inline Eigen::Matrix<double,4,4> quaternionOplusMatrix(
     const Eigen::Quaternion<double>& q_BC)
 { return svo::quaternionOplusMatrix(q_BC); }
 
+// Convert quarternion to euler angle
+Eigen::Vector3d quaternionToEulerAngle(const Eigen::Quaternion<double>& q);
+
+// Convert euler angle to quarternion
+Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d rpy);
 
 }
 

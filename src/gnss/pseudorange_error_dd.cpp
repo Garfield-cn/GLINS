@@ -233,7 +233,7 @@ bool PseudorangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
 
       // Body rotation in ENU
       Eigen::Matrix<double, 1, 3> J_q_WS = J_t_W * 
-        q_WS.toRotationMatrix() * skewSymmetric(t_SR_S);
+        skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
 
       // Body pose in ENU
       J_T_WS.setZero();

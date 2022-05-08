@@ -134,6 +134,7 @@ private:
   // States
   std::deque<State> states_;
   int num_satellites_;
+  int differential_age_;
 
   // Measurements
   std::deque<std::pair<GnssMeasurement, GnssMeasurement>> measurements_;

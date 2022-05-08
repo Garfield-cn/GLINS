@@ -33,7 +33,7 @@
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/gnss/gnss_common.h"
 #include "gici/imu/imu_common.h"
-#include "gici/ros_interface/publisher.h"
+#include "gici/ros_interface/ros_publisher.h"
 
 using namespace gici;
 
@@ -88,7 +88,7 @@ void gnssCallback(GnssMeasurement& data)
       // }
 
       if (coordinate_ == nullptr) {
-        coordinate_.reset(new GeoCoordinate(gnss_solutions_.back().position, GeoType::ECEF));
+        coordinate_->reset(new GeoCoordinate(gnss_solutions_.back().position, GeoType::ECEF));
         gnss_imu_lc_estimator_->setCoordinate(coordinate_);
       }
 

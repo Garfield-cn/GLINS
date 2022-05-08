@@ -46,22 +46,27 @@ catkin_package(
 aux_source_directory(src/ros_interface DIR_ROS_TOOLS)
 
 # test
-add_executable(test_ros_gnss_imu_lc 
-               src/test/test_ros_gnss_imu_lc.cpp ${DIR_ROS_TOOLS})
-target_link_libraries(test_ros_gnss_imu_lc 
-      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+# add_executable(test_ros_gnss_imu_lc 
+#                src/test/test_ros_gnss_imu_lc.cpp ${DIR_ROS_TOOLS})
+# target_link_libraries(test_ros_gnss_imu_lc 
+#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
 
-add_executable(test_ros_rtk_imu_tc 
-      src/test/test_ros_rtk_imu_tc.cpp ${DIR_ROS_TOOLS})
-target_link_libraries(test_ros_rtk_imu_tc 
-      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+# add_executable(test_ros_rtk_imu_tc 
+#       src/test/test_ros_rtk_imu_tc.cpp ${DIR_ROS_TOOLS})
+# target_link_libraries(test_ros_rtk_imu_tc 
+#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
 
-add_executable(test_ros_imu 
-               src/test/test_ros_imu.cpp ${DIR_ROS_TOOLS})
-target_link_libraries(test_ros_imu 
-      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+# add_executable(test_ros_imu 
+#                src/test/test_ros_imu.cpp ${DIR_ROS_TOOLS})
+# target_link_libraries(test_ros_imu 
+#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
 
-add_executable(test_ros_plot_traj 
-      src/test/test_ros_plot_traj.cpp ${DIR_ROS_TOOLS})
-target_link_libraries(test_ros_plot_traj 
+# add_executable(test_ros_plot_traj 
+#       src/test/test_ros_plot_traj.cpp ${DIR_ROS_TOOLS})
+# target_link_libraries(test_ros_plot_traj 
+#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+
+add_executable(gici_ros_main
+               src/gici_ros_main.cpp ${DIR_ROS_TOOLS})
+target_link_libraries(gici_ros_main 
       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})

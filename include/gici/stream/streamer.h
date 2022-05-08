@@ -23,7 +23,8 @@ enum class StreamerType {
   File = STR_FILE,
   NtripClient = STR_NTRIPCLI,
   NtripServer = STR_NTRIPSVR,
-  V4L2 = 10
+  V4L2 = 10,
+  Ros
 };
 
 enum class StreamerRWType {
@@ -40,8 +41,6 @@ struct StreamerReplayOptions {
 // Streamer control
 class StreamerBase {
 public:
-  using Ptr = std::shared_ptr<StreamerBase>;
-
   StreamerBase() { 
     memset(&stream_, 0, sizeof(stream_t));
     static_this_.push_back(this);
@@ -276,7 +275,7 @@ protected:
 
 // Get stream handle from configure
 #define MAKE_STREAMER(Streamer) \
-  inline StreamerBase::Ptr makeStreamer(Streamer::Config& config) { \
+  inline std::shared_ptr<StreamerBase> makeStreamer(Streamer::Config& config) { \
     return std::make_shared<Streamer>(config); \
   }
 MAKE_STREAMER(SerialStreamer);
@@ -288,6 +287,6 @@ MAKE_STREAMER(NtripClientStreamer);
 MAKE_STREAMER(V4l2Streamer);
 
 // Get stream handle from yaml
-StreamerBase::Ptr makeStreamer(YAML::Node& node);
+std::shared_ptr<StreamerBase> makeStreamer(YAML::Node& node);
 
 }

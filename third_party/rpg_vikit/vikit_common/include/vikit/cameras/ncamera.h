@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <Eigen/Core>
+#include <yaml-cpp/yaml.h>
 #include <aslam/common/macros.h>
 #include <aslam/common/pose-types.h>
 
@@ -40,6 +41,9 @@ public:
 
   /// Load a camera rig form a yaml file. Returns a nullptr if the loading fails.
   static std::shared_ptr<NCamera> loadFromYaml(const std::string& yaml_file);
+
+  /// Load a camera rig form a yaml file. Returns a nullptr if the loading fails.
+  static std::shared_ptr<NCamera> loadFromYaml(const YAML::Node node);
 
   /// Get the number of cameras.
   inline size_t getNumCameras() const { return cameras_.size(); }

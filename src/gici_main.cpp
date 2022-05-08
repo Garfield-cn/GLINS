@@ -12,7 +12,7 @@
 using namespace gici;
 
 // Process streamers and estimators which defined in config.yaml file.
-// You can use this executable by "<path-to-executable> <path-to-config>". 
+// Usage: <path>/gici_main <path-to-config>. 
 // For more details on how to configure your config.yaml file, see example.yaml.
 int main(int argc, char** argv)
 {
@@ -27,7 +27,7 @@ int main(int argc, char** argv)
   try {
      yaml_node = YAML::LoadFile(config_file_path);
   } catch(YAML::BadFile &e) {
-    std::cerr << "Unable to load config file!"<< std::endl;
+    std::cerr << "Unable to load config file!" << std::endl;
     return -1;
   }
 
@@ -53,21 +53,23 @@ int main(int argc, char** argv)
 
   // Initialize streamer threads
   if (!yaml_node["stream"].IsDefined()) {
-    std::cerr << "Unable to load stream options!";
+    std::cerr << "Unable to load stream options!" << std::endl;
     return -1;
   }
   YAML::Node stream_node = yaml_node["stream"];
-  StreamHandle::Ptr stream_handle = std::make_shared<StreamHandle>(stream_node);
+  std::shared_ptr<StreamHandle> stream_handle = std::make_shared<StreamHandle>(stream_node);
 
   // Initialize estimator threads
-  EstimateHandle::Ptr estimate_handle;
+  std::shared_ptr<EstimateHandle> estimate_handle;
   if (!yaml_node["estimate"].IsDefined()) {
-    std::cerr << "Unable to load estimator options. Run in stream-only mode.";
+    std::cerr << "Unable to load estimator options. Run in stream-only mode." << std::endl;
   }
   else {
     estimate_handle = std::make_shared<EstimateHandle>(yaml_node);
     // bind with streamers
     estimate_handle->bindWithStreams(stream_handle);
+    // bind with estimators
+    estimate_handle->bindWithEstimators();
   }
   
   // Loop

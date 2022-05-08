@@ -41,7 +41,7 @@ struct RtkImuTcEstimatorOptions {
   bool use_ambiguity_resolution = true;
 
   // GNSS extrinsic variation variance
-  double gnss_relative_extrinsic_std = 1.0e-4;
+  double gnss_relative_extrinsic_std = 1.0e-6;
 
   // GNSS common options
   GnssCommonOptions gnss_common;
@@ -54,6 +54,9 @@ struct RtkImuTcEstimatorOptions {
 
   // IMU parameters
   ImuParameters imu_parameters;
+
+  // Initialization options
+  GnssImuInitializationOptions initialize;
 };
 
 // Estimator
@@ -73,8 +76,7 @@ public:
     }
   };
 
-  RtkImuTcEstimator(const RtkImuTcEstimatorOptions& options, 
-                     const GnssImuInitializationOptions& initial_options);
+  RtkImuTcEstimator(const RtkImuTcEstimatorOptions& options);
   ~RtkImuTcEstimator();
 
   // Add GNSS measurements and state
@@ -87,6 +89,12 @@ public:
   // Start ceres optimization
   void optimize();
 
+  // Set gravity
+  void setGravity(double gravity) { 
+    options_.imu_parameters.g = gravity;
+    initializer_->setGravity(gravity);
+  }
+
   // Get pose
   Transformation getPoseEstimate();
 
@@ -98,6 +106,12 @@ public:
 
   // Get status
   GnssSolutionStatus getSolutionStatus() { return lastState().status; }
+
+  // Get number of satellites
+  int getNumSatellites() { return num_satellites_; }
+
+  // Get differential age
+  int getAge() { return differential_age_; }
 
   // Get timestamp
   double getTimestamp() { return lastState().timestamp; }
@@ -113,6 +127,9 @@ public:
 
   // Get IMU measurements
   ImuMeasurements& getImuMeasurements() { return imu_measurements_; }
+
+  // Get IMU parameters
+  ImuParameters& getImuParameters() { return options_.imu_parameters; }
 
   // Check if it is the first epoch
   bool isFirstEpoch() { return states_.size() < 2; }
@@ -148,7 +165,6 @@ private:
 
   // Options
   RtkImuTcEstimatorOptions options_;
-  GnssImuInitializationOptions initial_options_;
 
   // loss function 
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
@@ -156,6 +172,8 @@ private:
 
   // States
   std::deque<State> states_;
+  int num_satellites_;
+  int differential_age_;
 
   // Measurements
   std::deque<std::pair<GnssMeasurement, GnssMeasurement>> gnss_measurements_;

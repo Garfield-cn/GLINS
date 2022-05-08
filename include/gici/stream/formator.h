@@ -40,18 +40,18 @@ enum class GnssDataType {
   SSR = 10
 };
 
-// Data formats
-class DataFormat {
+// Data 
+class DataCluster {
 public:
-  using Ptr = std::shared_ptr<DataFormat>;
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  DataFormat(FormatorType type);
-  DataFormat(FormatorType type, int _width, int _height);
-  ~DataFormat();
+  DataCluster() {}
+  DataCluster(FormatorType type);
+  DataCluster(FormatorType type, int _width, int _height);
+  ~DataCluster();
 
   // GNSS data format
   struct GNSS {
-    using Ptr = std::shared_ptr<GNSS>;
     void init();
     void free();
 
@@ -63,7 +63,6 @@ public:
 
   // Image data format
   struct Image {
-    using Ptr = std::shared_ptr<Image>;
     void init(int _width, int _height);
     void free();
 
@@ -75,7 +74,6 @@ public:
 
   // IMU data format
   struct IMU {
-    using Ptr = std::shared_ptr<IMU>;
     double time;
     double acceleration[3];
     double angular_velocity[3];
@@ -83,16 +81,15 @@ public:
 
   // Option data format
   struct Option {
-    using Ptr = std::shared_ptr<Option>;
 
   };
 
   // Parameters
-  GNSS::Ptr gnss;
-  Image::Ptr image;
-  IMU::Ptr imu;
-  Option::Ptr option;
-  Solution::Ptr solution;
+  std::shared_ptr<GNSS> gnss;
+  std::shared_ptr<Image> image;
+  std::shared_ptr<IMU> imu;
+  std::shared_ptr<Option> option;
+  std::shared_ptr<Solution> solution;
 };
 
 // Formats of FormatorType::GNSS_Raw
@@ -115,57 +112,55 @@ namespace gnss_common {
 
 // Update observation data
 extern void updateObservation(
-  obs_t *obs, DataFormat::GNSS::Ptr& gnss_data);
+  obs_t *obs, std::shared_ptr<DataCluster::GNSS>& gnss_data);
 
 // Update ephemeris
 extern void updateEphemeris(
-  nav_t *nav, int sat, DataFormat::GNSS::Ptr& gnss_data);
+  nav_t *nav, int sat, std::shared_ptr<DataCluster::GNSS>& gnss_data);
 
 // Update ion/utc parameters
 extern void updateIonAndUTC(
-  nav_t *nav, DataFormat::GNSS::Ptr& gnss_data);
+  nav_t *nav, std::shared_ptr<DataCluster::GNSS>& gnss_data);
 
 // Update antenna position
 extern void updateAntennaPosition(
-  sta_t *sta, DataFormat::GNSS::Ptr& gnss_data);
+  sta_t *sta, std::shared_ptr<DataCluster::GNSS>& gnss_data);
 
 // Update ssr corrections
 extern void updateSSR(
-  ssr_t *ssr, DataFormat::GNSS::Ptr& gnss_data);
+  ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data);
 
 // Select data from GNSS stream
 // Note that data except for observation are 
 // putted in the first place of the vector
 extern void updateStreamData(int ret, obs_t *obs, nav_t *nav, 
   sta_t *sta, ssr_t *ssr, int iobs, int sat, 
-  std::vector<DataFormat::GNSS::Ptr>& gnss_data);
+  std::vector<std::shared_ptr<DataCluster::GNSS>>& gnss_data);
 
 }
 
 // Base class
 class FormatorBase {
 public:
-  using Ptr = std::shared_ptr<FormatorBase>;
-
   FormatorBase() { }
   ~FormatorBase() { }
 
   // Decode stream to data
   virtual int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) = 0;
+    std::vector<std::shared_ptr<DataCluster>>& data) = 0;
 
   // Encode data to stream
   virtual int encode(
-    const DataFormat::Ptr& data, uint8_t *buf) = 0;
+    const std::shared_ptr<DataCluster>& data, uint8_t *buf) = 0;
 
   // Get formator type
   FormatorType getType() { return type_; }
 
   // Get data handle
-  std::vector<DataFormat::Ptr>& getDataHandle() { return data_; }
+  std::vector<std::shared_ptr<DataCluster>>& getDataHandle() { return data_; }
 
 protected:
-  std::vector<DataFormat::Ptr> data_;
+  std::vector<std::shared_ptr<DataCluster>> data_;
   FormatorType type_;
 };
 
@@ -182,10 +177,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   rtcm_t rtcm_;
@@ -204,10 +199,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   rtcm_t rtcm_;
@@ -227,10 +222,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   raw_t raw_;
@@ -251,10 +246,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   img_t image_;
@@ -274,10 +269,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   img_t image_;
@@ -296,10 +291,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   imu_t imu_;
@@ -318,10 +313,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
 
@@ -330,6 +325,8 @@ protected:
 // NMEA (for solution)
 class NmeaFormator : public FormatorBase {
 public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
   struct Config {
     bool use_gga = true;
     bool use_rmc = true;
@@ -343,10 +340,10 @@ public:
 
   // Decode stream to data
   int decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data) override;
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
 
   // Encode data to stream
-  int encode(const DataFormat::Ptr& data, uint8_t *buf) override;
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
 
 protected:
   // Encode GNGGA message
@@ -368,7 +365,7 @@ protected:
 
 // Get formator handle from configure
 #define MAKE_FORMATOR(Formator) \
-inline FormatorBase::Ptr makeFormator( \
+inline std::shared_ptr<FormatorBase> makeFormator( \
   Formator::Config& config) { \
    return std::make_shared<Formator>(config); \
 }
@@ -382,7 +379,7 @@ MAKE_FORMATOR(OptionFormator);
 MAKE_FORMATOR(NmeaFormator);
 
 // Get formator handle from yaml
-FormatorBase::Ptr makeFormator(YAML::Node& node);
+std::shared_ptr<FormatorBase> makeFormator(YAML::Node& node);
 
 
 }

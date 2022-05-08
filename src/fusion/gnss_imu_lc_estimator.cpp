@@ -19,17 +19,15 @@ namespace gici {
 
 // The default constructor
 GnssImuLcEstimator::GnssImuLcEstimator(
-                     const GnssImuLcEstimatorOptions& options, 
-                     const GnssImuInitializationOptions& initial_options) :
+                     const GnssImuLcEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1)),
-  marginalization_residual_id_(0), imu_initialized_(false),
-  timestamp_integrate_(0.0), initial_options_(initial_options)
+  marginalization_residual_id_(0), imu_initialized_(false)
 {
   marginalization_error_ptr_.reset(new MarginalizationError(*graph_ptr_.get()));
 
-  initializer_.reset(new GnssImuInitialization(initial_options, graph_ptr_));
+  initializer_.reset(new GnssImuInitialization(options.initialize, graph_ptr_));
 }
 
 // The default destructor
@@ -217,7 +215,6 @@ void GnssImuLcEstimator::optimize()
   // graph_ptr_->options.callbacks.push_back(debug_callback_.get());
 
   if (options_.verbose) {
-    graph_ptr_->options.logging_type = ceres::LoggingType::SILENT;
     graph_ptr_->options.minimizer_progress_to_stdout = true;
   }
   else {
@@ -242,10 +239,6 @@ void GnssImuLcEstimator::optimize()
     states_.pop_front();
     gnss_solutions_.pop_front();
   }
-
-  // Update integration interface
-  T_WS_integrate_ = getPoseEstimate();
-  timestamp_integrate_ = lastState().timestamp;
 }
 
 // Get pose
@@ -266,32 +259,6 @@ Transformation GnssImuLcEstimator::getPoseEstimate()
   }
 
   return Transformation();
-}
-
-// Get pose at current IMU timestamp
-Transformation GnssImuLcEstimator::getPoseIntegrated()
-{
-  // First epoch not arrived
-  if (timestamp_integrate_ == 0.0) return Transformation();
-
-  double timestamp = imu_measurements_.back().timestamp;
-  double timestamp_start = timestamp_integrate_;
-
-  // TODO: why we must add this?
-  timestamp_start = lastState().timestamp;
-  T_WS_integrate_ = getPoseEstimate();
-
-  // integrate
-  if (timestamp_start < timestamp) {
-    SpeedAndBias speed_and_bias = getSpeedAndBias();
-    ImuError::propagation(
-          imu_measurements_, options_.imu_parameters, T_WS_integrate_, speed_and_bias,
-          timestamp_start, timestamp, nullptr, nullptr);
-    T_WS_integrate_.getRotation().normalize();
-    timestamp_integrate_ = timestamp;
-  }
-
-  return T_WS_integrate_;
 }
 
 // Get speed and bias

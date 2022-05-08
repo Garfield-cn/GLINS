@@ -4,8 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#ifndef ROS_PUBLISHER_H
-#define ROS_PUBLISHER_H
+#pragma once
 
 #include <iostream>
 #include <boost/shared_ptr.hpp>
@@ -19,6 +18,7 @@
 #include <tf/transform_broadcaster.h>
 #include <image_transport/image_transport.h>
 #include <nav_msgs/Path.h>
+#include <geometry_msgs/PoseWithCovarianceStamped.h>
 #include <pcl_ros/point_cloud.h>
 #include <pcl/point_types.h>
 
@@ -34,8 +34,8 @@ void publishImage(ros::Publisher& pub,
 void publishFeaturedImage(ros::Publisher& pub, 
   const FramePtr& frame, const ros::Time time);
 
-// Publish seeds
-void publishSeeds(ros::Publisher& pub, 
+// Publish features
+void publishFeatures(ros::Publisher& pub, 
   const MapPtr& map, const ros::Time time, 
   std::string frame_id);
 
@@ -44,11 +44,22 @@ void publishPoseStamped(ros::Publisher& pub,
   const Transformation& pose, const ros::Time time, 
   std::string frame_id);
 
+// Publish pose with covariance
+void publishPoseWithCovarianceStamped(ros::Publisher& pub, 
+  const Transformation& pose, const Eigen::Matrix<double, 6, 6>& covariance,
+  const ros::Time time, std::string frame_id);
+
 // Publish pose with transform
 void publishPoseWithTransform(ros::Publisher& pub, 
   tf::TransformBroadcaster& broadcaster, 
   const Transformation& pose, const ros::Time time, 
   std::string frame_id, std::string child_frame_id);
+
+// Publish pose with covariance and transform
+void publishPoseWithCovarianceAndTransform(ros::Publisher& pub, 
+  tf::TransformBroadcaster& broadcaster, 
+  const Transformation& pose, const Eigen::Matrix<double, 6, 6>& covariance,
+  const ros::Time time, std::string frame_id, std::string child_frame_id);
 
 // Path publisher
 class PathPublisher {
@@ -68,6 +79,3 @@ void publishError3d(ros::Publisher& pub,
   std::string frame_id);
 
 }
-
-
-#endif

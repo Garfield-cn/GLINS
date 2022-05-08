@@ -21,7 +21,7 @@ namespace gici {
 // IMU initialization options
 struct GnssImuInitializationOptions {
   // Max iteration number for ceres optimization
-  int max_iteration = 100;
+  int max_iteration = 30;
 
   // Number of threads used for ceres optimization
   int num_threads = 2;
@@ -43,7 +43,7 @@ struct GnssImuInitializationOptions {
   double gnss_extrinsic_initial_std = 0.5;
 
   // GNSS extrinsic variation variance
-  double gnss_relative_extrinsic_std = 1.0e-4;
+  double gnss_relative_extrinsic_std = 1.0e-6;
 
   // Min velocity to start initialization, we need a relatively large velocity to ensure 
   // the observability of yaw attitude.
@@ -67,6 +67,9 @@ public:
   void setCoordinate(const GeoCoordinatePtr& coordinate) { 
     coordinate_ = coordinate; 
   }
+
+  // Set gravity
+  void setGravity(double gravity) { options_.imu_parameters.g = gravity; }
 
   // Add GNSS measurement
   bool addGnssMeasurement(const GnssSolution& gnss_solution);

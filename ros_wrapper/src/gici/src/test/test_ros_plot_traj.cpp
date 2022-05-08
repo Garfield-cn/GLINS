@@ -28,7 +28,7 @@
 #include "gici/utility/signal_handle.h"
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
-#include "gici/ros_interface/publisher.h"
+#include "gici/ros_interface/ros_publisher.h"
 
 using namespace gici;
 

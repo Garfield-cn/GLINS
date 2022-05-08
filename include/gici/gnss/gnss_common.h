@@ -58,6 +58,17 @@ inline double radToDegree(double rad) {
 // GPS L2C and L2W has the same frequency, but are two different phase channels.
 int getPhaseID(char system, int code, double wavelength);
 
+// Check if is a BDS-1 satellite
+inline bool isBds1(const std::string prn) {
+  return (prn[0] == 'C' && atoi(prn.substr(1, 2).data()) <= 5);
+}
+
+// Check if is a BDS-2 satellite
+inline bool isBds2(const std::string prn) {
+  return (prn[0] == 'C' && atoi(prn.substr(1, 2).data()) > 5 && 
+          atoi(prn.substr(1, 2).data()) <= 17);
+}
+
 // ----------------------------------------------------------
 // Check whether the system is used
 bool useSystem(GnssCommonOptions options, const char system);

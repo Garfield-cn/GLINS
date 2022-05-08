@@ -296,10 +296,28 @@ void AmbiguityResolution::formSatellitePair()
   std::map<char, std::string> system_to_reference_prn;
   for (size_t i = 0; i < GnssSystems.size(); i++) {
     char system = GnssSystems[i];
+
+    // check if we have a BDS-3 satellite
+    bool only_use_bds3 = false;
+    if (system == 'C') {
+      for (size_t j = 0; j < curAmbs().size(); j++) {
+        if (curAmbs()[j].prn[0] != 'C') continue;
+        if (!gnss_common::isBds1(curAmbs()[j].prn) && 
+            !gnss_common::isBds2(curAmbs()[j].prn)) {
+          only_use_bds3 = true; break;
+        }
+      }
+    }
+
+    // find satellite with maximum elevation angle
     double max_elevation = 0.0;
     for (size_t j = 0; j < curAmbs().size(); j++) {
       Spec& ambiguity = curAmbs()[j];
       if (ambiguity.id.gSystem() != system) continue;
+
+      // we try not to use BDS-1 or BDS-2 satellite
+      if (only_use_bds3 && (gnss_common::isBds1(ambiguity.prn) || 
+          gnss_common::isBds2(ambiguity.prn))) continue;
 
       // we only select satellites with max phase number
       if (prn_to_number_phases.at(ambiguity.id.gPrn()) != 
@@ -318,6 +336,9 @@ void AmbiguityResolution::formSatellitePair()
     char system = ambiguity.id.gSystem();
     std::string prn = ambiguity.id.gPrn();
     std::string prn_ref = system_to_reference_prn.at(system);
+
+    // do not use BDS-1 and BDS-2
+    if (gnss_common::isBds1(ambiguity.prn) || gnss_common::isBds2(ambiguity.prn)) continue;
 
     if (!useSystem(system)) continue;
     if (prn == prn_ref) {
@@ -726,7 +747,7 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
 
   // Add a loosely constraint on RTK estimator, because we do not fully believe they
   // are accurate enough yet.
-  const double information_loosely = 1e2;   // 0.1 cycle
+  const double information_loosely = 1e-2;   // 10 cycle
   for (size_t i = 0; i < ambiguity_lane_pairs.size(); i++) {
     if (!ambiguity_lane_pairs[i].is_fixed) continue;
     std::vector<double> coefficients;

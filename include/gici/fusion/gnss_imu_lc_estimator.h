@@ -34,10 +34,13 @@ struct GnssImuLcEstimatorOptions {
   int window_length = 3;
 
   // GNSS extrinsic variation variance
-  double gnss_relative_extrinsic_std = 1.0e-4;
+  double gnss_relative_extrinsic_std = 1.0e-6;
 
   // IMU parameters
   ImuParameters imu_parameters;
+
+  // Initialization options
+  GnssImuInitializationOptions initialize;
 };
 
 // Estimator
@@ -51,8 +54,7 @@ public:
     double timestamp = 0.0;
   };
 
-  GnssImuLcEstimator(const GnssImuLcEstimatorOptions& options, 
-                     const GnssImuInitializationOptions& initial_options);
+  GnssImuLcEstimator(const GnssImuLcEstimatorOptions& options);
   ~GnssImuLcEstimator();
 
   // Add GNSS measurements and state
@@ -64,14 +66,17 @@ public:
   // Start ceres optimization
   void optimize();
 
+  // Set gravity
+  void setGravity(double gravity) { 
+    options_.imu_parameters.g = gravity;
+    initializer_->setGravity(gravity);
+  }
+
+  // Get timestamp
+  double getTimestamp() { return lastState().timestamp; }
+
   // Get pose
   Transformation getPoseEstimate();
-
-  // Get pose at current IMU timestamp
-  Transformation getPoseIntegrated();
-
-  // Get current integrated IMU timestamp
-  double getTimeIntegrated() const { return timestamp_integrate_; }
 
   // Get speed and bias
   SpeedAndBias getSpeedAndBias();
@@ -87,6 +92,12 @@ public:
 
   // Get coordinate handle
   GeoCoordinatePtr& getCoordinate() { return coordinate_; }
+
+  // Get IMU measurements
+  ImuMeasurements& getImuMeasurements() { return imu_measurements_; }
+
+  // Get IMU parameters
+  ImuParameters& getImuParameters() { return options_.imu_parameters; }
 
   // Check if it is the first epoch
   bool isFirstEpoch() { return states_.size() < 2; }
@@ -122,7 +133,6 @@ private:
 
   // Options
   GnssImuLcEstimatorOptions options_;
-  GnssImuInitializationOptions initial_options_;
 
   // loss function 
   std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
@@ -130,9 +140,6 @@ private:
 
   // States
   std::deque<State> states_;
-  // the two parameters are used for integrating current solution to IMU timestamp
-  double timestamp_integrate_;  // Current integrated timestamp
-  Transformation T_WS_integrate_;  // Current integrated IMU pose
 
   // Measurements
   std::deque<GnssSolution> gnss_solutions_;

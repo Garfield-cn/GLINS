@@ -1,0 +1,356 @@
+/**
+* @Function: GNSS/IMU coupled estimator thread
+*
+* @Author  : Cheng Chi
+* @Email   : chichengcn@sjtu.edu.cn
+**/
+#include "gici/fusion/gnss_imu_estimating.h"
+
+#include "gici/gnss/spp_estimator.h"
+#include "gici/imu/imu_common.h"
+#include "gici/imu/imu_error.h"
+
+namespace gici {
+
+GnssImuEstimating::GnssImuEstimating(YAML::Node& node) : 
+  EstimatingBase(node), backend_finished_(true), 
+  integrate_backend_timestamp_(0.0)
+{
+  // instantiate estimator
+  if (type_ == EstimatorType::GnssImuLc) {
+    GnssImuLcEstimatorOptions options;
+    option_tools::loadOptions(node, options);
+    gnss_imu_lc_estimator_.reset(new GnssImuLcEstimator(options));
+  }
+  else if (type_ == EstimatorType::RtkImuTc) {
+    RtkImuTcEstimatorOptions options;
+    option_tools::loadOptions(node, options);
+    rtk_imu_tc_estimator_.reset(new RtkImuTcEstimator(options));
+  }
+
+  latest_gnss_measurement_ref_.timestamp = 0.0;
+}
+
+GnssImuEstimating::~GnssImuEstimating()
+{}
+
+// GNSS data callback
+void GnssImuEstimating::gnssCallback(GnssMeasurement& data)
+{
+  gnss_measurements_[data.role].push_back(data);
+
+  // Align timeline
+  if (loop_duration_align_tag_ == data.tag) {
+    aligned_new_timestamp_ = data.timestamp;
+    aligned_new_data_ = true;
+  }
+}
+
+// IMU data callback
+void GnssImuEstimating::imuCallback(
+    std::string tag, ImuRole role, ImuMeasurement& data)
+{
+  imu_measurements_[role].push_back(data);
+
+  // Currently we only support an IMU acts as major role
+  if (role == ImuRole::Major) {
+    if (gnss_imu_lc_estimator_) {
+      gnss_imu_lc_estimator_->addImuMeasurement(data);
+    }
+    if (rtk_imu_tc_estimator_) {
+      rtk_imu_tc_estimator_->addImuMeasurement(data);
+    }
+  }
+
+  // Align timeline
+  if (loop_duration_align_tag_ == tag) {
+    aligned_new_timestamp_ = data.timestamp;
+    aligned_new_data_ = true;
+  }
+}
+
+// Solution callback from other estimators
+void GnssImuEstimating::solutionCallback(
+  std::string tag, SolutionRole role, Solution& data)
+{
+  solution_measurements_[role].push_back(data);
+
+  // Align timeline
+  if (loop_duration_align_tag_ == tag) {
+    aligned_new_timestamp_ = data.timestamp;
+    aligned_new_data_ = true;
+  }
+}
+
+// Process funtion in every loop
+void GnssImuEstimating::process()
+{
+  // Process backend in a separated thread
+  // or it may influence the integration and hence delay the solution publishing
+  if (backend_finished_) {
+    if (backend_thread_) backend_thread_->join();
+    backend_thread_.reset(new std::thread(&GnssImuEstimating::runBackend, this));
+  }
+
+  // Integrate solution to our desired publishing timestamp. Only the estimators with 
+  // IMU sensors are applied.
+  integrateSolution();
+}
+
+// Process GNSS and IMU loosely couple estimator
+bool GnssImuEstimating::processGnssImuLc()
+{
+  // Check if we have data to process
+  Solution solution_measurement;
+  if (solution_measurements_[SolutionRole::Position].size() != 0) {
+    solution_measurement = 
+      solution_measurements_[SolutionRole::Position].front();
+  }
+  else if (solution_measurements_[SolutionRole::PositionAndVelocity].size() != 0) {
+    solution_measurement = 
+      solution_measurements_[SolutionRole::PositionAndVelocity].front();
+  }
+  else return false;
+
+  // Delete used
+  popSolutionMeasurement();
+
+  // Apply GNSS/IMU loosely couple
+  GnssSolution gnss_solution = convertSolutionToGnssSolution(solution_measurement);
+  backend_processing_timestamp_ = solution_measurement.timestamp;
+
+  // set gravity
+  if (gnss_imu_lc_estimator_->isFirstEpoch()) {
+    Eigen::Vector3d lla = solution_measurement.backend.coordinate->convert(
+      solution_measurement.pose.getPosition(), GeoType::ENU, GeoType::LLA);
+    double gravity = earthGravity(lla);
+    gnss_imu_lc_estimator_->setGravity(gravity);
+  }
+
+  // define coordinate
+  if (solution_.backend.coordinate == nullptr) {
+    solution_.backend.coordinate = std::make_shared<GeoCoordinate>(
+      gnss_solution.position, GeoType::ECEF);
+    gnss_imu_lc_estimator_->setCoordinate(solution_.backend.coordinate);
+  }
+
+  // add measurement
+  if (!gnss_imu_lc_estimator_->addGnssMeasurementAndState(gnss_solution)) {
+    return false;
+  }
+  // solve
+  gnss_imu_lc_estimator_->optimize();
+
+  // get solution
+  mutex_.lock(); // lock to avoid conflit with integration
+  solution_.backend.timestamp = gnss_imu_lc_estimator_->getTimestamp();
+  solution_.backend.pose = gnss_imu_lc_estimator_->getPoseEstimate();
+  solution_.backend.speed_and_bias = gnss_imu_lc_estimator_->getSpeedAndBias();
+  solution_.status = gnss_solution.status;
+  solution_.num_satellites = gnss_solution.num_satellites;
+  solution_.differential_age = gnss_solution.differential_age;
+  mutex_.unlock();
+
+  return true;
+}
+
+// Process RTK and IMU tightly couple estimator
+bool GnssImuEstimating::processRtkImuTc()
+{
+  // Check if we have data to process
+  if (gnss_measurements_[GnssRole::Rover].size() == 0) return false;
+  if (gnss_measurements_[GnssRole::Reference].size() == 0 && 
+      latest_gnss_measurement_ref_.timestamp == 0.0) return false;
+
+  // align measurements
+  while (gnss_measurements_[GnssRole::Rover].size() > 
+         gnss_measurements_[GnssRole::Reference].size() && 
+         gnss_measurements_[GnssRole::Rover].size() > 1) {
+    gnss_measurements_[GnssRole::Rover].pop_front();
+  }
+  while (gnss_measurements_[GnssRole::Reference].size() > 
+         gnss_measurements_[GnssRole::Rover].size()) {
+    gnss_measurements_[GnssRole::Reference].pop_front();
+  }
+
+  // Apply RTK and IMU tightly couple
+  auto gnss_measurement_rov = gnss_measurements_[GnssRole::Rover].front();
+  auto gnss_measurement_ref = latest_gnss_measurement_ref_;
+  if (gnss_measurements_[GnssRole::Reference].size() > 0) {
+    gnss_measurement_ref = gnss_measurements_[GnssRole::Reference].front();
+  }
+  latest_gnss_measurement_ref_ = gnss_measurement_ref;
+  backend_processing_timestamp_ = gnss_measurement_rov.timestamp;
+
+  // Delete used
+  popGnssMeasurement();
+
+  // set a coarse position to ensure preprocessings for satellites (such as elevation mask)
+  if (!SppEstimator::setCoarsePosition(gnss_measurement_rov)) {
+    return false; 
+  }
+
+  // define coordinate
+  if (solution_.backend.coordinate == nullptr) {
+    solution_.backend.coordinate = std::make_shared<GeoCoordinate>(
+      gnss_measurement_rov.position, GeoType::ECEF);
+    rtk_imu_tc_estimator_->setCoordinate(solution_.backend.coordinate);
+  }
+
+  // set gravity
+  if (rtk_imu_tc_estimator_->isFirstEpoch()) {
+    Eigen::Vector3d lla = solution_.backend.coordinate->convert(
+      gnss_measurement_rov.position, GeoType::ECEF, GeoType::LLA);
+    double gravity = earthGravity(lla);
+    rtk_imu_tc_estimator_->setGravity(gravity);
+  }
+
+  // add measurement
+  if (!rtk_imu_tc_estimator_->addGnssMeasurementAndState(
+      gnss_measurement_rov, gnss_measurement_ref)) {
+    return false;
+  }
+  // solve
+  rtk_imu_tc_estimator_->optimize();
+
+  // get solution
+  mutex_.lock(); 
+  solution_.backend.timestamp = rtk_imu_tc_estimator_->getTimestamp();
+  solution_.backend.pose = rtk_imu_tc_estimator_->getPoseEstimate();
+  solution_.backend.speed_and_bias = rtk_imu_tc_estimator_->getSpeedAndBias();
+  solution_.status = rtk_imu_tc_estimator_->getSolutionStatus();
+  solution_.num_satellites = rtk_imu_tc_estimator_->getNumSatellites();
+  solution_.differential_age = rtk_imu_tc_estimator_->getAge();
+  mutex_.unlock();
+
+  return true;
+}
+
+// Get timestamp to publish
+double GnssImuEstimating::getPublishTime() {
+  // align to input stream
+  if (loop_duration_ == 0) return aligned_new_timestamp_;
+  // round current time
+  else {
+    double current_time = vk::Timer::getCurrentTime();
+    int integer = round(current_time);
+    double decimal = current_time - static_cast<double>(integer);
+    double rounded_decimal = static_cast<double>(
+      round(decimal / loop_duration_)) * loop_duration_;
+    return (static_cast<double>(integer) + rounded_decimal);
+  }
+}
+
+// Convert solution to GNSS solution
+GnssSolution GnssImuEstimating::convertSolutionToGnssSolution(
+  const Solution& solution)
+{
+  GnssSolution gnss_solution;
+  static int32_t id_static = 0;
+
+  gnss_solution.timestamp = solution.timestamp;
+  gnss_solution.id = ++id_static;
+  CHECK(solution.backend.coordinate);
+  gnss_solution.position = solution.backend.coordinate->convert(
+    solution.pose.getPosition(), GeoType::ENU, GeoType::ECEF);
+  Eigen::Matrix3d R_ecef_enu = solution.backend.coordinate->rotationMatrix(
+    GeoType::ENU, GeoType::ECEF);
+  gnss_solution.velocity = R_ecef_enu * solution.speed_and_bias.segment<3>(0);
+  Eigen::Matrix<double, 6, 6> R_ecef_enu_double;
+  R_ecef_enu_double.setZero();
+  R_ecef_enu_double.topLeftCorner(3, 3) = R_ecef_enu;
+  R_ecef_enu_double.bottomRightCorner(3, 3) = R_ecef_enu;
+  Eigen::Matrix<double, 6, 6> covariance_position_velocity;
+  covariance_position_velocity.topLeftCorner(3, 3) = 
+    solution.covariance.block<3, 3>(0, 0);
+  covariance_position_velocity.bottomRightCorner(3, 3) = 
+    solution.covariance.block<3, 3>(6, 6);
+  covariance_position_velocity.topRightCorner(3, 3) = 
+    solution.covariance.block<3, 3>(0, 6);
+  covariance_position_velocity.bottomLeftCorner(3, 3) = 
+    solution.covariance.block<3, 3>(6, 0);
+  gnss_solution.covariance = R_ecef_enu_double * 
+    covariance_position_velocity * R_ecef_enu_double.transpose();
+  gnss_solution.status = solution.status;
+  gnss_solution.num_satellites = solution.num_satellites;
+  gnss_solution.differential_age = solution.differential_age;
+
+  // adjust variance
+  if (gnss_solution.status == GnssSolutionStatus::Fixed) {
+    // gnss_solution.covariance.topLeftCorner(3, 3) = Eigen::Matrix3d::Identity() * 0.3;
+  }
+  else if (gnss_solution.status == GnssSolutionStatus::Float) {
+    gnss_solution.covariance.topLeftCorner(3, 3) = Eigen::Matrix3d::Identity() * 1.0;
+  }
+
+  return gnss_solution;
+}
+
+// Integrate solution to the timestamp we want to publish
+void GnssImuEstimating::integrateSolution()
+{
+  // Check if there is a backend solution
+  if (solution_.backend.timestamp == 0.0) return;
+
+  // Check aligned stream
+  if (loop_duration_ == 0.0 && !aligned_new_data_) {
+    return;
+  }
+  aligned_new_data_ = false;
+
+  // Interpolate to current time or aligned stream time
+  double publish_timestamp = getPublishTime();
+
+  // Integration
+  mutex_.lock();
+  ImuParameters imu_parameters;
+  if (gnss_imu_lc_estimator_) {
+    imu_parameters = gnss_imu_lc_estimator_->getImuParameters();
+  }
+  if (rtk_imu_tc_estimator_) {
+    imu_parameters = rtk_imu_tc_estimator_->getImuParameters();
+  }
+
+  // check if backend updated
+  if (integrate_backend_timestamp_ != solution_.backend.timestamp) {
+    solution_.timestamp = solution_.backend.timestamp;
+    solution_.pose = solution_.backend.pose;
+    solution_.speed_and_bias = solution_.backend.speed_and_bias;
+    integrate_backend_timestamp_ = solution_.backend.timestamp;
+  }
+
+  ImuError::propagation(
+    imu_measurements_[ImuRole::Major], imu_parameters, 
+    solution_.pose, solution_.speed_and_bias, solution_.timestamp, 
+    publish_timestamp, nullptr, nullptr);
+  solution_.pose.getRotation().normalize();
+  solution_.timestamp = publish_timestamp;
+
+  // If integration period larger than 2 s, we set the status as Dead Reckoning
+  if (solution_.timestamp - solution_.backend.timestamp > 2.0) {
+    solution_.status = GnssSolutionStatus::DeadReckoning;
+  }
+  mutex_.unlock();
+
+  // Delete used IMU measurements
+  double front_timestamp = 
+    std::min(publish_timestamp, backend_processing_timestamp_);
+  popImuMeasurement(front_timestamp - 0.1);
+}
+
+// Backend processing
+void GnssImuEstimating::runBackend()
+{
+  backend_finished_ = false;
+
+  if (type_ == EstimatorType::GnssImuLc) {
+    processGnssImuLc();
+  }
+  else if (type_ == EstimatorType::RtkImuTc) {
+    processRtkImuTc();
+  }
+
+  backend_finished_ = true;
+}
+
+}

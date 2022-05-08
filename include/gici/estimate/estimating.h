@@ -1,5 +1,5 @@
 /**
-* @Function: Handle estimator thread
+* @Function: Estimator thread
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -14,24 +14,30 @@
 #include <glog/logging.h>
 
 #include "gici/utility/option.h"
-#include "gici/gnss/rtk_estimator.h"
-#include "gici/gnss/spp_estimator.h"
-#include "gici/fusion/gnss_imu_lc_estimator.h"
-#include "gici/fusion/rtk_imu_tc_estimator.h"
+#include "gici/estimate/estimator_types.h"
+#include "gici/gnss/gnss_types.h"
+#include "gici/imu/imu_types.h"
 #include "gici/vision/image_types.h"
 
 namespace gici {
 
-class Estimating {
+class EstimatingBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  using Ptr = std::shared_ptr<Estimating>;
+  using SolutionCallback = std::function<void(std::string, SolutionRole, Solution&)>;
+  // We do not need to store tags here because if any client registered this callback, 
+  // we will send solution to it without tag check. The tag check is defined to distingush
+  // input streams, see EstimateHandle::bindWithStreams.
+  using SolutionCallbacks = std::vector<SolutionCallback>;
+  // output to ROS
+  using FeaturedImageCallback = std::function<void(FramePtr&)>;
+  using FeaturedImageCallbacks = std::vector<FeaturedImageCallback>;
+  using MapPointCallback = std::function<void(MapPtr&)>;
+  using MapPointCallbacks = std::vector<MapPointCallback>;
 
-  using SolutionCallback = std::function<void(Solution&)>;
-
-  Estimating(YAML::Node& node);
-  ~Estimating();
+  EstimatingBase(YAML::Node& node);
+  ~EstimatingBase();
 
   // Start thread
   void start();
@@ -40,57 +46,50 @@ public:
   void stop();
 
   // GNSS data callback
-  void gnssCallback(GnssMeasurement& data);
+  virtual void gnssCallback(GnssMeasurement& data) {
+    return;
+  }
 
   // IMU data callback
-  void imuCallback(std::string tag, ImuRole role, ImuMeasurement& data);
+  virtual void imuCallback(
+    std::string tag, ImuRole role, ImuMeasurement& data) {
+    return;
+  }
 
   // Image data callback
-  void imageCallback(double timestamp, 
-    std::string tag, CameraRole role, cv::Mat& image);
+  virtual void imageCallback(double timestamp, 
+    std::string tag, CameraRole role, cv::Mat& image) {
+    return;
+  }
+
+  // Solution callback from other estimators
+  virtual void solutionCallback(
+    std::string tag, SolutionRole role, Solution& data) {
+    return;
+  }
 
   // Set solution callback
   void setSolutionCallback(SolutionCallback solution_callback) {
     solution_callbacks_.push_back(solution_callback);
   } 
 
+  // Set featured image callback
+  void setFeaturedImageCallback(FeaturedImageCallback featured_image_callback) {
+    featured_image_callbacks_.push_back(featured_image_callback);
+  } 
+
+  // Set map point callback
+  void setMapPointCallback(MapPointCallback map_point_callback) {
+    map_point_callbacks_.push_back(map_point_callback);
+  } 
+
+  // Get tag
+  std::string getTag() { return tag_; }
+
+  // Process funtion in every loop
+  virtual void process() = 0;
+
 private:
-  // Process RTK estimator
-  void processRtk();
-
-  // Process GNSS and IMU loosely couple estimator
-  void processGnssImuLc();
-
-  // Process RTK and IMU tightly couple estimator
-  void processRtkImuTc();
-
-  // Get timestamp to publish
-  double getPublishTime();
-
-  // Integrate solution to the timestamp we want to publish
-  void integrateSolution();
-
-  // Delete one GNSS measurement from front
-  inline void popGnssMeasurement() {
-    for (auto gnss_measurements : gnss_measurements_) {
-      gnss_measurements.second.pop_front();
-    }
-  }
-
-  // Delete one IMU measurement from front
-  inline void popImuMeasurement() {
-    for (auto imu_measurements : imu_measurements_) {
-      imu_measurements.second.pop_front();
-    }
-  }
-
-  // Delete one Image measurement from front
-  void popImage() {
-    for (auto images : images_) {
-      images.second.pop_front();
-    }
-  }
-
 	// Loop processing
 	void run();
 
@@ -107,20 +106,15 @@ protected:
 
   // Estimator control
   std::string tag_;  // estimator tag
+  SolutionRole role_;
   EstimatorType type_;
-  std::unique_ptr<RtkEstimator> rtk_estimator_;
-  std::unique_ptr<GnssImuLcEstimator> gnss_imu_lc_estimator_;
-  std::unique_ptr<RtkImuTcEstimator> rtk_imu_tc_estimator_;
-
-  // Data buffers
-  std::map<GnssRole, std::deque<GnssMeasurement>> gnss_measurements_;
-  std::map<ImuRole, std::deque<ImuMeasurement>> imu_measurements_;
-  std::map<CameraRole, std::deque<FramePtr>> images_;
 
   // Solutions
   Solution solution_;
   double publish_timestamp_;
-  std::vector<SolutionCallback> solution_callbacks_;
+  SolutionCallbacks solution_callbacks_;
+  FeaturedImageCallbacks featured_image_callbacks_;
+  MapPointCallbacks map_point_callbacks_;
 };
 
 }

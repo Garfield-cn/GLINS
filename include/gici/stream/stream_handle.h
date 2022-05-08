@@ -22,8 +22,6 @@ namespace gici {
 
 class StreamHandle {
 public:
-  using Ptr = std::shared_ptr<StreamHandle>;
-
   using GnssCallback = std::function<void(GnssMeasurement&)>;
   using ImuCallback = std::function<void(std::string, ImuRole, ImuMeasurement&)>;
   using ImageCallback = std::function<void(double, std::string, CameraRole, cv::Mat&)>;
@@ -58,7 +56,7 @@ public:
   }
 
   // Get streamer from given formator tag
-  inline Streaming::Ptr getStreamFromFormatorTag(std::string tag) {
+  inline std::shared_ptr<Streaming> getStreamFromFormatorTag(std::string tag) {
     for (size_t i = 0; i < streamings_.size(); i++) {
       if (streamings_[i]->hasFormatorTag(tag)) return streamings_[i];
     }
@@ -68,21 +66,21 @@ public:
 private:
   // Handle GNSS data
   void handleGNSS(const std::string& tag, 
-                  const DataFormat::GNSS::Ptr& gnss);
+                  const std::shared_ptr<DataCluster::GNSS>& gnss);
 
   // Handle IMU data
   void handleIMU(const std::string& tag, 
-                 const DataFormat::IMU::Ptr& imu);
+                 const std::shared_ptr<DataCluster::IMU>& imu);
 
   // Handle Image data
   void handleImage(const std::string& tag, 
-                   const DataFormat::Image::Ptr& image);
+                   const std::shared_ptr<DataCluster::Image>& image);
 
   // Data callback
-  void dataCallback(const std::string& tag, const DataFormat::Ptr& data);
+  void dataCallback(const std::string& tag, const std::shared_ptr<DataCluster>& data);
 
 protected:
-  std::vector<Streaming::Ptr> streamings_;
+  std::vector<std::shared_ptr<Streaming>> streamings_;
   std::unordered_map<std::string, Behaviors> behaviors_;
   std::mutex mutex_gnss_, mutex_imu_, mutex_image_;
 
@@ -92,7 +90,7 @@ protected:
   ImageCallbacks image_callbacks_;
 
   // Local GNSS data to select ephemeris and SSR corrections
-  DataFormat::GNSS::Ptr gnss_local_;
+  std::shared_ptr<DataCluster::GNSS> gnss_local_;
 };
 
 }

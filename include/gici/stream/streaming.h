@@ -28,17 +28,15 @@ enum class StreamIOType {
 
 class Streaming {
 public:
-  using Ptr = std::shared_ptr<Streaming>;
-
   // Types
   using PipelineDirect = std::function<void(const uint8_t *buf, int size)>;
-  using PipelineConvert = std::function<void(const std::string&, const DataFormat::Ptr&)>;
-  using Datasets = std::vector<std::vector<DataFormat::Ptr>>;
-  using DataCallback = std::function<void(const std::string&, const DataFormat::Ptr&)>;
+  using PipelineConvert = std::function<void(const std::string&, const std::shared_ptr<DataCluster>&)>;
+  using DataClusters = std::vector<std::vector<std::shared_ptr<DataCluster>>>;
+  using DataCallback = std::function<void(const std::string&, const std::shared_ptr<DataCluster>&)>;
   struct FormatorCtrl {
     std::string tag, input_tag;
     StreamIOType type;
-    FormatorBase::Ptr formator;
+    std::shared_ptr<FormatorBase> formator;
   };
 
 
@@ -62,10 +60,11 @@ public:
 
   // Pipeline sends decoded data to logging stream
   void pipelineConvertCallback(
-    const std::string& tag, const DataFormat::Ptr& data);
+    const std::string& tag, const std::shared_ptr<DataCluster>& data);
 
   // Send solution data to output stream
-  void solutionOutputCallback(const Solution& solution);
+  void solutionOutputCallback(
+    std::string tag, SolutionRole role, Solution& solution);
 
   // Check if has formator tag
   inline bool hasFormatorTag(std::string tag) {
@@ -104,10 +103,10 @@ protected:
 
   // Stream control
   std::string tag_, input_tag_;  // streamer tags
-  StreamerBase::Ptr streamer_;
+  std::shared_ptr<StreamerBase> streamer_;
   std::vector<FormatorCtrl> formators_;
-  Datasets datasets_;
-  std::vector<DataCallback> data_callbacks_;
+  DataClusters data_clusters_;  // store data from each formators
+  std::vector<DataCallback> data_callbacks_;  // call external function to send data out
   using PipelinesDirect = std::map<std::string, PipelineDirect>;
   PipelinesDirect pipelines_direct_; // sending data directly to logging streams
   // outer string: send from whom, inner string: who encode the data

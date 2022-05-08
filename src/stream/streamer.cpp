@@ -364,7 +364,7 @@ int V4l2Streamer::write(uint8_t *buf, int size)
 // Get stream handle from yaml
 #define MAP_STREAMER(Type, Streamer) \
   if (type == Type) { return std::make_shared<Streamer>(node); }
-StreamerBase::Ptr makeStreamer(YAML::Node& node) {
+std::shared_ptr<StreamerBase> makeStreamer(YAML::Node& node) {
   if (!node["type"].IsDefined()) {
     LOG(FATAL) << "Unable to load streamer type!";
   }
@@ -378,6 +378,8 @@ StreamerBase::Ptr makeStreamer(YAML::Node& node) {
   MAP_STREAMER(StreamerType::NtripServer, NtripServerStreamer);
   MAP_STREAMER(StreamerType::NtripClient, NtripClientStreamer);
   MAP_STREAMER(StreamerType::V4L2, V4l2Streamer);
+  if (type == StreamerType::Ros) return nullptr;
+
   LOG(FATAL) << "Streamer type not supported!";
 }
 

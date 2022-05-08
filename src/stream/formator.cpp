@@ -11,10 +11,11 @@
 #include <vikit/timer.h>
 
 #include "gici/gnss/gnss_common.h"
+#include "gici/utility/transform.h"
 
 namespace gici {
 
-DataFormat::DataFormat(FormatorType type)
+DataCluster::DataCluster(FormatorType type)
 {
   if (type == FormatorType::RTCM2 || type == FormatorType::RTCM3 ||
     type == FormatorType::GnssRaw) {
@@ -35,13 +36,13 @@ DataFormat::DataFormat(FormatorType type)
     return;
   }
   if (type == FormatorType::ImagePack || type == FormatorType::ImageV4L2) {
-    LOG(FATAL) << "Cannot initialize DataFormat::Image: "
+    LOG(FATAL) << "Cannot initialize DataCluster::Image: "
            << "Image length should be given!";
   }
   LOG(FATAL) << "Cannot initialize: Data format not recognized!";
 }
 
-DataFormat::DataFormat(FormatorType type, int _width, int _height)
+DataCluster::DataCluster(FormatorType type, int _width, int _height)
 {
   if (type == FormatorType::ImagePack || type == FormatorType::ImageV4L2) {
     image = std::make_shared<Image>();
@@ -51,13 +52,13 @@ DataFormat::DataFormat(FormatorType type, int _width, int _height)
   LOG(FATAL) << "Cannot initialize: Data format not recognized!";
 }
 
-DataFormat::~DataFormat()
+DataCluster::~DataCluster()
 {
   if (gnss != nullptr) gnss->free();
   if (image != nullptr) image->free();
 }
 
-void DataFormat::GNSS::init()
+void DataCluster::GNSS::init()
 {
   if (!(observation = (obs_t *)malloc(sizeof(obs_t))) ||
     !(observation->data = (obsd_t *)malloc(sizeof(obsd_t) * MAXOBS)) ||
@@ -76,7 +77,7 @@ void DataFormat::GNSS::init()
   memset(antenna, 0, sizeof(sta_t));
 }
 
-void DataFormat::GNSS::free()
+void DataCluster::GNSS::free()
 {
   ::free(observation->data);
   ::free(observation); observation = NULL;
@@ -85,7 +86,7 @@ void DataFormat::GNSS::free()
   ::free(antenna); antenna = NULL;
 }
 
-void DataFormat::Image::init(int _width, int _height)
+void DataCluster::Image::init(int _width, int _height)
 {
   width = _width;
   height = _height;
@@ -93,7 +94,7 @@ void DataFormat::Image::init(int _width, int _height)
     free();
 }
 
-void DataFormat::Image::free()
+void DataCluster::Image::free()
 {
   ::free(image);
 }
@@ -102,26 +103,19 @@ namespace gnss_common {
 
 // Update observation data
 extern void updateObservation(
-  obs_t *obs, DataFormat::GNSS::Ptr& gnss_data)
+  obs_t *obs, std::shared_ptr<DataCluster::GNSS>& gnss_data)
 {
-    int n = 0;
-    for (int i = 0; i < obs->n; i++) {
-      gnss_data->observation[0].data[n++] = obs->data[i];
-    }
-    gnss_data->observation[0].n = n;
-    sortobs(&gnss_data->observation[0]);
-
-    //   int n = 0;
-    // for (int i = 0; i < obs->n; i++) {
-    //   gnss_data[iobs]->observation[0].data[n++] = obs->data[i];
-    // }
-    // gnss_data[iobs]->observation[0].n = n;
-    // sortobs(&gnss_data[iobs]->observation[0]);
+  int n = 0;
+  for (int i = 0; i < obs->n; i++) {
+    gnss_data->observation[0].data[n++] = obs->data[i];
+  }
+  gnss_data->observation[0].n = n;
+  sortobs(&gnss_data->observation[0]);
 }
 
 // Update ephemeris
 extern void updateEphemeris(
-  nav_t *nav, int sat, DataFormat::GNSS::Ptr& gnss_data)
+  nav_t *nav, int sat, std::shared_ptr<DataCluster::GNSS>& gnss_data)
 {
   eph_t *eph1, *eph2, *eph3;
   geph_t *geph1, *geph2, *geph3;
@@ -154,7 +148,7 @@ extern void updateEphemeris(
 
 // Update ion/utc parameters
 extern void updateIonAndUTC(
-  nav_t *nav, DataFormat::GNSS::Ptr& gnss_data)
+  nav_t *nav, std::shared_ptr<DataCluster::GNSS>& gnss_data)
 {
   matcpy(gnss_data->ephemeris->utc_gps, nav->utc_gps,8,1);
   matcpy(gnss_data->ephemeris->utc_glo, nav->utc_glo,8,1);
@@ -172,7 +166,7 @@ extern void updateIonAndUTC(
 
 // Update antenna position
 extern void updateAntennaPosition(
-  sta_t *sta, DataFormat::GNSS::Ptr& gnss_data)
+  sta_t *sta, std::shared_ptr<DataCluster::GNSS>& gnss_data)
 {
   if (sta == NULL) {
     LOG(ERROR) << "Antenna position parameter has NULL pointer!";
@@ -200,7 +194,7 @@ extern void updateAntennaPosition(
 
 // Update ssr corrections
 extern void updateSSR(
-  ssr_t *ssr, DataFormat::GNSS::Ptr& gnss_data)
+  ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data)
 {
   if (ssr == NULL) {
     LOG(ERROR) << "SSR parameter has NULL pointer!";
@@ -223,7 +217,7 @@ extern void updateSSR(
 // Select data from GNSS stream
 extern void updateStreamData(int ret, obs_t *obs, nav_t *nav, 
   sta_t *sta, ssr_t *ssr, int iobs, int sat, 
-  std::vector<DataFormat::GNSS::Ptr>& gnss_data)
+  std::vector<std::shared_ptr<DataCluster::GNSS>>& gnss_data)
 {
   GnssDataType type = static_cast<GnssDataType>(ret);
   // Observation data
@@ -269,7 +263,7 @@ RTCM2Formator::RTCM2Formator(Config& config)
   init_rtcm(&rtcm_);
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
-    data_.push_back(std::make_shared<DataFormat>(type_));
+    data_.push_back(std::make_shared<DataCluster>(type_));
   }
 }
 
@@ -285,7 +279,7 @@ RTCM2Formator::RTCM2Formator(YAML::Node& node)
   init_rtcm(&rtcm_);
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
-    data_.push_back(std::make_shared<DataFormat>(type_));
+    data_.push_back(std::make_shared<DataCluster>(type_));
   }
 }
 
@@ -296,10 +290,10 @@ RTCM2Formator::~RTCM2Formator()
 
 // Decode stream to data
 int RTCM2Formator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   // Clear old informations and get GNSS data handle
-  std::vector<DataFormat::GNSS::Ptr> gnss_data;
+  std::vector<std::shared_ptr<DataCluster::GNSS>> gnss_data;
   for (size_t i = 0; i < data_.size(); i++) {
     data_[i]->gnss->types.clear();
     gnss_data.push_back(data_[i]->gnss);
@@ -320,7 +314,7 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
     gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
     GnssDataType type = static_cast<GnssDataType>(ret);
-    DataFormat::GNSS::Ptr& gnss = 
+    std::shared_ptr<DataCluster::GNSS>& gnss = 
       type == GnssDataType::Observation ? gnss_data[iobs] : gnss_data[0];
     if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
@@ -344,7 +338,7 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
 }
 
 // Encode data to stream
-int RTCM2Formator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int RTCM2Formator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   LOG(ERROR) << "RTCM2 Encoding not supported!";
   return 0;
@@ -359,7 +353,7 @@ RTCM3Formator::RTCM3Formator(Config& config)
   init_rtcm(&rtcm_);
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
-    data_.push_back(std::make_shared<DataFormat>(type_));
+    data_.push_back(std::make_shared<DataCluster>(type_));
   }
 }
 
@@ -375,7 +369,7 @@ RTCM3Formator::RTCM3Formator(YAML::Node& node)
   init_rtcm(&rtcm_);
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
-    data_.push_back(std::make_shared<DataFormat>(type_));
+    data_.push_back(std::make_shared<DataCluster>(type_));
   }
 }
 
@@ -386,10 +380,10 @@ RTCM3Formator::~RTCM3Formator()
 
 // Decode stream to data
 int RTCM3Formator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   // Clear old informations and get GNSS data handle
-  std::vector<DataFormat::GNSS::Ptr> gnss_data;
+  std::vector<std::shared_ptr<DataCluster::GNSS>> gnss_data;
   for (size_t i = 0; i < data_.size(); i++) {
     data_[i]->gnss->types.clear();
     gnss_data.push_back(data_[i]->gnss);
@@ -411,7 +405,7 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
     gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
     GnssDataType type = static_cast<GnssDataType>(ret);
-    DataFormat::GNSS::Ptr& gnss = 
+    std::shared_ptr<DataCluster::GNSS>& gnss = 
       type == GnssDataType::Observation ? gnss_data[iobs] : gnss_data[0];
     if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
@@ -436,7 +430,7 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
 
 // Encode data to stream
 int RTCM3Formator::encode(
-  const DataFormat::Ptr& data, uint8_t *buf)
+  const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   // Check the control structure
   std::map<GnssDataType, bool> type_valid;
@@ -496,7 +490,7 @@ GnssRawFormator::GnssRawFormator(Config& config)
   init_raw(&raw_, static_cast<int>(format_));
   raw_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
-    data_.push_back(std::make_shared<DataFormat>(type_));
+    data_.push_back(std::make_shared<DataCluster>(type_));
   }
 }
   
@@ -513,7 +507,7 @@ GnssRawFormator::GnssRawFormator(YAML::Node& node)
   init_raw(&raw_, static_cast<int>(format_));
   raw_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
-    data_.push_back(std::make_shared<DataFormat>(type_));
+    data_.push_back(std::make_shared<DataCluster>(type_));
   }
 } 
 
@@ -524,10 +518,10 @@ GnssRawFormator::~GnssRawFormator()
 
 // Decode stream to data
 int GnssRawFormator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   // Clear old informations and get GNSS data handle
-  std::vector<DataFormat::GNSS::Ptr> gnss_data;
+  std::vector<std::shared_ptr<DataCluster::GNSS>> gnss_data;
   for (size_t i = 0; i < data_.size(); i++) {
     data_[i]->gnss->types.clear();
     gnss_data.push_back(data_[i]->gnss);
@@ -547,7 +541,7 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
     gnss_common::updateStreamData(
         ret, obs, nav, sta, NULL, iobs, sat, gnss_data);
     GnssDataType type = static_cast<GnssDataType>(ret);
-    DataFormat::GNSS::Ptr& gnss = 
+    std::shared_ptr<DataCluster::GNSS>& gnss = 
       type == GnssDataType::Observation ? gnss_data[iobs] : gnss_data[0];
     if (std::find(gnss->types.begin(), gnss->types.end(), type)
       == gnss->types.end()) {
@@ -571,7 +565,7 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
 }
 
 // Encode data to stream
-int GnssRawFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int GnssRawFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   LOG(ERROR) << "GNSS-Raw Encoding not supported!";
   return 0;
@@ -583,7 +577,7 @@ ImageV4L2Formator::ImageV4L2Formator(Config& config)
   type_ = FormatorType::ImageV4L2;
 
   init_img(&image_, config.width, config.height);
-  data_.push_back(std::make_shared<DataFormat>(
+  data_.push_back(std::make_shared<DataCluster>(
     FormatorType::ImageV4L2, config.width, config.height));
 }
 
@@ -596,7 +590,7 @@ ImageV4L2Formator::ImageV4L2Formator(YAML::Node& node)
   type_ = FormatorType::ImageV4L2;
 
   init_img(&image_, config.width, config.height);
-  data_.push_back(std::make_shared<DataFormat>(
+  data_.push_back(std::make_shared<DataCluster>(
     FormatorType::ImageV4L2, config.width, config.height));
 }
 
@@ -607,7 +601,7 @@ ImageV4L2Formator::~ImageV4L2Formator()
 
 // Decode stream to data
 int ImageV4L2Formator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   int ret = input_image_v4l2(&image_, buf, size);
   if (ret <= 0) return 0;
@@ -620,7 +614,7 @@ int ImageV4L2Formator::decode(const uint8_t *buf, int size,
 }
 
 // Encode data to stream
-int ImageV4L2Formator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int ImageV4L2Formator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   LOG(ERROR) << "Image-V4L2 Encoding not supported!";
   return 0;
@@ -633,7 +627,7 @@ ImagePackFormator::ImagePackFormator(Config& config)
 
   init_img(&image_, config.width, config.height);
   for (int i = 0; i < MaxDataSize::ImagePack; i++) {
-    data_.push_back(std::make_shared<DataFormat>(
+    data_.push_back(std::make_shared<DataCluster>(
       FormatorType::ImagePack, config.width, config.height));
   }
 }
@@ -648,7 +642,7 @@ ImagePackFormator::ImagePackFormator(YAML::Node& node)
 
   init_img(&image_, config.width, config.height);
   for (int i = 0; i < MaxDataSize::ImagePack; i++) {
-    data_.push_back(std::make_shared<DataFormat>(
+    data_.push_back(std::make_shared<DataCluster>(
       FormatorType::ImagePack, config.width, config.height));
   }
 }
@@ -660,7 +654,7 @@ ImagePackFormator::~ImagePackFormator()
 
 // Decode stream to data
 int ImagePackFormator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   int iobs = 0;
   for (int i = 0; i < size; i++) {
@@ -688,7 +682,7 @@ int ImagePackFormator::decode(const uint8_t *buf, int size,
 
 // Encode data to stream
 int ImagePackFormator::encode(
-    const DataFormat::Ptr& data, uint8_t *buf)
+    const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   img_t *image;
   init_img(image, data->image->width, data->image->height);
@@ -727,7 +721,7 @@ IMUPackFormator::~IMUPackFormator()
 
 // Decode stream to data
 int IMUPackFormator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   int n_data = 0;
   data.clear();
@@ -735,8 +729,8 @@ int IMUPackFormator::decode(const uint8_t *buf, int size,
     int ret = input_imu(&imu_, buf[i]);
     if (ret <= 0) continue;
 
-    DataFormat::Ptr data_ptr;
-    data_ptr = std::make_shared<DataFormat>(FormatorType::IMUPack);
+    std::shared_ptr<DataCluster> data_ptr;
+    data_ptr = std::make_shared<DataCluster>(FormatorType::IMUPack);
     data_ptr->imu->time = gnss_common::gtimeToDouble(imu_.time);
     for (int k = 0; k < 3; k++) {
       data_ptr->imu->acceleration[k] = imu_.acc[k];
@@ -754,7 +748,7 @@ int IMUPackFormator::decode(const uint8_t *buf, int size,
 }
 
 // Encode data to stream
-int IMUPackFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int IMUPackFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   imu_t *imu;
   init_imu(imu);
@@ -790,13 +784,13 @@ OptionFormator::~OptionFormator()
 
 // Decode stream to data
 int OptionFormator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   return 0;
 }
 
 // Encode data to stream
-int OptionFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int OptionFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   return 0;
 }
@@ -828,7 +822,7 @@ NmeaFormator::~NmeaFormator()
 
 // Decode stream to data
 int NmeaFormator::decode(const uint8_t *buf, int size, 
-    std::vector<DataFormat::Ptr>& data)
+    std::vector<std::shared_ptr<DataCluster>>& data)
 {
   LOG(ERROR) << "NMEA decoding not supported!";
 
@@ -836,9 +830,20 @@ int NmeaFormator::decode(const uint8_t *buf, int size,
 }
 
 // Encode data to stream
-int NmeaFormator::encode(const DataFormat::Ptr& data, uint8_t *buf)
+int NmeaFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   if (data->solution == nullptr) return 0;
+
+#if 1
+  // Rotate to body frame for gici-board (camera perspective is the y-axis, the right
+  // hand side is the x-axis, and the up direction is the z-axis).
+  Eigen::Quaterniond R_SB = 
+    Eigen::AngleAxisd(PI / 2, Eigen::Vector3d::UnitZ()) * 
+    Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) * 
+    Eigen::AngleAxisd(PI / 2, Eigen::Vector3d::UnitX());
+  Transformation T_SB(Eigen::Vector3d::Zero(), R_SB);
+  data->solution->pose = data->solution->pose * T_SB;
+#endif
 
   uint8_t *p = buf;
   if (config_.use_gga) {
@@ -960,9 +965,8 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
 {
   sol_t sol;
   convertSolution(solution, sol);
-  Eigen::Vector3d ypr = 
-    solution.integrate_pose.getEigenQuaternion().matrix().eulerAngles(2, 1, 0);
-  ypr *= R2D;
+  Eigen::Vector3d rpy = quaternionToEulerAngle(solution.pose.getEigenQuaternion());
+  rpy *= R2D;
 
   gtime_t time;
   double h,ep[6],pos[3],dms1[3],dms2[3],dop=1.0;
@@ -982,7 +986,7 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
   p+=sprintf(p,"$%sESA,%02.0f%02.0f%06.3f,%+.3f,%+.3f,%+.3f,"
              "%+.3f,%+.3f,%+.3f",
              config_.talker_id.data(),ep[3],ep[4],ep[5],sol.rr[3],sol.rr[4],sol.rr[5],
-             ypr[2],ypr[1],ypr[0]);
+             rpy[0],rpy[1],rpy[2]);
   for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
   p+=sprintf(p,"*%02X\r\n",sum);
   return p-(char *)buf;
@@ -997,13 +1001,14 @@ void NmeaFormator::convertSolution(const Solution& solution, sol_t& sol)
   sol.age = solution.differential_age;
   sol.ns = solution.num_satellites;
   Eigen::Map<Eigen::Vector3d> rr(sol.rr);
-  rr = solution.coordinate->convert(
-    solution.integrate_pose.getPosition(), GeoType::ENU, GeoType::ECEF);
+  rr = solution.backend.coordinate->convert(
+    solution.pose.getPosition(), GeoType::ENU, GeoType::ECEF);
   for (int i = 0; i < 3; i++) sol.rr[i + 3] = solution.speed_and_bias(i);
   if (solution.status == GnssSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
   else if (solution.status == GnssSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
   else if (solution.status == GnssSolutionStatus::DGNSS) sol.stat = SOLQ_DGPS;
   else if (solution.status == GnssSolutionStatus::Single) sol.stat = SOLQ_SINGLE;
+  else if (solution.status == GnssSolutionStatus::DeadReckoning) sol.stat = SOLQ_DR;
   else sol.stat = SOLQ_NONE;
 }
 
@@ -1022,7 +1027,7 @@ inline static FormatorType loadType(YAML::Node& node)
   option_tools::convert(type_str, type);
   return type;
 }
-FormatorBase::Ptr makeFormator(YAML::Node& node)
+std::shared_ptr<FormatorBase> makeFormator(YAML::Node& node)
 {
   FormatorType type = loadType(node);
   MAP_FORMATOR(FormatorType::RTCM2, RTCM2Formator);

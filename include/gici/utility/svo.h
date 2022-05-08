@@ -84,6 +84,7 @@ using SparseImgAlign = svo::SparseImgAlign;
 using SeedRef = svo::SeedRef;
 using GradientVector = svo::GradientVector;
 using CameraConstPtr = svo::CameraConstPtr;
+using Map = svo::Map;
 using MapPtr = svo::MapPtr;
 
 }

@@ -58,6 +58,27 @@ NCamera::Ptr NCamera::loadFromYaml(const std::string& yaml_file)
   return NCamera::Ptr();
 }
 
+NCamera::Ptr NCamera::loadFromYaml(const YAML::Node node)
+{
+  NCamera::Ptr ncam = node.as<NCamera::Ptr>();
+
+  const YAML::Node& cameras_node = node["cameras"];
+  CHECK_EQ(cameras_node.size(), ncam->numCameras())
+      << "YAML file and NCamera are not consistent.";
+  for(size_t i=0; i<cameras_node.size(); i++)
+  {
+    const YAML::Node& cam_node = (cameras_node[i])["camera"];
+    const YAML::Node& mask = cam_node["mask"];
+    Camera::Ptr cam = ncam->getCameraShared(i);
+    if(mask)
+    {
+      cam->loadMask(mask.as<std::string>());
+    }
+  }
+
+  return ncam;
+}
+
 void NCamera::initInternal()
 {
   CHECK_EQ(cameras_.size(), T_C_B_.size());

@@ -149,6 +149,9 @@ bool useCode(GnssCommonOptions options, char system, const int code_type)
 bool checkElevation(GnssCommonOptions options, 
   const GnssMeasurement& measurement, std::string prn)
 {
+  // no elevation mask
+  if (options.min_elevation == 0.0) return true;
+
   if (checkZero(measurement.position)) {
     // we do not know whether to use this satellite
     return true;
@@ -212,11 +215,6 @@ bool checkObservationValid(const GnssMeasurement& measurement,
 
   // Satellite not used
   if (!gnss_common::useSatellite(options, satellite.prn)) return false;
-
-  // We do not use the phaseranges of BDS-1 and BDS-2
-  // if (type == ObservationType::Phaserange && 
-  //     satellite.getSystem() == 'C' && 
-  //     atoi(satellite.prn.substr(1, 2).data()) <= 17) return false;
 
   // Ephemeris invalid
   if (satellite.sat_type == SatEphType::None ||
@@ -419,9 +417,26 @@ GnssMeasurementDDIndexPairs formPseudorangeDDPair(
   std::map<char, std::string> system_to_base_prn;
   for (size_t i = 0; i < GnssSystems.size(); i++) {
     char system = GnssSystems[i];
+
+    // check if we have a BDS-3 satellite
+    bool only_use_bds3 = false;
+    if (system == 'C') {
+      for (size_t j = 0; j < sd_pairs.size(); j++) {
+        if (sd_pairs[j].rov.prn[0] != 'C') continue;
+        if (!isBds1(sd_pairs[j].rov.prn) && !isBds2(sd_pairs[j].rov.prn)) {
+          only_use_bds3 = true; break;
+        }
+      }
+    }
+
+    // find satellite with maximum elevation angle
     double max_elevation = 0.0;
     for (size_t j = 0; j < sd_pairs.size(); j++) {
       if (sd_pairs[j].rov.prn[0] != system) continue;
+
+      // we try not to use BDS-1 or BDS-2 satellite
+      if (only_use_bds3 && (isBds1(sd_pairs[j].rov.prn) || 
+          isBds2(sd_pairs[j].rov.prn))) continue;
 
       // we only select satellites with max phase number
       if (prn_to_number_codes.at(sd_pairs[j].rov.prn) != 
@@ -439,7 +454,6 @@ GnssMeasurementDDIndexPairs formPseudorangeDDPair(
 
   // Form DD pair
   GnssMeasurementDDIndexPairs dd_pairs;
-  // Form DD pair
   for (size_t i = 0; i < sd_pairs.size(); i++) {
     char system = sd_pairs[i].rov.prn[0];
     std::string prn = sd_pairs[i].rov.prn;
@@ -522,9 +536,25 @@ GnssMeasurementDDIndexPairs formPhaserangeDDPair(
   std::map<char, std::string> system_to_base_prn;
   for (size_t i = 0; i < GnssSystems.size(); i++) {
     char system = GnssSystems[i];
+
+    // check if we have a BDS-3 satellite
+    bool only_use_bds3 = false;
+    if (system == 'C') {
+      for (size_t j = 0; j < sd_pairs.size(); j++) {
+        if (sd_pairs[j].rov.prn[0] != 'C') continue;
+        if (!isBds1(sd_pairs[j].rov.prn) && !isBds2(sd_pairs[j].rov.prn)) {
+          only_use_bds3 = true; break;
+        }
+      }
+    }
+
     double max_elevation = 0.0;
     for (size_t j = 0; j < sd_pairs.size(); j++) {
       if (sd_pairs[j].rov.prn[0] != system) continue;
+
+      // we try not to use BDS-1 or BDS-2 satellite
+      if (only_use_bds3 && (isBds1(sd_pairs[j].rov.prn) || 
+          isBds2(sd_pairs[j].rov.prn))) continue;
 
       // we only select satellites with max phase number
       if (prn_to_number_phases.at(sd_pairs[j].rov.prn) != 
@@ -542,7 +572,6 @@ GnssMeasurementDDIndexPairs formPhaserangeDDPair(
 
   // Form DD pair
   GnssMeasurementDDIndexPairs dd_pairs;
-  // Form DD pair
   for (size_t i = 0; i < sd_pairs.size(); i++) {
     char system = sd_pairs[i].rov.prn[0];
     std::string prn = sd_pairs[i].rov.prn;

@@ -69,13 +69,6 @@ struct Satellite {
   std::map<std::pair<int, int>, double> DCBs;
   std::map<std::pair<int, int>, double> DPBs;
 
-  double TGDs[6]; // group delay parameters in meter
-                  // GPS/QZS:tgd[0]=TGD 
-                  // GAL:tgd[0]=BGD_E1E5a,tgd[1]=BGD_E1E5b 
-                  // BDS:tgd[0]=TGD_B1I ,tgd[1]=TGD_B2I/B2b,tgd[2]=TGD_B1Cp 
-                  //     tgd[3]=TGD_B2ap,tgd[4]=ISC_B1Cd   ,tgd[5]=ISC_B2ad 
-                  // GLO:tgd[0]=delay between L1 and L2 (s)
-
   double ionosphere;  // In 1575.42 MHz frequency
   IonoType ionosphere_type;
   
@@ -190,7 +183,8 @@ enum class GnssSolutionStatus {
   Single, 
   DGNSS,
   Float,
-  Fixed
+  Fixed,
+  DeadReckoning
 };
 
 // Solutions
@@ -204,6 +198,7 @@ struct GnssSolution {
   Eigen::Matrix<double, 6, 6> covariance;
   GnssSolutionStatus status;
   int num_satellites;
+  int differential_age;
 };
 
 // GNSS common options

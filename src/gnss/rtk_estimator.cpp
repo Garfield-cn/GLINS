@@ -41,10 +41,10 @@ bool RtkEstimator::addGnssMeasurementAndState(
                     const GnssMeasurement& measurement_ref)
 {
   // Check timestamp
-  if (fabs(measurement_rov.timestamp - measurement_ref.timestamp) > options_.max_age) {
+  differential_age_ = fabs(measurement_rov.timestamp - measurement_ref.timestamp);
+  if (differential_age_ > options_.max_age) {
     LOG(WARNING) << "Max age between two measurements exceeded! "
-      << "age = " << fabs(measurement_rov.timestamp - measurement_ref.timestamp)
-      << ", max_age = " << options_.max_age;
+      << "age = " << differential_age_ << ", max_age = " << options_.max_age;
     return false;
   }
 
@@ -167,7 +167,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
       // add a residual to avoid rand deficiency
       std::vector<double> coefficients = {1.0};
       std::shared_ptr<AmbiguityError1Coef> ambiguity_error = 
-        std::make_shared<AmbiguityError1Coef>(ambiguity_init(0, 0), 1.0, coefficients);
+        std::make_shared<AmbiguityError1Coef>(ambiguity_init(0, 0), 1e-2, coefficients);
       graph_ptr_->addResidualBlock(ambiguity_error, nullptr, 
         ambiguity_base_parameter_block);
     }
@@ -258,7 +258,6 @@ void RtkEstimator::optimize()
   // graph_ptr_->options.callbacks.push_back(debug_callback_.get());
 
   if (options_.verbose) {
-    graph_ptr_->options.logging_type = ceres::LoggingType::SILENT;
     graph_ptr_->options.minimizer_progress_to_stdout = true;
   }
   else {
@@ -328,6 +327,7 @@ GnssSolution RtkEstimator::getSolution()
   solution.position.setZero();
   solution.velocity.setZero();
   solution.num_satellites = num_satellites_;
+  solution.differential_age = differential_age_;
   if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
     return solution;
   }

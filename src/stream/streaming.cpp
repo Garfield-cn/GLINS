@@ -75,7 +75,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
       StreamIOType type;
       option_tools::convert(type_str, type);
 
-      FormatorBase::Ptr formator = makeFormator(it);
+      std::shared_ptr<FormatorBase> formator = makeFormator(it);
       FormatorCtrl formator_ctrl;
       formator_ctrl.formator = formator;
       formator_ctrl.tag = it["tag"].as<std::string>();
@@ -88,7 +88,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
         }
       }
       formators_.push_back(formator_ctrl);
-      datasets_.push_back(std::vector<DataFormat::Ptr>());
+      data_clusters_.push_back(std::vector<std::shared_ptr<DataCluster>>());
 
       if (type == StreamIOType::Input) has_input_ = true;
       if (type == StreamIOType::Log) has_logging_ = true;
@@ -202,10 +202,10 @@ void Streaming::pipelineDirectCallback(const uint8_t *buf, int size)
 
 // Pipeline sends decoded data to logging stream
 void Streaming::pipelineConvertCallback(
-  const std::string& tag, const DataFormat::Ptr& data)
+  const std::string& tag, const std::shared_ptr<DataCluster>& data)
 {
   // Find formator
-  FormatorBase::Ptr formator = nullptr;
+  std::shared_ptr<FormatorBase> formator = nullptr;
   for (size_t i = 0; i < formators_.size(); i++) {
     if (formators_[i].type != StreamIOType::Log) continue;
     if (formators_[i].tag != tag) continue;
@@ -224,10 +224,11 @@ void Streaming::pipelineConvertCallback(
 }
 
 // Send solution data to output stream
-void Streaming::solutionOutputCallback(const Solution& solution)
+void Streaming::solutionOutputCallback(
+  std::string tag, SolutionRole role, Solution& solution)
 {
   // Find formator
-  FormatorBase::Ptr formator = nullptr;
+  std::shared_ptr<FormatorBase> formator = nullptr;
   for (size_t i = 0; i < formators_.size(); i++) {
     if (formators_[i].type != StreamIOType::Output) continue;
     formator = formators_[i].formator;
@@ -239,7 +240,7 @@ void Streaming::solutionOutputCallback(const Solution& solution)
 
   // Encode
   mutex_output_.lock();
-  DataFormat::Ptr data = std::make_shared<DataFormat>(FormatorType::NMEA);
+  std::shared_ptr<DataCluster> data = std::make_shared<DataCluster>(FormatorType::NMEA);
   *data->solution = solution;
   buf_size_output_ = formator->encode(data, buf_output_);
   need_output_ = true;
@@ -319,8 +320,8 @@ void Streaming::processInput()
   // Decode stream
   for (size_t i = 0; i < formators_.size(); i++) {
     if (formators_[i].type != StreamIOType::Input) continue;
-    FormatorBase::Ptr& formator = formators_[i].formator;
-    std::vector<DataFormat::Ptr>& dataset = datasets_[i];
+    std::shared_ptr<FormatorBase>& formator = formators_[i].formator;
+    std::vector<std::shared_ptr<DataCluster>>& dataset = data_clusters_[i];
     int nobs = formator->decode(buf_input_, buf_size_input_, dataset);
     
     // Call convertion callbacks

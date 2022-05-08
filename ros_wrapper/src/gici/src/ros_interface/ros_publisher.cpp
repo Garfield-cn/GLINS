@@ -4,7 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/ros_interface/publisher.h"
+#include "gici/ros_interface/ros_publisher.h"
 
 #include <opencv2/opencv.hpp>
 #include <geometry_msgs/PoseWithCovarianceStamped.h>
@@ -18,7 +18,7 @@
 namespace gici {
 
 // Configures
-const double position_scale = 0.1;
+const double position_scale = 1.0;
 
 // Draw features on image
 static void drawFeatures(
@@ -30,7 +30,6 @@ static void drawFeatures(
 
   *img_rgb = cv::Mat(frame.img_pyr_[0].size(), CV_8UC3);
   cv::cvtColor(frame.img_pyr_[0], *img_rgb, cv::COLOR_GRAY2RGB);
-  int ploted_cnt = 0;
   for(size_t i = 0; i < frame.num_features_; ++i)
   {
     const auto& px = frame.px_vec_.col(i);
@@ -56,10 +55,9 @@ static void drawFeatures(
       case FeatureType::kCornerSeedConverged:
       case FeatureType::kMapPointSeed:
       case FeatureType::kMapPointSeedConverged: {
-#if 1
         size_t obs_size = frame.landmark_vec_[i]->obs_.size();
         cv::Scalar bgr = cv::Scalar(0, 0, 0);
-        const int max_size = 20;
+        const int max_size = 10;
         bgr(2) = obs_size * 255 / max_size;
         bgr(1) = 255 - obs_size * 255 / max_size;
         // bgr(0) = (obs_size < max_size / 2) ? 
@@ -78,18 +76,6 @@ static void drawFeatures(
             cv::line(*img_rgb, begin_extend, end, bgr, 1);
           }
         }
-#else
-        cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), 2, cv::Scalar(0, 0, 255), -1);
-        int circle_radius = 0;
-        if (frame.landmark_vec_[i]) {
-          circle_radius = (10 - frame.landmark_vec_[i]->obs_.size()) / 2;
-          circle_radius += 3;
-          if (circle_radius < 3) circle_radius = 3;
-        }
-        else circle_radius = 10 + 3;
-        cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), 
-                  circle_radius, cv::Scalar(0, 255, 0), 1);
-#endif
         break;
       }
       default:
@@ -97,9 +83,7 @@ static void drawFeatures(
                     5, cv::Scalar(0, 0, 255), -1);
         break;
     }
-    ploted_cnt++;
   }
-  LOG(INFO) << "Published " << ploted_cnt << " seeds.";
 }
 
 
@@ -120,12 +104,6 @@ void publishFeaturedImage(ros::Publisher& pub,
 {
   cv::Mat img_rgb;
   drawFeatures(*frame, false, &img_rgb);
-  if (frame->isKeyframe()) {
-    cv::imwrite("/home/cc/datasets/tmp/keyframe.png", img_rgb);
-  }
-  else {
-    cv::imwrite("/home/cc/datasets/tmp/nonkeyframe.png", img_rgb);
-  }
   sensor_msgs::ImagePtr img_msg = 
     cv_bridge::CvImage(std_msgs::Header(), sensor_msgs::
     image_encodings::BGR8, img_rgb).toImageMsg();
@@ -133,8 +111,8 @@ void publishFeaturedImage(ros::Publisher& pub,
   pub.publish(img_msg);
 }
 
-// Publish seeds
-void publishSeeds(ros::Publisher& pub, 
+// Publish features
+void publishFeatures(ros::Publisher& pub, 
   const MapPtr& map, const ros::Time time, 
   std::string frame_id)
 {
@@ -144,7 +122,7 @@ void publishSeeds(ros::Publisher& pub,
   visualization_msgs::Marker m;
   m.header.frame_id = frame_id;
   m.header.stamp = time;
-  m.ns = "seeds";
+  m.ns = "features";
   m.id = 0;
   m.type = visualization_msgs::Marker::POINTS;
   m.action = 0;  // add/modify
@@ -208,6 +186,29 @@ void publishPoseStamped(ros::Publisher& pub,
   pub.publish(pose_msg);
 }
 
+// Publish pose with covariance
+void publishPoseWithCovarianceStamped(ros::Publisher& pub, 
+  const Transformation& pose, const Eigen::Matrix<double, 6, 6>& covariance,
+  const ros::Time time, std::string frame_id)
+{
+  geometry_msgs::PoseWithCovarianceStamped pose_msg;
+  pose_msg.header.frame_id = frame_id;
+  pose_msg.header.stamp = time;
+  pose_msg.pose.pose.position.x = pose.getPosition()[0] * position_scale;
+  pose_msg.pose.pose.position.y = pose.getPosition()[1] * position_scale;
+  pose_msg.pose.pose.position.z = pose.getPosition()[2] * position_scale;
+  pose_msg.pose.pose.orientation.w = pose.getRotation().w();
+  pose_msg.pose.pose.orientation.x = pose.getRotation().x();
+  pose_msg.pose.pose.orientation.y = pose.getRotation().y();
+  pose_msg.pose.pose.orientation.z = pose.getRotation().z();
+  for (size_t i = 0; i < 6; i++) {
+    for (size_t j = 0; j < 6; j++) {
+      pose_msg.pose.covariance[i * 6 + j] = covariance(i, j);
+    }
+  }
+  pub.publish(pose_msg);
+}
+
 // Publish pose with transform
 void publishPoseWithTransform(ros::Publisher& pub, 
   tf::TransformBroadcaster& broadcaster, 
@@ -229,6 +230,29 @@ void publishPoseWithTransform(ros::Publisher& pub,
 
   // Publish pose
   publishPoseStamped(pub, pose, time, frame_id);
+}
+
+// Publish pose with covariance and transform
+void publishPoseWithCovarianceAndTransform(ros::Publisher& pub, 
+  tf::TransformBroadcaster& broadcaster, 
+  const Transformation& pose, const Eigen::Matrix<double, 6, 6>& covariance,
+  const ros::Time time, std::string frame_id, std::string child_frame_id)
+{
+  // Publish transform
+  tf::Transform transform_msg;
+  auto& T = pose;
+  const Eigen::Quaterniond& q = T.getRotation().toImplementation();
+  transform_msg.setOrigin(
+    tf::Vector3(T.getPosition().x() * position_scale, 
+                T.getPosition().y() * position_scale, 
+                T.getPosition().z() * position_scale));
+  tf::Quaternion tf_q; 
+  tf_q.setX(q.x()); tf_q.setY(q.y()); tf_q.setZ(q.z()); tf_q.setW(q.w());
+  transform_msg.setRotation(tf_q);
+  broadcaster.sendTransform(tf::StampedTransform(transform_msg, time, frame_id, child_frame_id));
+
+  // Publish pose
+  publishPoseWithCovarianceStamped(pub, pose, covariance, time, frame_id);
 }
 
 // Path publisher

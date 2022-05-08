@@ -34,7 +34,7 @@
 #include "gici/gnss/gnss_common.h"
 #include "gici/imu/imu_common.h"
 #include "gici/imu/imu_error.hpp"
-#include "gici/ros_interface/publisher.h"
+#include "gici/ros_interface/ros_publisher.h"
 
 using namespace gici;
 
@@ -75,7 +75,7 @@ void gnssCallback(GnssMeasurement& data)
 
     if (SppEstimator::setCoarsePosition(gnss_measurement_rov_) && 
         coordinate_ == nullptr) {
-      coordinate_.reset(new GeoCoordinate(gnss_measurement_rov_.position, GeoType::ECEF));
+      coordinate_->reset(new GeoCoordinate(gnss_measurement_rov_.position, GeoType::ECEF));
       rtk_imu_tc_estimator_->setCoordinate(coordinate_);
     }
 

@@ -147,6 +147,7 @@ bool SppEstimator::addGnssMeasurementAndState(
     LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites;
     return false;
   }
+  num_satellites_ = num_satellites;
 
   return true;
 }
@@ -214,6 +215,68 @@ double SppEstimator::getClockEstimate(const char system)
   return 0.0;
 }
 
+// Get solution
+GnssSolution SppEstimator::getSolution()
+{
+  GnssSolution solution;
+  std::vector<uint64_t> parameter_block_ids;
+
+  // Position
+  solution.timestamp = current_state_.timestamp;
+  solution.id = current_state_.id.asInteger();
+  solution.status = GnssSolutionStatus::Single;
+  solution.covariance.setZero();
+  solution.position.setZero();
+  solution.velocity.setZero();
+  solution.num_satellites = num_satellites_;
+  solution.differential_age = 0;
+  if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
+    return solution;
+  }
+  else {
+    parameter_block_ids.push_back(current_state_.id.asInteger());
+
+    std::shared_ptr<ParameterBlock> base_ptr =
+        graph_ptr_->parameterBlockPtr(current_state_.id.asInteger());
+    if (base_ptr != nullptr) {
+      std::shared_ptr<PositionParameterBlock> block_ptr = 
+        std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
+      CHECK(block_ptr != nullptr);
+      solution.position = block_ptr->estimate();
+    }
+  }
+
+  // velocity
+  BackendId velocity_id = changeIdType(current_state_.id, IdType::gVelocity);
+  if (!graph_ptr_->parameterBlockExists(velocity_id.asInteger())) {
+    // we did not estimate velocity
+    // get the position covariance and return
+    Eigen::MatrixXd position_covariance;
+    graph_ptr_->computeCovariance(parameter_block_ids, position_covariance);
+    CHECK(position_covariance.cols() == 3);
+    solution.covariance.topLeftCorner(3, 3) = position_covariance;
+  }
+  else {
+    parameter_block_ids.push_back(velocity_id.asInteger());
+
+    std::shared_ptr<ParameterBlock> base_ptr =
+        graph_ptr_->parameterBlockPtr(velocity_id.asInteger());
+    if (base_ptr != nullptr) {
+      std::shared_ptr<VelocityParameterBlock> block_ptr = 
+        std::dynamic_pointer_cast<VelocityParameterBlock>(base_ptr);
+      CHECK(block_ptr != nullptr);
+      solution.velocity = block_ptr->estimate();
+    }
+
+    Eigen::MatrixXd covariance;
+    graph_ptr_->computeCovariance(parameter_block_ids, covariance);
+    CHECK(covariance.cols() == 6);
+    solution.covariance = covariance;
+  }
+
+  return solution;
+}
+
 // Correct DCB (or TGD)
 void SppEstimator::correctDCB(GnssMeasurement& measurement)
 {
@@ -229,7 +292,8 @@ bool SppEstimator::setCoarsePosition(GnssMeasurement& measurement)
   // no elevation mask  
   SppEstimatorOptions options;
   options.common.min_elevation = 0.0;
-  SppEstimatorPtr estimator = std::make_shared<SppEstimator>(options);
+  std::unique_ptr<SppEstimator> estimator = 
+    std::make_unique<SppEstimator>(options);
 
   if (!estimator->addGnssMeasurementAndState(measurement)) {
     return false;

@@ -91,7 +91,7 @@ StreamHandle::StreamHandle(YAML::Node& node)
   }
 
   // Initialize data handles
-  gnss_local_ = std::make_shared<DataFormat::GNSS>();
+  gnss_local_ = std::make_shared<DataCluster::GNSS>();
   gnss_local_->init();
 
   // Start streamings
@@ -113,7 +113,7 @@ StreamHandle::~StreamHandle()
 
 // Handle GNSS data
 void StreamHandle::handleGNSS(const std::string& tag, 
-                              const DataFormat::GNSS::Ptr& gnss)
+                              const std::shared_ptr<DataCluster::GNSS>& gnss)
 {
   // Get role
   if (behaviors_.find(tag) == behaviors_.end()) {
@@ -187,6 +187,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
     gnss_common::gtimeToDouble(gnss->observation->data[0].time));
   epoch.role = role_out;
   epoch.tag = tag;
+  epoch.position.setZero();
   double *rs, *dts, *var;
   double *rs_ssr, *dts_ssr, *var_ssr;
   auto& obs = gnss->observation;
@@ -271,23 +272,24 @@ void StreamHandle::handleGNSS(const std::string& tag,
       }
     }
 
-    // time group delay
-    if (satellite.getSystem() == 'R') {
-      for (int j = 0; j < nav->ng; j++) {
-        if (nav->geph[j].sat == obs->data[i].sat) {
-          satellite.TGDs[0] = -nav->geph[j].dtaun * CLIGHT;
-        }
-      }
-    }
-    else {
-      for (int j = 0; j < nav->n; j++) {
-        if (nav->eph[j].sat == obs->data[i].sat) {
-          for (int k = 0; k < 6; k++) {
-            satellite.TGDs[k] = nav->eph[j].tgd[k] * CLIGHT;
-          }
-        }
-      }
-    }
+    // Time Group Delay (TGD) and Inter-System Corrections (ISC)
+    // we convert them to DCBs 
+    // if (satellite.getSystem() == 'R') {
+    //   for (int j = 0; j < nav->ng; j++) {
+    //     if (nav->geph[j].sat == obs->data[i].sat) {
+    //       satellite.TGDs[0] = -nav->geph[j].dtaun * CLIGHT;
+    //     }
+    //   }
+    // }
+    // else {
+    //   for (int j = 0; j < nav->n; j++) {
+    //     if (nav->eph[j].sat == obs->data[i].sat) {
+    //       for (int k = 0; k < 6; k++) {
+    //         satellite.TGDs[k] = nav->eph[j].tgd[k] * CLIGHT;
+    //       }
+    //     }
+    //   }
+    // }
     
     epoch.satellites.insert(std::make_pair(satellite.prn, satellite));
   }
@@ -326,7 +328,7 @@ void StreamHandle::handleGNSS(const std::string& tag,
 
 // Handle IMU data
 void StreamHandle::handleIMU(const std::string& tag, 
-                             const DataFormat::IMU::Ptr& imu)
+                             const std::shared_ptr<DataCluster::IMU>& imu)
 {
   // Get role
   if (behaviors_.find(tag) == behaviors_.end()) {
@@ -369,7 +371,7 @@ void StreamHandle::handleIMU(const std::string& tag,
 
 // Handle Image data
 void StreamHandle::handleImage(const std::string& tag, 
-                             const DataFormat::Image::Ptr& image)
+                             const std::shared_ptr<DataCluster::Image>& image)
 {
   // Get role
   if (behaviors_.find(tag) == behaviors_.end()) {
@@ -411,7 +413,7 @@ void StreamHandle::handleImage(const std::string& tag,
 
 // Data callback
 void StreamHandle::dataCallback(
-    const std::string& tag, const DataFormat::Ptr& data)
+    const std::string& tag, const std::shared_ptr<DataCluster>& data)
 {
   // GNSS data
   if (data->gnss && gnss_callbacks_.size() > 0) {

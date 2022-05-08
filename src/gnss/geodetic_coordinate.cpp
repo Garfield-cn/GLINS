@@ -17,36 +17,6 @@ GeoCoordinate::GeoCoordinate(const Eigen::Vector3d& position_zero,
   setZero(position_zero, type);
 }
 
-// Set position
-void GeoCoordinate::setPosition(const Eigen::Vector3d& position, 
-                  const GeoType type)
-{
-  // Convert input coordinate to LLA
-  if (type == GeoType::ECEF) {
-    double pos[3];
-    ecef2pos(position.data(), pos);
-    lla_ = Eigen::Vector3d(pos);
-  }
-  else if (type == GeoType::LLA) {
-    lla_ = position;
-  }
-  else if (type == GeoType::ENU && lla_zero_setted_) {
-    Eigen::Vector3d dxyz, xyz0;
-    enu2ecef(lla_zero_.data(), position.data(), dxyz.data());
-    pos2ecef(lla_zero_.data(), xyz0.data());
-    Eigen::Vector3d xyz = xyz0 + dxyz;
-    ecef2pos(xyz.data(), lla_.data());
-  }
-  else if (type == GeoType::NED && lla_zero_setted_) {
-    const Eigen::Vector3d& ned = position;
-    Eigen::Vector3d enu(ned(1), ned(0), -ned(2));
-    setPosition(enu, GeoType::ENU);
-  }
-  else {
-    LOG(ERROR) << "Input type not supported!";
-  }
-}
-
 // Set zero position for ENU convertion
 void GeoCoordinate::setZero(const Eigen::Vector3d& position, 
               const GeoType type)
@@ -65,22 +35,69 @@ void GeoCoordinate::setZero(const Eigen::Vector3d& position,
   lla_zero_setted_ = true;
 }
 
-// Get position
-Eigen::Vector3d GeoCoordinate::get(const GeoType type)
-{
-  if (type == GeoType::LLA) return getLLA();
-  if (type == GeoType::ECEF) return getECEF();
-  if (type == GeoType::ENU) return getENU();
-  if (type == GeoType::NED) return getNED();
-  return Eigen::Vector3d::Zero();
-}
-
 // Convert coordinate
 Eigen::Vector3d GeoCoordinate::convert(const Eigen::Vector3d& position,
             const GeoType in_type, const GeoType out_type)
 {
-  setPosition(position, in_type);
-  return get(out_type);
+  // Convert input coordinate to LLA
+  Eigen::Vector3d lla;
+  if (in_type == GeoType::ECEF) {
+    double pos[3];
+    ecef2pos(position.data(), pos);
+    lla = Eigen::Vector3d(pos);
+  }
+  else if (in_type == GeoType::LLA) {
+    lla = position;
+  }
+  else if (in_type == GeoType::ENU && lla_zero_setted_) {
+    Eigen::Vector3d dxyz, xyz0;
+    enu2ecef(lla_zero_.data(), position.data(), dxyz.data());
+    pos2ecef(lla_zero_.data(), xyz0.data());
+    Eigen::Vector3d xyz = xyz0 + dxyz;
+    ecef2pos(xyz.data(), lla.data());
+  }
+  else if (in_type == GeoType::NED && lla_zero_setted_) {
+    const Eigen::Vector3d& ned = position;
+    Eigen::Vector3d enu(ned(1), ned(0), -ned(2));
+    Eigen::Vector3d dxyz, xyz0;
+    enu2ecef(lla_zero_.data(), enu.data(), dxyz.data());
+    pos2ecef(lla_zero_.data(), xyz0.data());
+    Eigen::Vector3d xyz = xyz0 + dxyz;
+    ecef2pos(xyz.data(), lla.data());
+  }
+  else {
+    LOG(ERROR) << "Input type not supported!";
+  }
+
+  // Convert LLA to output type
+  if (out_type == GeoType::LLA) {
+    return lla;
+  }
+  if (out_type == GeoType::ECEF) {
+    double r[3];
+    pos2ecef(lla.data(), r);
+    return Eigen::Vector3d(r);
+  }
+  if (out_type == GeoType::ENU || out_type == GeoType::NED) {
+    if (!lla_zero_setted_) {
+      LOG(ERROR) << "Inital position not setted!";
+      return Eigen::Vector3d::Zero();
+    }
+
+    double r[3], r0[3], dr[3], enu[3];
+    pos2ecef(lla.data(), r);
+    pos2ecef(lla_zero_.data(), r0);
+    for (int i = 0; i < 3; i++) dr[i] = r[i] - r0[i];
+    ecef2enu(lla_zero_.data(), dr, enu);
+    if (out_type == GeoType::ENU) {
+      return Eigen::Vector3d(enu);
+    }
+    if (out_type == GeoType::NED) {
+      return Eigen::Vector3d(enu[1], enu[0], -enu[2]);
+    }
+  }
+
+  return Eigen::Vector3d::Zero();
 }
 
 // ECEF to ENU rotation matrix
@@ -130,43 +147,6 @@ Eigen::Matrix3d GeoCoordinate::rotationMatrix(GeoType from, GeoType to)
 
   LOG(ERROR) << "Invalid rotation matrix type!";
   return Eigen::Matrix3d::Identity();
-}
-
-// Get position in LLA coordinate
-Eigen::Vector3d GeoCoordinate::getLLA()
-{
-  return lla_;
-}
-
-// Get position in ECEF coordinate
-Eigen::Vector3d GeoCoordinate::getECEF()
-{
-  double r[3];
-  pos2ecef(lla_.data(), r);
-  return Eigen::Vector3d(r);
-}
-
-// Get position in ENU coordinate
-Eigen::Vector3d GeoCoordinate::getENU()
-{
-  if (!lla_zero_setted_) {
-    LOG(ERROR) << "Inital position not setted!";
-    return Eigen::Vector3d::Zero();
-  }
-
-  double r[3], r0[3], dr[3], enu[3];
-  pos2ecef(lla_.data(), r);
-  pos2ecef(lla_zero_.data(), r0);
-  for (int i = 0; i < 3; i++) dr[i] = r[i] - r0[i];
-  ecef2enu(lla_zero_.data(), dr, enu);
-  return Eigen::Vector3d(enu);
-}
-
-// Get position in NED coordinate
-Eigen::Vector3d GeoCoordinate::getNED()
-{
-  Eigen::Vector3d enu = getENU();
-  return Eigen::Vector3d(enu(1), enu(0), -enu(2));
 }
 
 }

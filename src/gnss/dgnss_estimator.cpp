@@ -33,11 +33,10 @@ bool DgnssEstimator::addGnssMeasurementAndState(
                     const GnssMeasurement& measurement_ref)
 {
   // Check timestamp
-  if (!checkEqual(measurement_rov.timestamp, measurement_ref.timestamp, 
-    options_.max_age)) {
+  differential_age_ = fabs(measurement_rov.timestamp - measurement_ref.timestamp);
+  if (differential_age_ > options_.max_age) {
     LOG(WARNING) << "Max age between two measurements exceeded! "
-      << "age = " << fabs(measurement_rov.timestamp - measurement_ref.timestamp)
-      << "max_age = " << options_.max_age;
+      << "age = " << differential_age_ << ", max_age = " << options_.max_age;
     return false;
   }
 
@@ -110,6 +109,7 @@ bool DgnssEstimator::addGnssMeasurementAndState(
     LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites;
     return false;
   }
+  num_satellites_ = num_satellites;
 
   return true;
 }
@@ -155,6 +155,90 @@ Eigen::Vector3d DgnssEstimator::getPositionEstimate()
   }
 
   return Eigen::Vector3d::Zero();
+}
+
+// Get solution
+GnssSolution DgnssEstimator::getSolution()
+{
+  GnssSolution solution;
+  std::vector<uint64_t> parameter_block_ids;
+
+  // Position
+  solution.timestamp = current_state_.timestamp;
+  solution.id = current_state_.id.asInteger();
+  solution.status = GnssSolutionStatus::DGNSS;
+  solution.covariance.setZero();
+  solution.position.setZero();
+  solution.velocity.setZero();
+  solution.num_satellites = num_satellites_;
+  solution.differential_age = differential_age_;
+  if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
+    return solution;
+  }
+  else {
+    parameter_block_ids.push_back(current_state_.id.asInteger());
+
+    std::shared_ptr<ParameterBlock> base_ptr =
+        graph_ptr_->parameterBlockPtr(current_state_.id.asInteger());
+    if (base_ptr != nullptr) {
+      std::shared_ptr<PositionParameterBlock> block_ptr = 
+        std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
+      CHECK(block_ptr != nullptr);
+      solution.position = block_ptr->estimate();
+    }
+  }
+
+  // velocity
+  BackendId velocity_id = changeIdType(current_state_.id, IdType::gVelocity);
+  if (!graph_ptr_->parameterBlockExists(velocity_id.asInteger())) {
+    // we did not estimate velocity
+    // get the position covariance and return
+    Eigen::MatrixXd position_covariance;
+    graph_ptr_->computeCovariance(parameter_block_ids, position_covariance);
+    CHECK(position_covariance.cols() == 3);
+    solution.covariance.topLeftCorner(3, 3) = position_covariance;
+  }
+  else {
+    parameter_block_ids.push_back(velocity_id.asInteger());
+
+    std::shared_ptr<ParameterBlock> base_ptr =
+        graph_ptr_->parameterBlockPtr(velocity_id.asInteger());
+    if (base_ptr != nullptr) {
+      std::shared_ptr<VelocityParameterBlock> block_ptr = 
+        std::dynamic_pointer_cast<VelocityParameterBlock>(base_ptr);
+      CHECK(block_ptr != nullptr);
+      solution.velocity = block_ptr->estimate();
+    }
+
+    Eigen::MatrixXd covariance;
+    graph_ptr_->computeCovariance(parameter_block_ids, covariance);
+    CHECK(covariance.cols() == 6);
+    solution.covariance = covariance;
+  }
+
+  return solution;
+}
+
+// Compute and set coarse position on measurement
+bool DgnssEstimator::setCoarsePosition(GnssMeasurement& measurement_rov,
+                              const GnssMeasurement& measurement_ref)
+{
+  // Already has a position
+  if (!checkZero(measurement_rov.position)) return true;
+
+  // no elevation mask  
+  DgnssEstimatorOptions options;
+  options.common.min_elevation = 0.0;
+  std::unique_ptr<DgnssEstimator> estimator = 
+    std::make_unique<DgnssEstimator>(options);
+
+  if (!estimator->addGnssMeasurementAndState(measurement_rov, measurement_ref)) {
+    return false;
+  }
+
+  estimator->optimize();
+  measurement_rov.position = estimator->getPositionEstimate();
+  return true;
 }
 
 }

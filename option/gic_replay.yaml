@@ -10,6 +10,7 @@ stream:
 #       buffer_length: 32768
 #       loop_duration: 1e-2
 #       formator_tags: [gnss-rov]
+
 #   - streamer:
 #       tag: str-rov
 #       type: file
@@ -19,6 +20,7 @@ stream:
 #       buffer_length: 32768
 #       loop_duration: 1e-2
 #       formator_tags: [gnss-rov]
+
   - streamer:
       tag: str-ref
       type: file
@@ -28,6 +30,7 @@ stream:
       buffer_length: 32768
       loop_duration: 1e-2
       formator_tags: [gnss-ref]
+
   - streamer:
       tag: str-head
       type: file
@@ -37,6 +40,7 @@ stream:
       buffer_length: 32768
       loop_duration: 1e-2
       formator_tags: [gnss-head]
+
   - streamer:
       tag: str-imu
       type: file
@@ -46,6 +50,7 @@ stream:
       buffer_length: 32768
       loop_duration: 1e-3
       formator_tags: [imu]
+
 #   - streamer:
 #       tag: str-camera
 #       type: file
@@ -55,15 +60,56 @@ stream:
 #       buffer_length: 361472  # 752 * 480 + 512
 #       loop_duration: 1e-2
 #       formator_tags: [camera]
+
   - streamer:
-      tag: solution
+      tag: solution_spp
       type: file
-      path: /home/cc/datasets/tmp/solution.txt
+      path: /home/cc/datasets/tmp/solution_spp.txt
       enable_time_tag: false
       swap_interval: 0
       buffer_length: 4096
       loop_duration: 1e-3
-      formator_tags: [solution]
+      formator_tags: [solution_spp]
+
+  - streamer:
+      tag: solution_dgnss
+      type: file
+      path: /home/cc/datasets/tmp/solution_dgnss.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution_dgnss]
+
+  - streamer:
+      tag: solution_rtk
+      type: file
+      path: /home/cc/datasets/tmp/solution_rtk.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution_rtk]
+
+  - streamer:
+      tag: solution_lc
+      type: file
+      path: /home/cc/datasets/tmp/solution_lc.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution_lc]
+
+  - streamer:
+      tag: solution_tc
+      type: file
+      path: /home/cc/datasets/tmp/solution_tc.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution_tc]
 
 
   formators:
@@ -73,29 +119,34 @@ stream:
 #       type: gnss-rtcm-3
 #       start_time: 1643508393
 #       role: [rover, ephemeris]
+
   - formator:
       io: input
       tag: gnss-ref
       type: gnss-rtcm-3
       start_time: 1643508393
       role: [reference]
+
 #   - formator:
 #       io: input
 #       tag: gnss-head
 #       type: gnss-rtcm-3
 #       start_time: 1643508393
 #       role: [heading]
+
   - formator:
       io: input
       tag: gnss-head
       type: gnss-rtcm-3
       start_time: 1643508393
       role: [rover, ephemeris]
+
   - formator:
       io: input
       tag: imu
       type: imu-pack
       role: [major]
+
   - formator:
       io: input
       tag: camera
@@ -103,29 +154,169 @@ stream:
       height: 480
       type: image-pack
       role: [mono]
+
   - formator:
       io: output
-      tag: solution
+      tag: solution_spp
       type: nmea
       talker_id: GP
       use_gga: true
       use_rmc: true
       use_esa: true
 
+  - formator:
+      io: output
+      tag: solution_dgnss
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: true
+
+  - formator:
+      io: output
+      tag: solution_rtk
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: true
+
+  - formator:
+      io: output
+      tag: solution_lc
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: true
+
+  - formator:
+      io: output
+      tag: solution_tc
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: false
+
   replay:
     enable: true
-    speed: 5.0
+    speed: 20.0
     start_offset: 5.0
 
 estimate:
+# - estimator:
+#     tag: spp
+#     type: spp
+#     input_formator_tags: [gnss-head]
+#     input_estimator_tags: []
+#     output_formator_tags: [solution_spp]
+#     loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
+#     loop_duration_align_tag: gnss-head
+#     role: position
+
+#     max_iteration: 10
+#     verbose: true
+#     gnss_common:
+#       min_elevation: 7.0
+
+# - estimator:
+    # tag: dgnss
+    # type: dgnss
+    # input_formator_tags: [gnss-head, gnss-ref]
+    # input_estimator_tags: []
+    # output_formator_tags: [solution_dgnss]
+    # loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
+    # loop_duration_align_tag: gnss-head
+    # role: position
+
+    # max_iteration: 10
+    # verbose: true
+    # gnss_common:
+    #   min_elevation: 7.0
+
 - estimator:
     tag: rtk
     type: rtk
     input_formator_tags: [gnss-head, gnss-ref]
-    output_formator_tags: [solution]
+    input_estimator_tags: []
+    output_formator_tags: [solution_rtk]
     loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
     loop_duration_align_tag: gnss-head
+    role: position
 
+    window_length: 3
+    max_iteration: 10
+    verbose: false
+    gnss_common:
+      min_elevation: 7.0
+      period: 1.0
+    gnss_error_parameter:
+      code_to_phase_ratio: 100.0
+      phase_error_factor: [0.003, 0.003, 0]
+      system_error_ratio: [1.0, 3.0, 1.0, 1.0]
+    ambiguity_resolution:
+      system_exclude: [R, C]
+      min_percentage_fixation_nl: 0.8
+      ratio: 2.0
+      min_consistant_fix_as_stable: 5
+
+# - estimator:
+#     tag: gnss-imu-lc
+#     type: gnss_imu_lc
+#     input_formator_tags: [imu]
+#     input_estimator_tags: [rtk]
+#     output_formator_tags: [solution_lc]
+#     loop_duration: 0 
+#     loop_duration_align_tag: imu
+
+#     window_length: 5
+#     max_iteration: 20
+#     verbose: false
+#     imu_parameters:
+#       sigma_g_c: 1.0e-4
+#       sigma_a_c: 2.0e-3
+#       sigma_gw_c: 2.1e-5
+#       sigma_aw_c: 8.4e-4
+#     initialize:
+#       verbose: true
+#       max_iteration: 30
+#       gnss_extrinsic: [0.0, -0.37, -0.43]
+#       gnss_extrinsic_initial_std: 0.02
+#       window_length_optimize: 20
+#       min_velocity: 2.0
+
+# - estimator:
+#     tag: rtk-imu-tc
+#     type: rtk_imu_tc
+#     input_formator_tags: [gnss-head, gnss-ref, imu]
+#     input_estimator_tags: []
+#     output_formator_tags: [solution_tc]
+#     loop_duration: 0 
+#     loop_duration_align_tag: imu
+
+#     window_length: 5
+#     max_iteration: 30
+#     verbose: false
+#     gnss_common:
+#       min_elevation: 7.0
+#       period: 1.0
+#     gnss_error_parameter:
+#       code_to_phase_ratio: 100.0
+#     ambiguity_resolution:
+#       min_percentage_fixation_nl: 0.6
+#     imu_parameters:
+#       sigma_g_c: 1.0e-4
+#       sigma_a_c: 2.0e-3
+#       sigma_gw_c: 2.1e-5
+#       sigma_aw_c: 8.4e-4
+#     initialize:
+#       verbose: true
+#       max_iteration: 30
+#       gnss_extrinsic: [0.0, -0.37, -0.43]
+#       gnss_extrinsic_initial_std: 0.02
+#       window_length_optimize: 20
 
 logging:
   enable: true

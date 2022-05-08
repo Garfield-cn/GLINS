@@ -43,6 +43,8 @@
 
 #include "gici/imu/imu_error.h"
 
+#include <math.h>
+
 #include "gici/estimate/pose_local_parameterization.h"
 #include "gici/utility/transform.h"
 
@@ -104,7 +106,7 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   bool has_started = false;
   bool last_iteration = false;
   int n_integrated = 0;
-  for (size_t i = 0; i < imu_measurements_.size(); i++)
+  for (size_t i = 0; i < imu_measurements_.size() - 1; i++)
   {
     if (imu_measurements_[i].timestamp < t0_) continue;
 
@@ -154,7 +156,8 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
         || std::abs(omega_S_1[2]) > imu_parameters_.g_max)
     {
       sigma_g_c *= 100;
-      LOG(WARNING)<< "gyr saturation";
+      LOG(WARNING)<< "gyr saturation: " 
+                  << omega_S_0.norm() << ", " << omega_S_1.norm();
     }
 
     if (std::abs(acc_S_0[0]) > imu_parameters_.a_max
@@ -165,7 +168,8 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
         || std::abs(acc_S_1[2]) > imu_parameters_.a_max)
     {
       sigma_a_c *= 100;
-      LOG(WARNING)<< "acc saturation";
+      LOG(WARNING) << "acc saturation: " 
+                   << acc_S_0.norm() << ", " << acc_S_1.norm();
     }
 
     // actual propagation
@@ -328,7 +332,7 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   int num_propagated = 0;
 
   double time = t_start_adjusted;
-  for (size_t i = 0; i < imu_measurements.size(); i++)
+  for (size_t i = 0; i < imu_measurements.size() - 1; i++)
   {
     if (imu_measurements[i].timestamp < t_start_adjusted) continue;
 
@@ -379,7 +383,8 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
         || std::abs(omega_S_1[2]) > imu_params.g_max)
     {
       sigma_g_c *= 100;
-      LOG(WARNING) << "gyr saturation";
+      LOG(WARNING)<< "gyr saturation: " 
+                  << omega_S_0.norm() << ", " << omega_S_1.norm();
     }
 
     if (std::abs(acc_S_0[0]) > imu_params.a_max
@@ -390,7 +395,8 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
         || std::abs(acc_S_1[2]) > imu_params.a_max)
     {
       sigma_a_c *= 100;
-      LOG(WARNING) << "acc saturation";
+      LOG(WARNING) << "acc saturation: " 
+                   << acc_S_0.norm() << ", " << acc_S_1.norm();
     }
 
     // actual propagation

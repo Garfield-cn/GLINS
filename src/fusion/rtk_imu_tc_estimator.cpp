@@ -23,17 +23,15 @@ namespace gici {
 
 // The default constructor
 RtkImuTcEstimator::RtkImuTcEstimator(
-                     const RtkImuTcEstimatorOptions& options, 
-                     const GnssImuInitializationOptions& initial_options) :
+                     const RtkImuTcEstimatorOptions& options) :
   options_(options), graph_ptr_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1)),
-  marginalization_residual_id_(0), imu_initialized_(false),
-  initial_options_(initial_options)
+  marginalization_residual_id_(0), imu_initialized_(false)
 {
   marginalization_error_ptr_.reset(new MarginalizationError(*graph_ptr_.get()));
 
-  initializer_.reset(new GnssImuInitialization(initial_options, graph_ptr_));
+  initializer_.reset(new GnssImuInitialization(options.initialize, graph_ptr_));
 
   // RTK estimator is only used for initialization
   RtkEstimatorOptions rtk_options;
@@ -60,10 +58,10 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
                     const GnssMeasurement& measurement_ref)
 {
   // Check timestamp
-  if (fabs(measurement_rov.timestamp - measurement_ref.timestamp) > options_.max_age) {
+  differential_age_ = fabs(measurement_rov.timestamp - measurement_ref.timestamp);
+  if (differential_age_ > options_.max_age) {
     LOG(WARNING) << "Max age between two measurements exceeded! "
-      << "age = " << fabs(measurement_rov.timestamp - measurement_ref.timestamp)
-      << ", max_age = " << options_.max_age;
+      << "age = " << differential_age_ << ", max_age = " << options_.max_age;
     return false;
   }
 
@@ -191,6 +189,8 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
     curGnssRov(), curGnssRef(), options_.gnss_common);
 
   // Add pseudorange residual blocks
+  int num_satellites = 0;
+  std::string last_prn = "";
   for (auto dd_pair : dd_pairs) 
   {
     GnssMeasurementIndex& index = dd_pair.rov;
@@ -205,7 +205,14 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
       graph_ptr_->parameterBlockPtr(pose_id.asInteger()), 
       graph_ptr_->parameterBlockPtr(gnss_extrinsic_id.asInteger()));
+
+    // get number of satellites
+    if (last_prn != satellite.prn) {
+      num_satellites++;
+      last_prn = satellite.prn;
+    }
   }
+  num_satellites_ = num_satellites;
 
   // we do not need to check satellite number here, because the TC estimator could
   // work under GNSS insufficient case.
@@ -377,7 +384,6 @@ void RtkImuTcEstimator::optimize()
   // graph_ptr_->options.callbacks.push_back(debug_callback_.get());
 
   if (options_.verbose) {
-    graph_ptr_->options.logging_type = ceres::LoggingType::SILENT;
     graph_ptr_->options.minimizer_progress_to_stdout = true;
   }
   else {

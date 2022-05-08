@@ -61,6 +61,13 @@ public:
   // Get position in ECEF coordinate
   Eigen::Vector3d getPositionEstimate();
 
+  // Get solution
+  GnssSolution getSolution();
+
+  // Compute and set coarse position on measurement
+  static bool setCoarsePosition(GnssMeasurement& measurement_rov,
+                                const GnssMeasurement& measurement_ref);
+
 private:
   // Graph that handles residuals and states
   std::shared_ptr<Graph> graph_ptr_;
@@ -79,6 +86,8 @@ private:
   // States
   State current_state_;
   std::vector<BackendId> parameter_ids_;
+  int num_satellites_;
+  int differential_age_;
 
   // Debug
   std::unique_ptr<CeresDebugCallback> debug_callback_;

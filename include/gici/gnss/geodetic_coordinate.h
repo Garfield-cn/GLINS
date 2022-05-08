@@ -8,6 +8,7 @@
 
 #include <Eigen/Core>
 #include <memory>
+#include <mutex>
 
 #include "gici/utility/rtklib_safe.h"
 
@@ -27,14 +28,9 @@ public:
 
   GeoCoordinate(const Eigen::Vector3d& position_zero, 
                 const GeoType type);
-  GeoCoordinate() : lla_(Eigen::Vector3d::Zero()),
+  GeoCoordinate() : 
     lla_zero_(Eigen::Vector3d::Zero()), lla_zero_setted_(false) { }
   ~GeoCoordinate() { }
-
-  // Set position
-  // The input LLA should be in deg format
-  void setPosition(const Eigen::Vector3d& position, 
-                   const GeoType type);
 
   // Set zero position for ENU convertion
   void setZero(const Eigen::Vector3d& position, 
@@ -42,9 +38,6 @@ public:
 
   // Check if zero position was setted
   bool isZeroSetted() { return lla_zero_setted_; }
-
-  // Get position
-  Eigen::Vector3d get(const GeoType type);
 
   // Convert coordinate
   Eigen::Vector3d convert(const Eigen::Vector3d& position,
@@ -68,20 +61,7 @@ public:
   }
 
 private:
-  // Get position in LLA coordinate
-  Eigen::Vector3d getLLA();
-
-  // Get position in ECEF coordinate
-  Eigen::Vector3d getECEF();
-
-  // Get position in ENU coordinate
-  Eigen::Vector3d getENU();
-
-  // Get position in NED coordinate
-  Eigen::Vector3d getNED();
-
-  // Latitude, Longitude and Altitude stored in rad
-  Eigen::Vector3d lla_;
+  // Initial Latitude, Longitude and Altitude stored in rad
   Eigen::Vector3d lla_zero_;
   bool lla_zero_setted_;
 };
