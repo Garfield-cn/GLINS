@@ -15,8 +15,8 @@ namespace gici {
 // The default constructor
 AmbiguityResolution::AmbiguityResolution(
     const AmbiguityResolutionOptions options,
-    const std::shared_ptr<Graph>& graph_ptr) :
-  options_(options), graph_ptr_(graph_ptr),
+    const std::shared_ptr<Graph>& graph) :
+  options_(options), graph_(graph),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1))
 {
@@ -52,12 +52,12 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     Spec ambiguity;
     ambiguity.id = ambiguity_ids[i];
     ambiguity.prn = ambiguity.id.gPrn();
-    CHECK(graph_ptr_->parameterBlockExists(id));
+    CHECK(graph_->parameterBlockExists(id));
 
     // parameter and residual block
-    ambiguity.parameter_block = graph_ptr_->parameterBlockPtr(id);
+    ambiguity.parameter_block = graph_->parameterBlockPtr(id);
     ambiguity.value = *ambiguity.parameter_block->parameters();
-    Graph::ResidualBlockCollection residuals = graph_ptr_->residuals(id);
+    Graph::ResidualBlockCollection residuals = graph_->residuals(id);
     CHECK(residuals.size() > 0);
     // Ideally, for a non-reference satellite ambiguity parameter block, it only 
     // conresponds to one phaserange error block
@@ -91,7 +91,7 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
 
     // Collect all other parameter blocks connected to the phase residual block
     Graph::ParameterBlockCollection parameters = 
-      graph_ptr_->parameters(ambiguity.residual_block.residual_block_id);
+      graph_->parameters(ambiguity.residual_block.residual_block_id);
     for (size_t p = 0; p < parameters.size(); p++) {
       ambiguity.parameter_block_ids_connected.push_back(BackendId(parameters[p].first));
       if (parameters[p].second->typeInfo() == "AmbiguityParameterBlock") continue;
@@ -133,7 +133,7 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     others_size += other_parameters_[i].size;
   }
   Eigen::MatrixXd covariance;
-  graph_ptr_->computeCovariance(parameter_block_ids, covariance);
+  graph_->computeCovariance(parameter_block_ids, covariance);
   ambiguity_covariance_ = covariance.topLeftCorner(curAmbs().size(), curAmbs().size());
   other_parameters_covariance_ = covariance.bottomRightCorner(others_size, others_size);
   ambiguity_others_covariance_ = covariance.topRightCorner(curAmbs().size(), others_size);
@@ -213,7 +213,7 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     // accurate. we delete the last fixation, and keep the current for further observing.
     else {
       for (size_t m = 0; m < matches.size(); m++) {
-        graph_ptr_->removeResidualBlock(matches[m].residual_id);
+        graph_->removeResidualBlock(matches[m].residual_id);
       }
       lane_pair.num_consistant = 0;
     }
@@ -222,7 +222,7 @@ bool AmbiguityResolution::solve(const BackendId& epoch_id,
     if (lane_pair.num_consistant >= options_.min_consistant_fix_as_stable) {
       CHECK(lane_pair.residual_id != nullptr);
       Graph::ResidualBlockSpec residual_block_spec = 
-        graph_ptr_->residualBlockIdToResidualBlockSpecMap().at(lane_pair.residual_id);
+        graph_->residualBlockIdToResidualBlockSpecMap().at(lane_pair.residual_id);
       auto& base_ptr = residual_block_spec.error_interface_ptr;
       if (lane_pair.laneType() != LaneType::NL) {
         std::shared_ptr<AmbiguityError4Coef> ambiguity_error = 
@@ -627,6 +627,9 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
     // no outlier found, break this process
     if (!found) break;
 
+    // Unuse FDE, not stable currently
+    break;
+
     // outlier found
     // Note that we reject only one ambiguity in each iteration, we iterate multiple
     // outliers here to in case the outlier does not have corresponding fixed ambiguity.
@@ -774,13 +777,13 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
       std::shared_ptr<AmbiguityError4Coef> ambiguity_error = 
         std::make_shared<AmbiguityError4Coef>(
         ambiguity_lane_pairs[i].value / wave, information_loosely, coefficients);
-      ambiguity_lane_pairs[i].residual_id = graph_ptr_->addResidualBlock(
+      ambiguity_lane_pairs[i].residual_id = graph_->addResidualBlock(
         ambiguity_error,
         cauchy_loss_function_ptr_ ? cauchy_loss_function_ptr_.get() : nullptr,
-        graph_ptr_->parameterBlockPtr(curAmbs()[id_higher_raw].id.asInteger()),
-        graph_ptr_->parameterBlockPtr(curAmbs()[id_higher_ref].id.asInteger()),
-        graph_ptr_->parameterBlockPtr(curAmbs()[id_lower_raw].id.asInteger()),
-        graph_ptr_->parameterBlockPtr(curAmbs()[id_lower_ref].id.asInteger()));
+        graph_->parameterBlockPtr(curAmbs()[id_higher_raw].id.asInteger()),
+        graph_->parameterBlockPtr(curAmbs()[id_higher_ref].id.asInteger()),
+        graph_->parameterBlockPtr(curAmbs()[id_lower_raw].id.asInteger()),
+        graph_->parameterBlockPtr(curAmbs()[id_lower_ref].id.asInteger()));
     }
     else {
       double wave = ambiguity_lane_pairs[i].wavelength;
@@ -790,11 +793,11 @@ bool AmbiguityResolution::solveLanes(std::vector<LaneType> types)
       std::shared_ptr<AmbiguityError2Coef> ambiguity_error = 
         std::make_shared<AmbiguityError2Coef>(
         ambiguity_lane_pairs[i].value / wave, information_loosely, coefficients);
-      ambiguity_lane_pairs[i].residual_id = graph_ptr_->addResidualBlock(
+      ambiguity_lane_pairs[i].residual_id = graph_->addResidualBlock(
         ambiguity_error,
         cauchy_loss_function_ptr_ ? cauchy_loss_function_ptr_.get() : nullptr,
-        graph_ptr_->parameterBlockPtr(curAmbs()[id_higher_raw].id.asInteger()),
-        graph_ptr_->parameterBlockPtr(curAmbs()[id_higher_ref].id.asInteger()));
+        graph_->parameterBlockPtr(curAmbs()[id_higher_raw].id.asInteger()),
+        graph_->parameterBlockPtr(curAmbs()[id_higher_ref].id.asInteger()));
     }
   }
 
@@ -1199,6 +1202,25 @@ void cycleSlipDetectionTimeGap(
     }
     index++;
   }
+}
+
+// Compute initial ambiguity for single differenced measurements
+double getInitialAmbiguitySD(const GnssMeasurement& measurement_rov, 
+                            const GnssMeasurement& measurement_ref,
+                            const GnssMeasurementIndex& index_rov,
+                            const GnssMeasurementIndex& index_ref)
+{
+  auto& observation_1 = measurement_rov.satellites.at(index_rov.prn).
+                        observations.at(index_rov.code_type);
+  double pseudorange_1 = observation_1.pseudorange;
+  double phaserange_1 = observation_1.phaserange;
+
+  auto& observation_2 = measurement_ref.satellites.at(index_ref.prn).
+                        observations.at(index_ref.code_type);
+  double pseudorange_2 = observation_2.pseudorange;
+  double phaserange_2 = observation_2.phaserange;
+
+  return phaserange_1 - phaserange_2 - (pseudorange_1 - pseudorange_2);
 }
 
 }

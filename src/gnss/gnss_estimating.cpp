@@ -12,19 +12,26 @@ GnssEstimating::GnssEstimating(YAML::Node& node) :
   EstimatingBase(node)
 {
   // instantiate estimator
+  YAML::Node estimator_node = node["estimator_options"];
   if (type_ == EstimatorType::Spp) {
     SppEstimatorOptions options;
-    option_tools::loadOptions(node, options);
+    if (estimator_node.IsDefined()) {
+      option_tools::loadOptions(estimator_node, options);
+    }
     spp_estimator_.reset(new SppEstimator(options));
   }
   else if (type_ == EstimatorType::Dgnss) {
     DgnssEstimatorOptions options;
-    option_tools::loadOptions(node, options);
+    if (estimator_node.IsDefined()) {
+      option_tools::loadOptions(estimator_node, options);
+    }
     dgnss_estimator_.reset(new DgnssEstimator(options));
   }
   else if (type_ == EstimatorType::Rtk) {
     RtkEstimatorOptions options;
-    option_tools::loadOptions(node, options);
+    if (estimator_node.IsDefined()) {
+      option_tools::loadOptions(estimator_node, options);
+    }
     rtk_estimator_.reset(new RtkEstimator(options));
   } 
 
@@ -37,13 +44,17 @@ GnssEstimating::~GnssEstimating()
 // GNSS data callback
 void GnssEstimating::gnssCallback(GnssMeasurement& data)
 {
+  mutex_input_.lock();
   gnss_measurements_[data.role].push_back(data);
+  mutex_input_.unlock();
 
   // Align timeline
+  mutex_output_.lock();
   if (loop_duration_align_tag_ == data.tag) {
     aligned_new_timestamp_ = data.timestamp;
     aligned_new_data_ = true;
   }
+  mutex_output_.unlock();
 }
 
 // Process funtion in every loop
@@ -67,10 +78,12 @@ bool GnssEstimating::processSpp()
   if (gnss_measurements_[GnssRole::Rover].size() == 0) return false;
 
   // Apply SPP
+  mutex_input_.lock();
   auto gnss_measurement = gnss_measurements_[GnssRole::Rover].front();
 
   // Delete used
   popGnssMeasurement();
+  mutex_input_.unlock();
 
   // set a coarse position to ensure preprocessings for satellites (such as elevation mask)
   if (!SppEstimator::setCoarsePosition(gnss_measurement)) {
@@ -91,10 +104,9 @@ bool GnssEstimating::processSpp()
   spp_estimator_->optimize();
 
   // get solution
-  mutex_.lock();
+  mutex_output_.lock();
   solution_ = convertGnssSolutionToSolution(spp_estimator_->getSolution());
-
-  mutex_.unlock();
+  mutex_output_.unlock();
 
   return true;
 }
@@ -107,6 +119,7 @@ bool GnssEstimating::processDgnss()
   if (gnss_measurements_[GnssRole::Reference].size() == 0) return false;
 
   // align measurements
+  mutex_input_.lock();
   while (gnss_measurements_[GnssRole::Rover].size() > 
          gnss_measurements_[GnssRole::Reference].size()) {
     gnss_measurements_[GnssRole::Rover].pop_front();
@@ -122,6 +135,7 @@ bool GnssEstimating::processDgnss()
 
   // Delete used
   popGnssMeasurement();
+  mutex_input_.unlock();
 
   // set a coarse position to ensure preprocessings for satellites (such as elevation mask)
   if (!SppEstimator::setCoarsePosition(gnss_measurement_rov)) {
@@ -143,10 +157,10 @@ bool GnssEstimating::processDgnss()
   dgnss_estimator_->optimize();
 
   // get solution
-  mutex_.lock();
+  mutex_output_.lock();
   solution_ = convertGnssSolutionToSolution(dgnss_estimator_->getSolution());
 
-  mutex_.unlock();
+  mutex_output_.unlock();
 
   return true;
 }
@@ -160,6 +174,7 @@ bool GnssEstimating::processRtk()
       latest_gnss_measurement_ref_.timestamp == 0.0) return false;
 
   // align measurements
+  mutex_input_.lock();
   while (gnss_measurements_[GnssRole::Rover].size() > 
          gnss_measurements_[GnssRole::Reference].size() && 
          gnss_measurements_[GnssRole::Rover].size() > 1) {
@@ -180,6 +195,7 @@ bool GnssEstimating::processRtk()
 
   // Delete used
   popGnssMeasurement();
+  mutex_input_.unlock();
 
   // set a coarse position to ensure preprocessings for satellites (such as elevation mask)
   if (!DgnssEstimator::setCoarsePosition(
@@ -202,9 +218,9 @@ bool GnssEstimating::processRtk()
   rtk_estimator_->optimize();
 
   // get solution
-  mutex_.lock();
+  mutex_output_.lock();
   solution_ = convertGnssSolutionToSolution(rtk_estimator_->getSolution());
-  mutex_.unlock();
+  mutex_output_.unlock();
 
   return true;
 }

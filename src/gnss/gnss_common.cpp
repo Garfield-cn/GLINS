@@ -158,7 +158,7 @@ bool checkElevation(GnssCommonOptions options,
   }
 
   auto satellite = measurement.satellites.at(prn);
-  if (satellite.sat_position == Eigen::Vector3d::Zero()) {
+  if (checkZero(satellite.sat_position)) {
     return false;
   }
 

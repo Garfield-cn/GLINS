@@ -60,9 +60,8 @@ static void drawFeatures(
         const int max_size = 10;
         bgr(2) = obs_size * 255 / max_size;
         bgr(1) = 255 - obs_size * 255 / max_size;
-        // bgr(0) = (obs_size < max_size / 2) ? 
-        //   (obs_size * 255 / max_size * 2) : (255 - obs_size * 255 / max_size * 2);
-        if (frame.landmark_vec_[i]->obs_.size() <= 1) {
+        if (frame.landmark_vec_[i]->obs_.size() <= 1 || 
+            !frame.landmark_vec_[i]->in_ba_graph_) {
           cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), 3, bgr, -1);
         }
         else  {
@@ -111,58 +110,45 @@ void publishFeaturedImage(ros::Publisher& pub,
   pub.publish(img_msg);
 }
 
-// Publish features
-void publishFeatures(ros::Publisher& pub, 
+// Publish landmarks
+void publishLandmarks(ros::Publisher& pub, 
   const MapPtr& map, const ros::Time time, 
   std::string frame_id)
 {
-  // double marker_scale = 0.1;
-  double marker_scale = 0.02;
+  double marker_scale = 0.2;
   marker_scale *= position_scale;
   visualization_msgs::Marker m;
   m.header.frame_id = frame_id;
   m.header.stamp = time;
-  m.ns = "features";
+  m.ns = "landmarks";
   m.id = 0;
-  m.type = visualization_msgs::Marker::POINTS;
+  m.type = visualization_msgs::Marker::SPHERE_LIST;
   m.action = 0;  // add/modify
   m.scale.x = marker_scale;
   m.scale.y = marker_scale;
   m.scale.z = marker_scale;
   m.color.a = 1.0;
-  m.color.r = 1.0;
+  m.color.r = 0.0;
   m.color.g = 0.0;
   m.color.b = 0.0;
   m.pose.orientation.x = 0.0;
   m.pose.orientation.y = 0.0;
   m.pose.orientation.z = 0.0;
   m.pose.orientation.w = 1.0;
-  m.points.reserve(1000);
   for (auto kf : map->keyframes_)
   {
     const FramePtr& frame = kf.second;
     const Transformation T_w_f = frame->T_world_cam();
     for (size_t i = 0; i < frame->num_features_; ++i)
     {
-      // if (isConvergedCornerEdgeletSeed(frame->type_vec_[i]))
-      // {
-      //   const Eigen::Vector3d xyz = T_w_f * frame->getSeedPosInFrame(i);
-      //   geometry_msgs::Point p;
-      //   p.x = xyz.x();
-      //   p.y = xyz.y();
-      //   p.z = xyz.z();
-      //   m.points.push_back(p);
-      // }
-      if (frame->landmark_vec_[i]->pos() != Eigen::Vector3d::Zero() &&
-          frame->landmark_vec_[i]->obs_.size() > 5) {
-        Eigen::Vector3d xyz = frame->landmark_vec_[i]->pos();
-        geometry_msgs::Point p;
-        p.x = xyz.x() * position_scale;
-        p.y = xyz.y() * position_scale;
-        p.z = xyz.z() * position_scale;
-        m.points.push_back(p);
-      }
-      
+      if (!isSeed(frame->type_vec_[i])) continue;
+      if (!frame->landmark_vec_[i]->in_ba_graph_) continue;
+      Eigen::Vector3d xyz = frame->landmark_vec_[i]->pos();
+      geometry_msgs::Point p;
+      p.x = xyz.x() * position_scale;
+      p.y = xyz.y() * position_scale;
+      p.z = xyz.z() * position_scale;
+      m.points.push_back(p);
     }
   }
   pub.publish(m);

@@ -55,7 +55,7 @@ namespace gici {
 /// \brief Wraps the parameter block for a speed / IMU biases estimate
 class SpeedAndBiasParameterBlock : public ParameterBlock
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   typedef SpeedAndBias estimate_t;
@@ -154,7 +154,7 @@ class SpeedAndBiasParameterBlock : public ParameterBlock
     return "SpeedAndBiasParameterBlock";
   }
 
- private:
+private:
   SpeedAndBias estimate_;
 };
 

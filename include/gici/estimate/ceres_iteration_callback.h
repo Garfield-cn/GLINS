@@ -11,15 +11,17 @@
 namespace gici {
 
 class CeresDebugCallback : public ceres::IterationCallback {
- public:
+public:
   explicit CeresDebugCallback() {}
 
   ~CeresDebugCallback() {}
 
   ceres::CallbackReturnType operator()(const ceres::IterationSummary& summary) {
-    // add breakpoint here
-    return ceres::SOLVER_CONTINUE;
+    return handle(summary);
   }
+ 
+private: 
+  ceres::CallbackReturnType handle(const ceres::IterationSummary& summary);
 };
 
 }  // namespace gici

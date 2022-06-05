@@ -108,7 +108,9 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   int n_integrated = 0;
   for (size_t i = 0; i < imu_measurements_.size() - 1; i++)
   {
-    if (imu_measurements_[i].timestamp < t0_) continue;
+    if (!has_started && 
+        !(imu_measurements_[i].timestamp <= t0_ && 
+        imu_measurements_[i + 1].timestamp >= t0_)) continue;
 
     Eigen::Vector3d omega_S_0 = imu_measurements_[i].angular_velocity;
     Eigen::Vector3d acc_S_0 = imu_measurements_[i].linear_acceleration;
@@ -275,6 +277,12 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   // enforce symmetric
   P_delta_ = 0.5 * P_delta_ + 0.5 * P_delta_.transpose().eval();
 
+  // check if we did not propagate, this is the case when two different sensors
+  // samples at the same time point.
+  if (n_integrated == 0) {
+    P_delta_.setIdentity(); P_delta_ *= 1.0e-12;
+  }
+
   // calculate inverse
   information_ = P_delta_.inverse();
   information_ = 0.5 * information_ + 0.5 * information_.transpose().eval();
@@ -334,7 +342,9 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   double time = t_start_adjusted;
   for (size_t i = 0; i < imu_measurements.size() - 1; i++)
   {
-    if (imu_measurements[i].timestamp < t_start_adjusted) continue;
+    if (!has_started && 
+        !(imu_measurements[i].timestamp <= t_start_adjusted && 
+        imu_measurements[i + 1].timestamp >= t_start_adjusted)) continue;
 
     Eigen::Vector3d omega_S_0 = imu_measurements[i].angular_velocity;
     Eigen::Vector3d acc_S_0 = imu_measurements[i].linear_acceleration;

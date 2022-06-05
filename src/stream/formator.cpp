@@ -261,6 +261,7 @@ RTCM2Formator::RTCM2Formator(Config& config)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
+  sprintf(rtcm_.opt, "-EPHALL");
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
@@ -277,6 +278,7 @@ RTCM2Formator::RTCM2Formator(YAML::Node& node)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
+  sprintf(rtcm_.opt, "-EPHALL");
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
@@ -351,6 +353,7 @@ RTCM3Formator::RTCM3Formator(Config& config)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
+  sprintf(rtcm_.opt, "-EPHALL");
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
@@ -367,6 +370,7 @@ RTCM3Formator::RTCM3Formator(YAML::Node& node)
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
+  sprintf(rtcm_.opt, "-EPHALL");
   rtcm_.time = gnss_common::doubleToGtime(config.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));

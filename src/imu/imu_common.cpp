@@ -16,8 +16,9 @@ bool initPoseAndBiases(const ImuMeasurements& imu_measurements,
                        const double timestamp_start, 
                        const double timestamp_end)
 {
-  // set translation to zero, unit rotation
+  // set to zero
   T_WS.setIdentity();
+  speed_and_bias.setZero();
 
   if (imu_measurements.size() == 0) return false;
 
@@ -33,8 +34,9 @@ bool initPoseAndBiases(const ImuMeasurements& imu_measurements,
     n_measurements++;
 
     // zero motion check
-    if (fabs(imu_measurements[i].linear_acceleration.norm() - gravity) > 0.3 || 
-        fabs(imu_measurements[i].angular_velocity.norm()) > 0.03) continue;
+    // if (fabs(imu_measurements[i].linear_acceleration.norm() - gravity) > 0.5 || 
+    //     fabs(imu_measurements[i].angular_velocity.norm()) > 0.05) continue;
+    if (fabs(imu_measurements[i].linear_acceleration.norm() - gravity) > 0.5) continue;
 
     acc_B += imu_measurements[i].linear_acceleration;
     gyro_B += imu_measurements[i].angular_velocity;
@@ -66,10 +68,10 @@ bool initPoseAndBiases(const ImuMeasurements& imu_measurements,
   T_WS.getRotation().normalize();
 
   // biases
-  Eigen::Vector3d g(0.0, 0.0, gravity);
-  speed_and_bias.segment<3>(3) = gyro_B;
-  speed_and_bias.segment<3>(6) = 
-    acc_B - T_WS.getRotationMatrix().transpose() * g;
+  // Eigen::Vector3d g(0.0, 0.0, gravity);
+  // speed_and_bias.segment<3>(3) = gyro_B;
+  // speed_and_bias.segment<3>(6) = 
+  //   acc_B - T_WS.getRotationMatrix().transpose() * g;
 
   return true;
 }

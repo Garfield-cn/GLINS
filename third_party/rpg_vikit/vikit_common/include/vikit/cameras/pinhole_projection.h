@@ -37,6 +37,9 @@ public:
         Eigen::Vector2d* out_keypoint,
         Eigen::Matrix<double, 2, 3>* out_jacobian_point) const ;
 
+  // Project bearing vector to image plane
+  Eigen::Vector2d projectBearingToImage(const Eigen::Vector3d& bearing) const;
+
   // Returns focal length (transforms unit plane error to pixel error).
   double errorMultiplier() const;
 

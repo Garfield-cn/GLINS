@@ -5,6 +5,7 @@
 #include <map>
 #include <opencv2/core/core.hpp>
 #include <Eigen/Core>
+#include <glog/logging.h>
 
 namespace svo {
 
@@ -73,7 +74,6 @@ enum class FeatureType : uint8_t
 };
 
 using FeatureTypes = std::vector<FeatureType>;
-
 
 inline bool isSeed(const FeatureType& t)
 {

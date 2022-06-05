@@ -63,7 +63,7 @@ namespace gici {
 // not sized, in order to be flexible.
 class MarginalizationError : public ceres::CostFunction, public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -276,8 +276,8 @@ class MarginalizationError : public ceres::CostFunction, public ErrorInterface
         != parameter_block_id_to_parameter_block_info_idx_.end();
   }
 
- protected:
-  Graph* map_ptr_; ///< The underlying graph.
+protected:
+  Graph* graph_; ///< The underlying graph.
   ceres::ResidualBlockId residual_block_id_; ///< The residual block id of this.
 
   /// \brief Checks the internal datastructure (debug)

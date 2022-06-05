@@ -55,7 +55,7 @@ namespace gici {
 /// @brief Base class providing the interface for parameter blocks.
 class ParameterBlock
 {
- public:
+public:
 
   /// @brief Default constructor, assumes not fixed and no local parameterisation.
   ParameterBlock()
@@ -155,7 +155,7 @@ class ParameterBlock
   /// @brief Return parameter block type as string
   virtual std::string typeInfo() const = 0;
 
- protected:
+protected:
   /// @brief ID of the parameter block
   uint64_t id_;
   /// @brief Whether or not this should be optimised at all (ceres::problem::setFixed)

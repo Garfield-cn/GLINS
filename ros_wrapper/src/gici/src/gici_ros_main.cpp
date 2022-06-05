@@ -19,6 +19,10 @@ using namespace gici;
 // Instructions for ROS specific settings is shown in option/ros_example.yaml
 int main(int argc, char** argv)
 {
+  std::ofstream outfile;
+  outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
+  outfile.close();
+
   // Initialize ROS
   ros::init(argc, argv, "gici");
   ros::NodeHandle nh("~");

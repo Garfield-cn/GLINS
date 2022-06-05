@@ -47,7 +47,7 @@ RosStream::RosStream(
     return;
   }
   option_tools::convert(type_str, io_type_);
-  if (io_type_ != StreamIOType::Input || io_type_ != StreamIOType::Output) {
+  if (io_type_ != StreamIOType::Input && io_type_ != StreamIOType::Output) {
     LOG(ERROR) << "Invalid IO type for ROS streamer!";
   }
   // for input stream, we must specify its role, so that we can let estimator know
@@ -193,7 +193,7 @@ void RosStream::featuredImageCallback(FramePtr& frame)
 void RosStream::mapPointCallback(MapPtr& map)
 {
   if (data_format_ == RosDataFormat::Marker) {
-    publishFeatures(publisher_, map, 
+    publishLandmarks(publisher_, map, 
       ros::Time(map->getLastKeyframe()->getTimestampSec()), frame_id_);
   }
 }

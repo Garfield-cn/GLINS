@@ -79,7 +79,7 @@ inline void conservativeResize(Eigen::VectorXd& vectorXd, int size)
 // Default constructor. Initialises a new Graph.
 MarginalizationError::MarginalizationError()
 {
-  map_ptr_ = 0;
+  graph_ = 0;
   dense_indices_ = 0;
   residual_block_id_ = 0;
   error_computation_valid_ = false;
@@ -109,7 +109,7 @@ MarginalizationError::MarginalizationError(
 // Set the underlying Graph.
 void MarginalizationError::setMap(Graph& map)
 {
-  map_ptr_ = &map;
+  graph_ = &map;
   residual_block_id_ = 0;  // reset.
 }
 
@@ -140,7 +140,7 @@ bool MarginalizationError::addResidualBlock(
 {
   // get the residual block & check
   std::shared_ptr<ErrorInterface> error_interface_ptr =
-      map_ptr_->errorInterfacePtr(residual_block_id);
+      graph_->errorInterfacePtr(residual_block_id);
   CHECK(error_interface_ptr)
       << "residual block id does not exist.";
   if (error_interface_ptr == nullptr)
@@ -151,7 +151,7 @@ bool MarginalizationError::addResidualBlock(
   error_computation_valid_ = false;  // flag that the error computation is invalid
 
   // get the parameter blocks
-  Graph::ParameterBlockCollection parameters = map_ptr_->parameters(residual_block_id);
+  Graph::ParameterBlockCollection parameters = graph_->parameters(residual_block_id);
 
   // insert into parameter block ordering book-keeping
   for (size_t i = 0; i < parameters.size(); ++i)
@@ -343,14 +343,14 @@ bool MarginalizationError::addResidualBlock(
 
   // correct for loss function if applicable
 
-  ceres::LossFunction* lossFunction = map_ptr_
+  ceres::LossFunction* lossFunction = graph_
       ->residualBlockIdToResidualBlockSpecMap().find(residual_block_id)->second
       .loss_function_ptr;
   if (lossFunction)
   {
     CHECK(
-        map_ptr_->residualBlockIdToResidualBlockSpecMap().find(residual_block_id)
-        != map_ptr_->residualBlockIdToResidualBlockSpecMap().end());
+        graph_->residualBlockIdToResidualBlockSpecMap().find(residual_block_id)
+        != graph_->residualBlockIdToResidualBlockSpecMap().end());
 
     // following ceres in internal/ceres/corrector.cc
     const double sq_norm = residuals_eigen.transpose() * residuals_eigen;
@@ -464,7 +464,7 @@ bool MarginalizationError::addResidualBlock(
   // finally, we also have to delete the nonlinear residual block from the map:
   if (!keep)
   {
-    map_ptr_->removeResidualBlock(residual_block_id);
+    graph_->removeResidualBlock(residual_block_id);
   }
 
   // cleanup temporarily allocated stuff
@@ -480,7 +480,7 @@ bool MarginalizationError::addResidualBlock(
 // Info: is this parameter block connected to this marginalization error?
 bool MarginalizationError::isParameterBlockConnected(
     uint64_t parameter_block_id) {
-  CHECK(map_ptr_->parameterBlockExists(parameter_block_id))
+  CHECK(graph_->parameterBlockExists(parameter_block_id))
       << "this parameter block does not even exist in the graph...";
   std::map<uint64_t, size_t>::iterator it =
       parameter_block_id_to_parameter_block_info_idx_.find(parameter_block_id);
@@ -508,7 +508,7 @@ void MarginalizationError::check() {
     totalsize += parameter_block_infos_[i].minimal_dimension;
     CHECK(parameter_block_infos_[i].dimension==
                 size_t(base_t::parameter_block_sizes()[i]));
-    CHECK(map_ptr_->parameterBlockExists(
+    CHECK(graph_->parameterBlockExists(
                   parameter_block_infos_[i].parameter_block_id));
     CHECK(parameter_block_id_to_parameter_block_info_idx_[
                 parameter_block_infos_[i].parameter_block_id]==i);
@@ -541,7 +541,7 @@ void MarginalizationError::check() {
 void MarginalizationError::getParameterBlockPtrs(
     std::vector<std::shared_ptr<ParameterBlock> >& parameter_block_ptrs)
 {
-  CHECK(map_ptr_!=0) << "no Graph object passed ever!";
+  CHECK(graph_!=0) << "no Graph object passed ever!";
   for (size_t i = 0; i < parameter_block_infos_.size(); ++i)
   {
     parameter_block_ptrs.push_back(parameter_block_infos_[i].parameter_block_ptr);
@@ -860,12 +860,12 @@ bool MarginalizationError::marginalizeOut(
   // check if the removal is safe
   for (size_t i = 0; i < parameter_block_ids_copy.size(); ++i)
   {
-    Graph::ResidualBlockCollection residuals = map_ptr_->residuals(
+    Graph::ResidualBlockCollection residuals = graph_->residuals(
         parameter_block_ids_copy[i]);
     if (residuals.size() != 0
         && parameter_block_ptrs.at(parameter_block_ids_copy[i]) == false)
     {
-      map_ptr_->printParameterBlockInfo(parameter_block_ids_copy[i]);
+      graph_->printParameterBlockInfo(parameter_block_ids_copy[i]);
     }
     CHECK(residuals.size()==0 ||
                 parameter_block_ptrs.at(parameter_block_ids_copy[i]) == true)
@@ -882,7 +882,7 @@ bool MarginalizationError::marginalizeOut(
     }
     else
     {
-      map_ptr_->removeParameterBlock(parameter_block_ids_copy[i]);
+      graph_->removeParameterBlock(parameter_block_ids_copy[i]);
     }
   }
 

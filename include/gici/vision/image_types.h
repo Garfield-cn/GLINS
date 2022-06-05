@@ -84,4 +84,43 @@ typedef std::vector<ExtrinsicsEstimationParameters,
                     Eigen::aligned_allocator<ExtrinsicsEstimationParameters> >
         ExtrinsicsEstimationParametersVec;
 
+/**
+ * @brief A type to store information about a point in the world map.
+ */
+struct MapPoint
+{
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  /// \brief Default constructor. Point is nullptr.
+  MapPoint()
+      : point(nullptr), fixed_position(false)
+  {}
+  /**
+   * @brief Constructor.
+   * @param point     Pointer to underlying svo::Point
+   */
+  MapPoint(const PointPtr& point)
+    : point(point), fixed_position(false)
+  {
+    hom_coordinates << point->pos(), 1;
+  }
+
+  Eigen::Vector4d hom_coordinates; ///< Continuosly updates position of point
+
+
+  //! Pointer to the point. The position is not updated inside backend
+  //! because of possible multithreading conflicts.
+  PointPtr point;
+
+  //! Observations of this point. The uint64_t's are the casted
+  //! ceres::ResidualBlockId values of the reprojection error residual block.
+  std::map<KeypointIdentifier, uint64_t> observations;
+
+  //! Is the point position fixed by a loop closure?
+  bool fixed_position;
+};
+typedef std::vector<MapPoint, Eigen::aligned_allocator<MapPoint> > MapPointVector;
+typedef std::map<BackendId, MapPoint, std::less<BackendId>,
+  Eigen::aligned_allocator<std::pair<const BackendId, MapPoint>> > PointMap;
+
 }

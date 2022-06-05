@@ -40,7 +40,7 @@ struct RtkImuTcEstimatorOptions {
   // Use ambiguity resolution
   bool use_ambiguity_resolution = true;
 
-  // GNSS extrinsic variation variance
+  // GNSS extrinsics variation variance
   double gnss_relative_extrinsic_std = 1.0e-6;
 
   // GNSS common options
@@ -79,6 +79,10 @@ public:
   RtkImuTcEstimator(const RtkImuTcEstimatorOptions& options);
   ~RtkImuTcEstimator();
 
+  // Set initialization result 
+  void setInitializationResult(
+    const std::shared_ptr<GnssImuInitialization>& initializer);
+
   // Add GNSS measurements and state
   bool addGnssMeasurementAndState(const GnssMeasurement& measurement_rov, 
                                   const GnssMeasurement& measurement_ref);
@@ -86,14 +90,16 @@ public:
   // Add IMU measurement
   void addImuMeasurement(const ImuMeasurement& imu_measurement);
 
-  // Start ceres optimization
+  // Apply ceres optimization
   void optimize();
 
   // Set gravity
   void setGravity(double gravity) { 
     options_.imu_parameters.g = gravity;
-    initializer_->setGravity(gravity);
   }
+
+  // Get graph pointer
+  const std::shared_ptr<Graph>& getGraph() const { return graph_; }
 
   // Get pose
   Transformation getPoseEstimate();
@@ -101,7 +107,7 @@ public:
   // Get speed and bias
   SpeedAndBias getSpeedAndBias();
 
-  // Get Relative position between GNSS and IMU
+  // Get GNSS extrinsics
   Eigen::Vector3d getGnssExtrinsic();
 
   // Get status
@@ -119,7 +125,6 @@ public:
   // Set coordinate handle
   void setCoordinate(const GeoCoordinatePtr& coordinate) { 
     coordinate_ = coordinate;
-    initializer_->setCoordinate(coordinate_);
   }
 
   // Get coordinate handle
@@ -161,14 +166,14 @@ private:
 
 private:
   // Graph that handles residuals and states
-  std::shared_ptr<Graph> graph_ptr_;
+  std::shared_ptr<Graph> graph_;
 
   // Options
   RtkImuTcEstimatorOptions options_;
 
   // loss function 
-  std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
-  std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
+  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
 
   // States
   std::deque<State> states_;
@@ -181,9 +186,7 @@ private:
   GeoCoordinatePtr coordinate_;
 
   // Initialization
-  std::unique_ptr<GnssImuInitialization> initializer_;
-  std::unique_ptr<RtkEstimator> rtk_estimator_;
-  bool imu_initialized_ = false;
+  bool initialized_ = false;
 
   // Ambiguity resolution
   std::unique_ptr<AmbiguityResolution> ambiguity_resolution_;

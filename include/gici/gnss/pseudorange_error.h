@@ -34,7 +34,7 @@ class PseudorangeError :
     Ns ... /* parameter blocks */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -124,7 +124,7 @@ class PseudorangeError :
     return ErrorType::kPseudorangeError;
   }
 
- protected:
+protected:
   GnssMeasurement measurement_; ///< The measurement.
   Satellite satellite_;
   Observation observation_;

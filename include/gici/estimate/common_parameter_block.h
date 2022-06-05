@@ -24,7 +24,7 @@ enum class CommonParameterBlockType {
 template<int Dim, CommonParameterBlockType Type>
 class CommonParameterBlock : public ParameterBlock
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   typedef Eigen::VectorXd estimate_t;
@@ -140,7 +140,7 @@ class CommonParameterBlock : public ParameterBlock
     return "CommonParameterBlock";
   }
 
- private:
+private:
   Eigen::VectorXd estimate_;
 };
 

@@ -34,15 +34,15 @@ struct GnssImuInitializationOptions {
 
   // GNSS measurement window length, we use GNSS measurements and the corresponding 
   // IMU measurments in this window to optimize the initial values.
-  int window_length_optimize = 20;
+  int min_window_length = 20;
 
   // Relative position from IMU to GNSS in IMU frame
-  Eigen::Vector3d gnss_extrinsic;
+  Eigen::Vector3d gnss_extrinsics;
 
-  // GNSS extrinsic initial variance
+  // GNSS extrinsics initial variance
   double gnss_extrinsic_initial_std = 0.5;
 
-  // GNSS extrinsic variation variance
+  // GNSS extrinsics variation variance
   double gnss_relative_extrinsic_std = 1.0e-6;
 
   // Min velocity to start initialization, we need a relatively large velocity to ensure 
@@ -60,8 +60,13 @@ public:
 
   GnssImuInitialization(const GnssImuInitializationOptions& options);
   GnssImuInitialization(const GnssImuInitializationOptions& options, 
-                        const std::shared_ptr<Graph>& graph_ptr);
+                        const std::shared_ptr<Graph>& graph);
   ~GnssImuInitialization();
+
+  // Set a graph pointer 
+  void setGraph(const std::shared_ptr<Graph> graph) {
+    graph_ = graph;
+  }
 
   // Set coordinate for world frame transformation
   void setCoordinate(const GeoCoordinatePtr& coordinate) { 
@@ -69,7 +74,10 @@ public:
   }
 
   // Set gravity
-  void setGravity(double gravity) { options_.imu_parameters.g = gravity; }
+  void setGravity(double gravity) { 
+    options_.imu_parameters.g = gravity;
+    gravity_setted_ = true;
+  }
 
   // Add GNSS measurement
   bool addGnssMeasurement(const GnssSolution& gnss_solution);
@@ -77,12 +85,14 @@ public:
   // Add IMU measurement
   void addImuMeasurement(const ImuMeasurement& imu_measurement);
 
+  // Check if finished
+  bool finished() const { return finished_; }
+
   // Get initialization result
-  bool getResult(Transformation& T_WS, Eigen::Matrix<double, 7, 7>& cov_T_WS,
+  bool getResult(Transformation& T_WS, Eigen::Matrix<double, 6, 6>* cov_T_WS,
                  SpeedAndBias& speed_and_bias, 
-                 Eigen::Matrix<double, 9, 9>& cov_speed_and_bias,
-                 Eigen::Vector3d& t_SR_S, Eigen::Matrix3d& cov_t_SR_S,
-                 bool compute_covariance = false);
+                 Eigen::Matrix<double, 9, 9>* cov_speed_and_bias,
+                 Eigen::Vector3d& t_SR_S, Eigen::Matrix3d* cov_t_SR_S);
 
   // Marginalize the used measurements to a given window length 
   bool marginalization(const int window_length,
@@ -90,18 +100,20 @@ public:
                        std::deque<GnssSolution>& left_gnss_solutions, 
                        ceres::ResidualBlockId& marginalization_residual_id);
 
-private:
+protected:
   // Graph that handles residuals and states
-  std::shared_ptr<Graph> graph_ptr_;
+  std::shared_ptr<Graph> graph_;
 
   // Options
   GnssImuInitializationOptions options_;
 
   // loss function 
-  std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
-  std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
+  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
 
   // flag
+  bool use_outside_graph_ = false;
+  bool gravity_setted_ = false;
   bool zero_motion_finished_ = false;
   bool finished_ = false;
 
@@ -112,6 +124,7 @@ private:
   // Measurements
   std::deque<GnssSolution> gnss_solutions_;
   ImuMeasurements imu_measurements_;
+  std::mutex imu_mutex_;
   GeoCoordinatePtr coordinate_;
 
   // Debug

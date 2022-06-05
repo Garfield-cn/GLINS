@@ -6,8 +6,6 @@
 **/
 #include "gici/utility/transform.h"
 
-#include <rtklib.h>
-
 namespace gici {
 
 // Convert quartion to euler angle
@@ -38,24 +36,24 @@ Eigen::Vector3d quaternionToEulerAngle(const Eigen::Quaternion<double>& q)
 // Convert euler angle to quarternion
 Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d rpy)
 {
-    // Abbreviations for the various angular functions
-    double roll = rpy(0);
-    double pitch = rpy(1);
-    double yaw = rpy(2);
-    double cy = cos(yaw * 0.5);
-    double sy = sin(yaw * 0.5);
-    double cp = cos(pitch * 0.5);
-    double sp = sin(pitch * 0.5);
-    double cr = cos(roll * 0.5);
-    double sr = sin(roll * 0.5);
+  // Abbreviations for the various angular functions
+  double roll = rpy(0);
+  double pitch = rpy(1);
+  double yaw = rpy(2);
+  double cy = cos(yaw * 0.5);
+  double sy = sin(yaw * 0.5);
+  double cp = cos(pitch * 0.5);
+  double sp = sin(pitch * 0.5);
+  double cr = cos(roll * 0.5);
+  double sr = sin(roll * 0.5);
 
-    Eigen::Quaternion<double> q;
-    q.w() = cr * cp * cy + sr * sp * sy;
-    q.x() = sr * cp * cy - cr * sp * sy;
-    q.y() = cr * sp * cy + sr * cp * sy;
-    q.z() = cr * cp * sy - sr * sp * cy;
+  Eigen::Quaternion<double> q;
+  q.w() = cr * cp * cy + sr * sp * sy;
+  q.x() = sr * cp * cy - cr * sp * sy;
+  q.y() = cr * sp * cy + sr * cp * sy;
+  q.z() = cr * cp * sy - sr * sp * cy;
 
-    return q;
+  return q;
 }
 
 }

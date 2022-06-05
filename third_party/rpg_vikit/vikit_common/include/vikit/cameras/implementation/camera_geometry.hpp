@@ -38,6 +38,13 @@ const ProjectionResult CameraGeometry<Projection>::project3(
 }
 
 template<typename Projection>
+Eigen::Vector2d CameraGeometry<Projection>::projectBearingToImage(
+    const Eigen::Ref<const Eigen::Vector3d>& bearing) const
+{
+  return projection_.projectBearingToImage(bearing);
+}
+
+template<typename Projection>
 void CameraGeometry<Projection>::printParameters(
     std::ostream& out, const std::string& s) const
 {

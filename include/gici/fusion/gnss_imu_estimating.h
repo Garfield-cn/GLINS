@@ -41,6 +41,9 @@ public:
   void process() override;
 
 private:
+  // Process initialization
+  bool processInitialize();
+
   // Process GNSS and IMU loosely couple estimator
   bool processGnssImuLc();
 
@@ -93,6 +96,8 @@ protected:
   // Estimator control
   std::unique_ptr<GnssImuLcEstimator> gnss_imu_lc_estimator_;
   std::unique_ptr<RtkImuTcEstimator> rtk_imu_tc_estimator_;
+  std::shared_ptr<GnssImuInitialization> gnss_imu_initializer_;
+  std::unique_ptr<RtkEstimator> rtk_estimator_;
 
   // Data buffers
   std::map<GnssRole, std::deque<GnssMeasurement>> gnss_measurements_;

@@ -156,7 +156,7 @@ int main(int argc, char** argv)
   gnss_imu_initialize_options.gnss_extrinsic << 0.1, -0.4, -0.4;
   gnss_imu_initialize_options.gnss_extrinsic_initial_std = 0.3;
   gnss_imu_initialize_options.verbose = true;
-  gnss_imu_initialize_options.window_length_optimize = 20;
+  gnss_imu_initialize_options.min_window_length = 20;
   gnss_imu_initialize_options.max_iteration = 100;
   gnss_imu_initialize_options.min_velocity = 2.0;
   gnss_imu_initialize_options.imu_parameters = rtk_imu_tc_estimator_options.imu_parameters;

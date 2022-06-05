@@ -93,6 +93,14 @@ void EquidistantFisheyeProjection::project3(
   }
 }
 
+Eigen::Vector2d EquidistantFisheyeProjection::projectBearingToImage(
+  const Eigen::Vector3d& bearing) const
+{
+  Eigen::Vector2d out_keypoint;
+  project3(bearing, &out_keypoint, nullptr);
+  return out_keypoint;
+}
+
 double EquidistantFisheyeProjection::errorMultiplier() const
 {
   // TODO(tcies) What is this?

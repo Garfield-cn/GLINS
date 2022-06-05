@@ -15,6 +15,7 @@ namespace gici {
 namespace option_tools {
 
 enum class SensorType {
+  None,
   GNSS,
   IMU,
   Camera,

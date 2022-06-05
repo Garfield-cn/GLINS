@@ -59,7 +59,7 @@ class RelativePoseError :
     7 /* size of second parameter */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -146,7 +146,7 @@ class RelativePoseError :
     return ErrorType::kRelativePoseError;
   }
 
- protected:
+protected:
 
   // weighting related
   information_t information_; ///< The 6x6 information matrix.

@@ -46,7 +46,7 @@ namespace gici {
 ///        than are needed in the generic marginalisation okvisceres::MarginalizationError.
 class LocalParamizationAdditionalInterfaces
 {
- public:
+public:
   /// \brief Trivial destructor.
   virtual ~LocalParamizationAdditionalInterfaces() = default;
 

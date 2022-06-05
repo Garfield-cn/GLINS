@@ -44,7 +44,7 @@
 
 #include <ceres/ceres.h>
 
-#include "utility/svo.h"
+#include "gici/utility/svo.h"
 #include "gici/estimate/error_interface.h"
 #include "gici/estimate/pose_local_parameterization.h"
 #include "gici/vision/reprojection_error_base.h"
@@ -54,7 +54,7 @@ namespace gici {
 /// \brief The 2D keypoint reprojection error.
 class ReprojectionError : public ReprojectionErrorBase
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -185,7 +185,7 @@ class ReprojectionError : public ReprojectionErrorBase
     return ErrorType::kReprojectionError;
   }
 
- protected:
+protected:
 
   // the measurement
   measurement_t measurement_; ///< The (2D) measurement.
@@ -204,4 +204,4 @@ class ReprojectionError : public ReprojectionErrorBase
 
 }  // namespace gici
 
-#include <gici/vision/reprojection_error_impl.hpp>
+#include "gici/vision/reprojection_error_impl.h"

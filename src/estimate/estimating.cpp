@@ -82,14 +82,14 @@ void EstimatingBase::run()
     process();
 
     // Publish solution
-    mutex_.lock();
+    mutex_output_.lock();
     if (publish_timestamp_ != solution_.timestamp) {
       for (auto& solution_callback : solution_callbacks_) {
         solution_callback(tag_, role_, solution_);
       }
       publish_timestamp_ = solution_.timestamp;
     }
-    mutex_.unlock();
+    mutex_output_.unlock();
 
     spin.sleep();
   }

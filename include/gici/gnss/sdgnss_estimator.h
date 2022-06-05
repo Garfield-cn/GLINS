@@ -54,7 +54,7 @@ public:
   bool addGnssMeasurementAndState(const GnssMeasurement& measurement_rov, 
                                   const GnssMeasurement& measurement_ref);
 
-  // Start ceres optimization
+  // Apply ceres optimization
   void optimize();
 
   // Get position in ECEF coordinate
@@ -62,14 +62,14 @@ public:
 
 private:
   // Graph that handles residuals and states
-  std::shared_ptr<Graph> graph_ptr_;
+  std::shared_ptr<Graph> graph_;
 
   // Options
   SdgnssEstimatorOptions options_;
 
   // loss function
-  std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
-  std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
+  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
 
   // Measurement
   GnssMeasurement measurement_rov_;

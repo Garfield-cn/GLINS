@@ -793,6 +793,30 @@ Graph::ParameterBlockCollection Graph::parameters(
   return it->second;
 }
 
+// Get all the residual blocks
+Graph::ResidualBlockCollection Graph::residuals() const
+{
+  ResidualBlockCollection returnResiduals;
+  for (auto it : residual_block_id_to_residual_block_spec_map_) {
+    returnResiduals.push_back(it.second);
+  }
+  return returnResiduals;
+}
+
+// Get all the parameter blocks
+Graph::ParameterBlockCollection Graph::parameters() const
+{
+  ParameterBlockCollection returnParameters;
+  for (auto it : residual_block_id_to_parameter_block_collection_map_) {
+    for (auto parameter : it.second) {
+      if (std::find(returnParameters.begin(), returnParameters.end(), parameter) 
+        != returnParameters.end()) continue;
+      returnParameters.push_back(parameter);
+    }
+  }
+  return returnParameters;
+}
+
 // Get covariance estimation of given parameter blocks
 bool Graph::computeCovariance(
     const std::vector<uint64_t>& parameter_block_ids,

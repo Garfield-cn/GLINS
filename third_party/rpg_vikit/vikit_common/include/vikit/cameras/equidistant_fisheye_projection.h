@@ -25,6 +25,9 @@ class EquidistantFisheyeProjection
       Eigen::Vector2d* out_keypoint,
       Eigen::Matrix<double, 2, 3>* out_jacobian_point) const;
 
+  // Project bearing vector to image plane
+  Eigen::Vector2d projectBearingToImage(const Eigen::Vector3d& bearing) const;
+
   double errorMultiplier() const;
 
   double getAngleError(double img_err) const;

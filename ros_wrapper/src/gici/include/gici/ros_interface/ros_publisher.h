@@ -34,8 +34,8 @@ void publishImage(ros::Publisher& pub,
 void publishFeaturedImage(ros::Publisher& pub, 
   const FramePtr& frame, const ros::Time time);
 
-// Publish features
-void publishFeatures(ros::Publisher& pub, 
+// Publish landmarks
+void publishLandmarks(ros::Publisher& pub, 
   const MapPtr& map, const ros::Time time, 
   std::string frame_id);
 
@@ -64,9 +64,16 @@ void publishPoseWithCovarianceAndTransform(ros::Publisher& pub,
 // Path publisher
 class PathPublisher {
 public:
+  // Add a pose and publish all previous poses
   void addPoseAndPublish(ros::Publisher& pub, 
     const Transformation& pose, const ros::Time time, 
     std::string frame_id);
+
+  // Clear previous poses
+  inline void clear() { 
+    path_.poses.clear();
+    is_initialized_ = false;
+  }
 
 protected:
   bool is_initialized_ = false;

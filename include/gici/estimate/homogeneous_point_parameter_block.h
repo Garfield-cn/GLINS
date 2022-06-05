@@ -54,7 +54,7 @@ namespace gici {
 /// \brief Wraps the parameter block for a speed / IMU biases estimate
 class HomogeneousPointParameterBlock : public ParameterBlock
 {
- public:
+public:
 
   /// \brief The estimate type (4D vector).
   typedef Eigen::Vector4d estimate_t;
@@ -162,7 +162,7 @@ class HomogeneousPointParameterBlock : public ParameterBlock
     return "HomogeneousPointParameterBlock";
   }
 
- private:
+private:
   Eigen::Vector4d estimate_;
   bool initialized_;  ///< Whether or not the 3d position is considered initialised.
 };

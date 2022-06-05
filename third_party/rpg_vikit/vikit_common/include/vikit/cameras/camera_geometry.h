@@ -31,6 +31,9 @@ public:
       Eigen::Vector2d* out_keypoint,
       Eigen::Matrix<double, 2, 3>* out_jacobian_point) const override;
 
+  virtual Eigen::Vector2d projectBearingToImage(
+      const Eigen::Ref<const Eigen::Vector3d>& bearing) const override;
+
   virtual void printParameters(std::ostream& out, const std::string& s = "Camera: ") const override;
 
   virtual Eigen::VectorXd getIntrinsicParameters() const override;

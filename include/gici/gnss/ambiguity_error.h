@@ -28,7 +28,7 @@ class AmbiguityError :
     Ns ... /* parameter blocks */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -112,7 +112,7 @@ class AmbiguityError :
     return ErrorType::kAmbiguityError;
   }
 
- protected:
+protected:
   double ambiguity_;
   double information_;
   std::vector<double> coefficients_;

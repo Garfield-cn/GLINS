@@ -15,6 +15,7 @@
 
 #include "gici/estimate/estimating.h"
 #include "gici/vision/feature_handler.h"
+#include "gici/fusion/gnss_imu_camera_srr_estimator.h"
 
 namespace gici {
 
@@ -56,8 +57,11 @@ public:
   }
 
 private:
+  // Process initialization
+  bool processInitialize();
+
   // Process Semi-Tightly couple using GNSS solution, IMU raw, and Image feature
-  bool processGnssImuCameraStc();
+  bool processGnssImuCameraSrr();
 
   // Process Tightly couple using GNSS raw, IMU raw, and Image feature
   bool processGnssImuCameraTc();
@@ -98,12 +102,20 @@ private:
   }
 
   // Delete one Image measurement from front
-  void popImage() {
+  inline void popImage() {
     for (auto& images : images_) {
       if (images.second.size() == 0) continue;
       images.second.pop_front();
     }
   }
+
+  // Delete one Frame from front
+  inline void popFrameBundle() {
+    frame_bundles_.pop_front();
+  }
+
+  // Update map points of in-windows keyframes
+  void updateMap();
 
   // Camera frontend processing
   void runFrontend();
@@ -114,17 +126,21 @@ private:
 protected:
   // Backend thread handles
   std::unique_ptr<std::thread> backend_thread_;
-  bool backend_finished_;
 
   // Front thread handles
   std::unique_ptr<std::thread> frontend_thread_;
-  bool frontend_finished_;
+  std::mutex mutex_frontend_;
+
+  // Sensor sequence control
+  std::list<SensorType> sensor_sequence_;
 
   // Estimator control
-
+  std::unique_ptr<GnssImuCameraSrrEstimator> gnss_imu_camera_srr_estimator_;
+  std::shared_ptr<GnssImuCameraInitialization> gnss_imu_camera_initializer_;
 
   // Frontend control
-  std::unique_ptr<FeatureHandler> feature_handler_;
+  std::shared_ptr<FeatureHandler> feature_handler_;
+  Solution camera_pose_;
 
   // Data buffers
   std::map<GnssRole, std::deque<GnssMeasurement>> gnss_measurements_;

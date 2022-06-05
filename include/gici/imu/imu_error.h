@@ -93,7 +93,7 @@ class ImuError :
         9 /* size of fourth parameter (SpeedAndBiasParameterBlock k+1) */>,
     public ErrorInterface
 {
- public:
+public:
 
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
@@ -186,8 +186,8 @@ class ImuError :
     auto it_imu = imu_measurements.rbegin();
     for (; it_imu != imu_measurements.rend(); it_imu++) {
       const ImuMeasurement& imu = *it_imu;
-      if (imu.timestamp < t0_ - 5.0 / imu_parameters_.rate || 
-          imu.timestamp > t1_ + 5.0 / imu_parameters_.rate) continue;
+      if (imu.timestamp < t0_ - 0.1 || 
+          imu.timestamp > t1_ + 0.1) continue;
       imu_measurements_.push_front(imu);
     }
   }
@@ -273,7 +273,7 @@ class ImuError :
     return ErrorType::kIMUError;
   }
 
- protected:
+protected:
   // parameters
   ImuParameters imu_parameters_; ///< The IMU parameters.
 

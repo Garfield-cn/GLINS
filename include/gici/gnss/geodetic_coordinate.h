@@ -8,7 +8,6 @@
 
 #include <Eigen/Core>
 #include <memory>
-#include <mutex>
 
 #include "gici/utility/rtklib_safe.h"
 
@@ -43,7 +42,7 @@ public:
   Eigen::Vector3d convert(const Eigen::Vector3d& position,
               const GeoType in_type, const GeoType out_type);
 
-  // Rotation matrix
+  // Rotation matrices
   Eigen::Matrix3d rotationMatrix(GeoType from, GeoType to);
 
   // Convert LLA in degree to LLA in rad

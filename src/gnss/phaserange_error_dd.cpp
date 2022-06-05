@@ -23,7 +23,7 @@ PhaserangeErrorDD<Ns ...>::PhaserangeErrorDD(
                     const GnssMeasurementIndex index_ref_base,
                     const GnssErrorParameter& error_parameter)
 {
-  CHECK(measurement_ref.position != Eigen::Vector3d::Zero()) << 
+  CHECK(!checkZero(measurement_ref.position)) << 
     "The position of reference station is not setted!";
 
   setMeasurement(measurement_rov, measurement_ref);

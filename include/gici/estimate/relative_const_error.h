@@ -26,7 +26,7 @@ class RelativeConstError :
     Dim /* size of second parameter: current */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -160,7 +160,7 @@ class RelativeConstError :
     return Type;
   }
 
- protected:
+protected:
 
   // weighting related
   information_t information_; ///< The DimxDim information matrix.

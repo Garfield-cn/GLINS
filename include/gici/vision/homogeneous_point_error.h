@@ -59,7 +59,7 @@ class HomogeneousPointError :
     4 /* size of first parameter */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -177,7 +177,7 @@ class HomogeneousPointError :
     return ErrorType::kHomogeneousPointError;
   }
 
- protected:
+protected:
 
   // the measurement
   Eigen::Vector4d measurement_; ///< The (4D) measurement.

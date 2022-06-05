@@ -19,8 +19,19 @@ StreamHandle::StreamHandle(YAML::Node& node)
   }
   YAML::Node streamer_nodes = node["streamers"];
   for (size_t i = 0; i < streamer_nodes.size(); i++) {
-    streamings_.push_back(
-      std::make_shared<Streaming>(node, i));
+    // check if ROS streamer
+    YAML::Node streamer_node = streamer_nodes[i]["streamer"];
+    if (!streamer_node["type"].IsDefined()) {
+      LOG(FATAL) << "Unable to load streamer type!";
+    }
+    std::string type_str = streamer_node["type"].as<std::string>();
+    StreamerType type;
+    option_tools::convert(type_str, type);
+    if (type == StreamerType::Ros) continue;
+
+    auto streaming = std::make_shared<Streaming>(node, i);
+    if (!streaming->valid()) continue;
+    streamings_.push_back(streaming);
   }
 
   // Get formator options to determine the behaviors to callbacks

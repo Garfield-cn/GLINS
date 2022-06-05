@@ -36,7 +36,7 @@ class PseudorangeErrorDD :
     Ns ... /* parameter blocks */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -129,7 +129,7 @@ class PseudorangeErrorDD :
     return ErrorType::kPseudorangeErrorDD;
   }
 
- protected:
+protected:
   GnssMeasurement measurement_rov_, measurement_ref_; 
   Satellite satellite_rov_, satellite_ref_,
             satellite_rov_base_, satellite_ref_base_;

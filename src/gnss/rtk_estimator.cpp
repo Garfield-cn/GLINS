@@ -17,7 +17,7 @@ namespace gici {
 
 // The default constructor
 RtkEstimator::RtkEstimator(const RtkEstimatorOptions& options) :
-  options_(options), graph_ptr_(std::make_shared<Graph>()),
+  options_(options), graph_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1)),
   marginalization_residual_id_(0)
@@ -25,10 +25,10 @@ RtkEstimator::RtkEstimator(const RtkEstimatorOptions& options) :
   states_.push_back(State());
   measurements_.push_back(std::make_pair(GnssMeasurement(), GnssMeasurement()));
 
-  marginalization_error_ptr_.reset(new MarginalizationError(*graph_ptr_.get()));
+  marginalization_error_ptr_.reset(new MarginalizationError(*graph_.get()));
 
   ambiguity_resolution_.reset(
-    new AmbiguityResolution(options.ambiguity_resolution, graph_ptr_));
+    new AmbiguityResolution(options.ambiguity_resolution, graph_));
 }
 
 // The default destructor
@@ -66,7 +66,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
   if (!checkZero(last_position)) position_prior = last_position;
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
     std::make_shared<PositionParameterBlock>(position_prior, position_id.asInteger());
-  if (!graph_ptr_->addParameterBlock(position_parameter_block)) {
+  if (!graph_->addParameterBlock(position_parameter_block)) {
     return false;
   }
 
@@ -91,9 +91,9 @@ bool RtkEstimator::addGnssMeasurementAndState(
       std::make_shared<PseudorangeErrorDD<3>>(curMeasRov(), curMeasRef(),
       dd_pair.rov, dd_pair.ref, dd_pair.rov_base, dd_pair.ref_base, 
       options_.error_parameter);
-    graph_ptr_->addResidualBlock(pseudorange_error, 
+    graph_->addResidualBlock(pseudorange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_ptr_->parameterBlockPtr(position_id.asInteger()));
+      graph_->parameterBlockPtr(position_id.asInteger()));
 
     // get number of satellites
     if (last_prn != satellite.prn) {
@@ -142,23 +142,23 @@ bool RtkEstimator::addGnssMeasurementAndState(
 
     // Create an ambiguity parameter block
     Eigen::Matrix<double, 1, 1> ambiguity_init;
-    ambiguity_init(0, 0) = getInitialAmbiguity(curMeasRov(), curMeasRef(), 
+    ambiguity_init(0, 0) = getInitialAmbiguitySD(curMeasRov(), curMeasRef(), 
       dd_pair.rov, dd_pair.ref);
     std::shared_ptr<AmbiguityParameterBlock> ambiguity_parameter_block = 
       std::make_shared<AmbiguityParameterBlock>(ambiguity_init, ambiguity_id.asInteger());
-    if (!graph_ptr_->addParameterBlock(ambiguity_parameter_block)) {
+    if (!graph_->addParameterBlock(ambiguity_parameter_block)) {
       continue;
     }
     // add to state
     curState().ambiguity_ids.push_back(ambiguity_id);
 
     // Create an ambiguity parameter block for base satellite
-    if (!graph_ptr_->parameterBlockExists(ambiguity_base_id.asInteger())) {
-      ambiguity_init(0, 0) = getInitialAmbiguity(curMeasRov(), curMeasRef(), 
+    if (!graph_->parameterBlockExists(ambiguity_base_id.asInteger())) {
+      ambiguity_init(0, 0) = getInitialAmbiguitySD(curMeasRov(), curMeasRef(), 
         dd_pair.rov_base, dd_pair.ref_base);
       std::shared_ptr<AmbiguityParameterBlock> ambiguity_base_parameter_block = 
         std::make_shared<AmbiguityParameterBlock>(ambiguity_init, ambiguity_base_id.asInteger());
-      if (!graph_ptr_->addParameterBlock(ambiguity_base_parameter_block)) {
+      if (!graph_->addParameterBlock(ambiguity_base_parameter_block)) {
         continue;
       }
       // add to state
@@ -168,7 +168,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
       std::vector<double> coefficients = {1.0};
       std::shared_ptr<AmbiguityError1Coef> ambiguity_error = 
         std::make_shared<AmbiguityError1Coef>(ambiguity_init(0, 0), 1e-2, coefficients);
-      graph_ptr_->addResidualBlock(ambiguity_error, nullptr, 
+      graph_->addResidualBlock(ambiguity_error, nullptr, 
         ambiguity_base_parameter_block);
     }
 
@@ -179,11 +179,11 @@ bool RtkEstimator::addGnssMeasurementAndState(
     // TODO: we thought that the phaseranges are far less affected by uncontrollable noises, 
     // so we unused robust function for phase to make it faster convergence. But the result was 
     // not as good as we expected.
-    graph_ptr_->addResidualBlock(phaserange_error, 
+    graph_->addResidualBlock(phaserange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_ptr_->parameterBlockPtr(position_id.asInteger()),
-      graph_ptr_->parameterBlockPtr(ambiguity_id.asInteger()), 
-      graph_ptr_->parameterBlockPtr(ambiguity_base_id.asInteger()));
+      graph_->parameterBlockPtr(position_id.asInteger()),
+      graph_->parameterBlockPtr(ambiguity_id.asInteger()), 
+      graph_->parameterBlockPtr(ambiguity_base_id.asInteger()));
 
     curState().status = GnssSolutionStatus::Float;
   }
@@ -195,9 +195,9 @@ bool RtkEstimator::addGnssMeasurementAndState(
     Eigen::Matrix3d relative_position_information = Eigen::Matrix3d::Identity() * 1e-4;
     std::shared_ptr<RelativePositionError> relative_position_error = 
       std::make_shared<RelativePositionError>(relative_position_information);
-    graph_ptr_->addResidualBlock(relative_position_error, nullptr,
-      graph_ptr_->parameterBlockPtr(lastState().id.asInteger()),
-      graph_ptr_->parameterBlockPtr(curState().id.asInteger()));
+    graph_->addResidualBlock(relative_position_error, nullptr,
+      graph_->parameterBlockPtr(lastState().id.asInteger()),
+      graph_->parameterBlockPtr(curState().id.asInteger()));
 
     // cycle slip detection
     cycleSlipDetectionSD(lastMeasRov(), lastMeasRef(), 
@@ -232,9 +232,9 @@ bool RtkEstimator::addGnssMeasurementAndState(
           Eigen::Matrix<double, 1, 1>::Identity() * 1e8;
         std::shared_ptr<RelativeAmbiguityError> relative_ambiguity_error = 
           std::make_shared<RelativeAmbiguityError>(relative_ambiguity_information);
-        graph_ptr_->addResidualBlock(relative_ambiguity_error, nullptr,
-          graph_ptr_->parameterBlockPtr(lastState().ambiguity_ids[i].asInteger()),
-          graph_ptr_->parameterBlockPtr(curState().ambiguity_ids[j].asInteger()));
+        graph_->addResidualBlock(relative_ambiguity_error, nullptr,
+          graph_->parameterBlockPtr(lastState().ambiguity_ids[i].asInteger()),
+          graph_->parameterBlockPtr(curState().ambiguity_ids[j].asInteger()));
       }
     }
   }
@@ -242,31 +242,31 @@ bool RtkEstimator::addGnssMeasurementAndState(
   return true;
 }
 
-// Start ceres optimization
+// Apply ceres optimization
 void RtkEstimator::optimize()
 {
-  graph_ptr_->options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
-  graph_ptr_->options.trust_region_strategy_type = ceres::DOGLEG;
-  graph_ptr_->options.num_threads = options_.num_threads;
-  graph_ptr_->options.max_num_iterations = options_.max_iteration;
-  // graph_ptr_->options.function_tolerance = 1e-12;
-  // graph_ptr_->options.gradient_tolerance = 1e-12;
-  // graph_ptr_->options.parameter_tolerance = 1e-12;
+  graph_->options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+  graph_->options.trust_region_strategy_type = ceres::DOGLEG;
+  graph_->options.num_threads = options_.num_threads;
+  graph_->options.max_num_iterations = options_.max_iteration;
+  // graph_->options.function_tolerance = 1e-12;
+  // graph_->options.gradient_tolerance = 1e-12;
+  // graph_->options.parameter_tolerance = 1e-12;
 
   // For debug
   // debug_callback_.reset(new CeresDebugCallback());
-  // graph_ptr_->options.callbacks.push_back(debug_callback_.get());
+  // graph_->options.callbacks.push_back(debug_callback_.get());
 
   if (options_.verbose) {
-    graph_ptr_->options.minimizer_progress_to_stdout = true;
+    graph_->options.minimizer_progress_to_stdout = true;
   }
   else {
-    graph_ptr_->options.logging_type = ceres::LoggingType::SILENT;
-    graph_ptr_->options.minimizer_progress_to_stdout = false;
+    graph_->options.logging_type = ceres::LoggingType::SILENT;
+    graph_->options.minimizer_progress_to_stdout = false;
   }
 
   // call solver
-  graph_ptr_->solve();
+  graph_->solve();
 
   // Ambiguity resolution
   setPositionEstimateToMeas();
@@ -277,7 +277,7 @@ void RtkEstimator::optimize()
   }
 
   if (options_.verbose) {
-    LOG(INFO) << graph_ptr_->summary.BriefReport();
+    LOG(INFO) << graph_->summary.BriefReport();
   }
 
   // Marginalization
@@ -296,12 +296,12 @@ void RtkEstimator::optimize()
 Eigen::Vector3d RtkEstimator::getPositionEstimate()
 {
   State& state = lastState();
-  if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
+  if (!graph_->parameterBlockExists(state.id.asInteger())) {
     return Eigen::Vector3d::Zero();
   }
 
   std::shared_ptr<ParameterBlock> base_ptr =
-      graph_ptr_->parameterBlockPtr(state.id.asInteger());
+      graph_->parameterBlockPtr(state.id.asInteger());
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
@@ -328,14 +328,14 @@ GnssSolution RtkEstimator::getSolution()
   solution.velocity.setZero();
   solution.num_satellites = num_satellites_;
   solution.differential_age = differential_age_;
-  if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
+  if (!graph_->parameterBlockExists(state.id.asInteger())) {
     return solution;
   }
   else {
     parameter_block_ids.push_back(state.id.asInteger());
 
     std::shared_ptr<ParameterBlock> base_ptr =
-        graph_ptr_->parameterBlockPtr(state.id.asInteger());
+        graph_->parameterBlockPtr(state.id.asInteger());
     if (base_ptr != nullptr) {
       std::shared_ptr<PositionParameterBlock> block_ptr = 
         std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
@@ -346,11 +346,11 @@ GnssSolution RtkEstimator::getSolution()
 
   // velocity
   BackendId velocity_id = changeIdType(state.id, IdType::gVelocity);
-  if (!graph_ptr_->parameterBlockExists(velocity_id.asInteger())) {
+  if (!graph_->parameterBlockExists(velocity_id.asInteger())) {
     // we did not estimate velocity
     // get the position covariance and return
     Eigen::MatrixXd position_covariance;
-    graph_ptr_->computeCovariance(parameter_block_ids, position_covariance);
+    graph_->computeCovariance(parameter_block_ids, position_covariance);
     CHECK(position_covariance.cols() == 3);
     solution.covariance.topLeftCorner(3, 3) = position_covariance;
   }
@@ -358,7 +358,7 @@ GnssSolution RtkEstimator::getSolution()
     parameter_block_ids.push_back(velocity_id.asInteger());
 
     std::shared_ptr<ParameterBlock> base_ptr =
-        graph_ptr_->parameterBlockPtr(velocity_id.asInteger());
+        graph_->parameterBlockPtr(velocity_id.asInteger());
     if (base_ptr != nullptr) {
       std::shared_ptr<VelocityParameterBlock> block_ptr = 
         std::dynamic_pointer_cast<VelocityParameterBlock>(base_ptr);
@@ -367,7 +367,7 @@ GnssSolution RtkEstimator::getSolution()
     }
 
     Eigen::MatrixXd covariance;
-    graph_ptr_->computeCovariance(parameter_block_ids, covariance);
+    graph_->computeCovariance(parameter_block_ids, covariance);
     CHECK(covariance.cols() == 6);
     solution.covariance = covariance;
   }
@@ -376,26 +376,6 @@ GnssSolution RtkEstimator::getSolution()
   solution.status = getSolutionStatus();
 
   return solution;
-}
-
-// Compute initial ambiguity
-double RtkEstimator::getInitialAmbiguity(
-            const GnssMeasurement& measurement_rov, 
-            const GnssMeasurement& measurement_ref,
-            const GnssMeasurementIndex& index_rov,
-            const GnssMeasurementIndex& index_ref)
-{
-  auto& observation_1 = measurement_rov.satellites.at(index_rov.prn).
-                        observations.at(index_rov.code_type);
-  double pseudorange_1 = observation_1.pseudorange;
-  double phaserange_1 = observation_1.phaserange;
-
-  auto& observation_2 = measurement_ref.satellites.at(index_ref.prn).
-                        observations.at(index_ref.code_type);
-  double pseudorange_2 = observation_2.pseudorange;
-  double phaserange_2 = observation_2.phaserange;
-
-  return phaserange_1 - phaserange_2 - (pseudorange_1 - pseudorange_2);
 }
 
 // Marginalization
@@ -409,7 +389,7 @@ bool RtkEstimator::marginalization()
   // remove linear marginalizationError, if existing
   if (marginalization_error_ptr_ && marginalization_residual_id_)
   {
-    bool success = graph_ptr_->removeResidualBlock(marginalization_residual_id_);
+    bool success = graph_->removeResidualBlock(marginalization_residual_id_);
     CHECK(success) << "could not remove marginalization error";
     marginalization_residual_id_ = 0;
     if (!success) return false;
@@ -421,13 +401,13 @@ bool RtkEstimator::marginalization()
 
   // Position parameter
   BackendId position_id = oldestState().id;
-  if (graph_ptr_->parameterBlockExists(position_id.asInteger())) {
+  if (graph_->parameterBlockExists(position_id.asInteger())) {
     parameter_blocks_to_be_marginalized.push_back(position_id.asInteger());
     keep_parameter_blocks.push_back(false);
 
     // Get all residuals connected to this state.
     Graph::ResidualBlockCollection residuals = 
-      graph_ptr_->residuals(position_id.asInteger());
+      graph_->residuals(position_id.asInteger());
     for (size_t r = 0; r < residuals.size(); ++r) {
       marginalization_error_ptr_->addResidualBlock(
             residuals[r].residual_block_id);
@@ -438,12 +418,12 @@ bool RtkEstimator::marginalization()
   auto& ambiguity_ids = oldestState().ambiguity_ids;
   for (size_t i = 0; i < ambiguity_ids.size(); i++) {
     BackendId ambiguity_id = ambiguity_ids[i];
-    if (!graph_ptr_->parameterBlockExists(ambiguity_id.asInteger())) continue;
+    if (!graph_->parameterBlockExists(ambiguity_id.asInteger())) continue;
     parameter_blocks_to_be_marginalized.push_back(ambiguity_id.asInteger());
     keep_parameter_blocks.push_back(false);
 
     Graph::ResidualBlockCollection residuals = 
-      graph_ptr_->residuals(ambiguity_id.asInteger());
+      graph_->residuals(ambiguity_id.asInteger());
     for (size_t r = 0; r < residuals.size(); ++r) {
       marginalization_error_ptr_->addResidualBlock(
             residuals[r].residual_block_id);
@@ -468,7 +448,7 @@ bool RtkEstimator::marginalization()
   {
     std::vector<std::shared_ptr<ParameterBlock> > parameter_block_ptrs;
     marginalization_error_ptr_->getParameterBlockPtrs(parameter_block_ptrs);
-    marginalization_residual_id_ = graph_ptr_->addResidualBlock(
+    marginalization_residual_id_ = graph_->addResidualBlock(
           marginalization_error_ptr_, nullptr, parameter_block_ptrs);
     CHECK(marginalization_residual_id_)
         << "could not add marginalization error";
@@ -486,16 +466,16 @@ void RtkEstimator::clearCurrentStateAndMeasurement()
 {
   // Position parameter
   BackendId position_id = curState().id;
-  if (graph_ptr_->parameterBlockExists(position_id.asInteger())) {
-    graph_ptr_->removeParameterBlock(position_id.asInteger());
+  if (graph_->parameterBlockExists(position_id.asInteger())) {
+    graph_->removeParameterBlock(position_id.asInteger());
   }
 
   // Ambiguity parameter
   auto& ambiguity_ids = curState().ambiguity_ids;
   for (size_t i = 0; i < ambiguity_ids.size(); i++) {
     BackendId ambiguity_id = ambiguity_ids[i];
-    if (!graph_ptr_->parameterBlockExists(ambiguity_id.asInteger())) continue;
-    graph_ptr_->removeParameterBlock(ambiguity_id.asInteger());
+    if (!graph_->parameterBlockExists(ambiguity_id.asInteger())) continue;
+    graph_->removeParameterBlock(ambiguity_id.asInteger());
   }
 
   // Clear current state
@@ -506,12 +486,12 @@ void RtkEstimator::clearCurrentStateAndMeasurement()
 void RtkEstimator::setPositionEstimateToMeas()
 {
   State& state = curState();
-  if (!graph_ptr_->parameterBlockExists(state.id.asInteger())) {
+  if (!graph_->parameterBlockExists(state.id.asInteger())) {
     return;
   }
 
   std::shared_ptr<ParameterBlock> base_ptr =
-      graph_ptr_->parameterBlockPtr(state.id.asInteger());
+      graph_->parameterBlockPtr(state.id.asInteger());
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);

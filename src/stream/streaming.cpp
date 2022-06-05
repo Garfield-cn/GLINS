@@ -15,7 +15,8 @@ namespace gici {
 // Static variables for stream binding
 std::vector<Streaming *> Streaming::static_this_;
 
-Streaming::Streaming(YAML::Node& node, int istreamer)
+Streaming::Streaming(YAML::Node& node, int istreamer) : 
+  valid_(false), opened_(false)
 {
   // Get streamer option
   if (!node["streamers"][istreamer].IsDefined() ||
@@ -31,7 +32,10 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
 
   // Initialize streamer
   streamer_ = makeStreamer(streamer_node);
-  if (streamer_ == nullptr) return;
+  if (streamer_ == nullptr) {
+    LOG(ERROR) << "Unable to make streamer!";
+    return;
+  }
 
   std::vector<std::string> formator_tags;
   std::vector<YAML::Node> formator_nodes; 
@@ -144,6 +148,10 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
   if (!streamer_->open(rw)) {
     LOG(ERROR) << "Open streamer " << tag_ << " failed!";
   }
+  else opened_ = true;
+
+  // Set valid
+  valid_ = true;
 
   // Save to global for binding
   static_this_.push_back(this);
@@ -152,7 +160,7 @@ Streaming::Streaming(YAML::Node& node, int istreamer)
 Streaming::~Streaming()
 {
   // Close streamer
-  streamer_->close();
+  if (opened_) streamer_->close();
 
   // Free buffer
   free(buf_input_); free(buf_logging_); free(buf_output_);
@@ -167,6 +175,8 @@ void Streaming::setDataCallback(DataCallback& callback)
 // Start thread
 void Streaming::start()
 {
+  if (!valid_) return;
+
   // Create thread
   quit_thread_ = false;
   thread_.reset(new std::thread(&Streaming::run, this));
@@ -175,6 +185,8 @@ void Streaming::start()
 // Stop thread
 void Streaming::stop()
 {
+  if (!valid_) return;
+
   // Kill thread
   if(thread_ != nullptr) {
     quit_thread_ = true;
@@ -302,7 +314,7 @@ void Streaming::enableReplay(StreamerReplayOptions option)
   // Reopen streams to apply options
   for (auto it : static_this_) {
     StreamerRWType rw_type = it->streamer_->getRwType();
-    it->streamer_->close();
+    if (it->opened_) it->streamer_->close();
     it->streamer_->open(rw_type);
   }
 

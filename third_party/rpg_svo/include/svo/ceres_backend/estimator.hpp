@@ -747,8 +747,8 @@ class Estimator
   imu_parameters_; ///< IMU parameters.
 
   // loss function for reprojection errors
-  std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
-  std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
+  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
 
   // the marginalized error term
   std::shared_ptr<ceres_backend::MarginalizationError> marginalization_error_ptr_;

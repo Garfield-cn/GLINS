@@ -96,7 +96,7 @@ private:
 protected:
 	// Thread handles
 	std::unique_ptr<std::thread> thread_;
-	std::mutex mutex_;
+	std::mutex mutex_input_, mutex_process_, mutex_output_;
 	bool quit_thread_ = false;
   double loop_duration_;
   // if user setted "loop_duration" as zero, we align the output rate to this input stream
@@ -111,6 +111,7 @@ protected:
 
   // Solutions
   Solution solution_;
+  ImuParameters imu_parameters_;
   double publish_timestamp_;
   SolutionCallbacks solution_callbacks_;
   FeaturedImageCallbacks featured_image_callbacks_;

@@ -284,7 +284,7 @@ estimate:
 #       max_iteration: 30
 #       gnss_extrinsic: [0.0, -0.37, -0.43]
 #       gnss_extrinsic_initial_std: 0.02
-#       window_length_optimize: 20
+#       min_window_length: 20
 #       min_velocity: 2.0
 
 # - estimator:
@@ -316,7 +316,7 @@ estimate:
 #       max_iteration: 30
 #       gnss_extrinsic: [0.0, -0.37, -0.43]
 #       gnss_extrinsic_initial_std: 0.02
-#       window_length_optimize: 20
+#       min_window_length: 20
 
 logging:
   enable: true

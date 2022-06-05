@@ -32,11 +32,44 @@
 
 using namespace gici;
 
-ros::Publisher pose_pub_;
-ros::Publisher path_pub_;
-ros::Publisher gnss_path_pub_;
-PathPublisher path_publisher_;
-PathPublisher gnss_path_publisher_;
+void plotFile(const char *file_path, ros::Publisher& pose_pub, 
+  ros::Publisher& path_pub, PathPublisher& path_publisher)
+{
+  char buf[512];
+	Transformation T_WS;
+
+  FILE* file = fopen(file_path, "r");
+  if(file == NULL){
+      return;          
+  }
+
+  while (!feof(file))
+  {
+    fgets(buf, 512, file);
+    double data[7];
+    sscanf(buf, "%lf %lf %lf %lf %lf %lf %lf", &data[0], &data[1], &data[2], 
+      &data[3], &data[4], &data[5], &data[6]);
+
+    Eigen::Vector3d position(data[0], data[1], data[2]);
+    Eigen::Quaterniond quat(data[3], data[4], data[5], data[6]);
+    quat.normalize();
+    T_WS = Transformation(position, quat);
+    
+    // publish body pose and transform
+    ros::Time ros_time = ros::Time::now();
+    Transformation pose = 
+      Transformation(T_WS.getPosition(), 
+                      T_WS.getEigenQuaternion());
+    publishPoseStamped(pose_pub, pose, ros_time, "World");
+
+    // publish path
+    path_publisher.addPoseAndPublish(path_pub, pose, ros_time, "World");
+
+    sleepms(100);
+  }
+
+  fclose(file);
+}
 
 int main(int argc, char** argv)
 {
@@ -45,12 +78,12 @@ int main(int argc, char** argv)
   ros::NodeHandle nh;
 
   // ROS publishers
-	pose_pub_ = nh.advertise<geometry_msgs::PoseStamped>("/pose", 10);
-	path_pub_ = nh.advertise<nav_msgs::Path>("/path", 1000);
-  gnss_path_pub_ = nh.advertise<nav_msgs::Path>("/gnss_path", 1000);
-
-	// It should be declared after ros::init
-	tf::TransformBroadcaster body_broadcaster;
+	ros::Publisher pose_pub_1 = nh.advertise<geometry_msgs::PoseStamped>("/pose_1", 10);
+	ros::Publisher path_pub_1 = nh.advertise<nav_msgs::Path>("/path_1", 1000);
+	ros::Publisher pose_pub_2 = nh.advertise<geometry_msgs::PoseStamped>("/pose_2", 10);
+	ros::Publisher path_pub_2 = nh.advertise<nav_msgs::Path>("/path_2", 1000);
+  PathPublisher path_publisher_1;
+  PathPublisher path_publisher_2;
 
   google::InitGoogleLogging("test");
   // FLAGS_log_dir = log_dir; 
@@ -58,48 +91,19 @@ int main(int argc, char** argv)
   FLAGS_logtostderr = true;
   FLAGS_stderrthreshold = 0;
 
-  FILE* file = fopen("/home/cc/datasets/tmp/log.txt", "r");
-  if(file == NULL){
-      return 0;          
-  }
-
-  char buf[512];
-	Transformation T_WS;
-  Transformation gnss_pose;
-
   ros::Rate loop_rate(5);
-	while (ros::ok() && !feof(file))
+	while (ros::ok())
 	{	
     // enable ros topic handlers
     ros::spinOnce();
 
-    fgets(buf, 512, file);
-    double data[10];
-    sscanf(buf, "%lf %lf %lf %lf %lf %lf %lf %lf %lf %lf", &data[0], &data[1], &data[2], 
-      &data[3], &data[4], &data[5], &data[6], &data[7], &data[8], &data[9]);
-
-    Eigen::Vector3d position(data[0], data[1], data[2]);
-    Eigen::Quaterniond quat(data[6], data[7], data[8], data[9]);
-    quat.normalize();
-    T_WS = Transformation(position, quat);
-    
-    // publish body pose and transform
-    ros::Time ros_time = ros::Time::now();
-    Transformation pose = 
-      Transformation(T_WS.getPosition(), 
-                     T_WS.getEigenQuaternion());
-    publishPoseWithTransform(pose_pub_, body_broadcaster, pose, ros_time, "Body", "World");
-
-    // publish path
-    path_publisher_.addPoseAndPublish(path_pub_, pose, ros_time, "World");
-
-    gnss_pose = Transformation(Eigen::Vector3d(data[3], data[4], data[5]), Eigen::Quaterniond::Identity());
-    gnss_path_publisher_.addPoseAndPublish(gnss_path_pub_, gnss_pose, ros_time, "World");
+    plotFile("/home/cc/datasets/tmp/log_gi.txt", pose_pub_1, path_pub_1, path_publisher_1);
+    path_publisher_1.clear();
+    plotFile("/home/cc/datasets/tmp/log.txt", pose_pub_2, path_pub_2, path_publisher_2);
+    path_publisher_2.clear();
 
 		loop_rate.sleep();
 	}
-
-  fclose(file);
 
 	return 0;
 }

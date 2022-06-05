@@ -25,7 +25,7 @@ class ConstError :
     Dim /* size of first parameter */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -143,7 +143,7 @@ class ConstError :
     return Type;
   }
 
- protected:
+protected:
   // measurement
   Eigen::VectorXd value_;
 

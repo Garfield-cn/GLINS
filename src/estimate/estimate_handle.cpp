@@ -156,8 +156,8 @@ std::shared_ptr<EstimatingBase> EstimateHandle::makeEstimaing(YAML::Node& node)
            type == EstimatorType::RtkImuTc) {
     return std::make_shared<GnssImuEstimating>(node);
   }
-  else if (type == EstimatorType::GnssImuCameraStc || 
-           type == EstimatorType::RtkImuCameraTc) {
+  else if (type == EstimatorType::GnssImuCameraSrr || 
+           type == EstimatorType::RtkImuCameraRrr) {
     return std::make_shared<GnssImuCameraEstimating>(node);
   }
   else return nullptr;

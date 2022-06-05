@@ -21,24 +21,18 @@
 namespace gici {
 
 // Common
-namespace initialization_utils = svo::initialization_utils;
 namespace frame_utils = svo::frame_utils;
-namespace feature_tracking_utils = svo::feature_tracking_utils;
 namespace warp = svo::warp;
 namespace patch_utils = svo::patch_utils;
-namespace feature_alignment = svo::feature_alignment;
-namespace feature_detection_utils = svo::feature_detection_utils;
 namespace feature_detection_utils = svo::feature_detection_utils;
 namespace reprojector_utils = svo::reprojector_utils;
+namespace feature_alignment = svo::feature_alignment;
 
 using Frame = svo::Frame;
 using FramePtr = svo::FramePtr;
 using Keypoint = svo::Keypoint;
 using DetectorOptions = svo::DetectorOptions;
 using ReprojectorOptions = svo::ReprojectorOptions;
-using InitializationOptions = svo::InitializationOptions;
-using FeatureTrackerOptions = svo::FeatureTrackerOptions;
-using SparseImgAlignOptions = svo::SparseImgAlignOptions;
 using FrameBundle = svo::FrameBundle;
 using FrameBundlePtr = svo::FrameBundlePtr;
 using Camera = svo::Camera;
@@ -46,12 +40,10 @@ using CameraPtr = svo::CameraPtr;
 using CameraBundle = svo::CameraBundle;
 using CameraBundlePtr = svo::CameraBundlePtr;
 using Transformation = svo::Transformation;
-using InitResult = svo::InitResult;
 using Bearings = svo::Bearings;
 using Positions = svo::Positions;
 using Point = svo::Point;
 using PointPtr = svo::PointPtr;
-using InitializerPtr = svo::InitializerPtr;
 using FeatureType = svo::FeatureType;
 using BearingVector = svo::BearingVector;
 using FeatureWrapper = svo::FeatureWrapper;
@@ -75,16 +67,25 @@ using KeypointIdentifier = svo::KeypointIdentifier;
 using PerformanceMonitorPtr = svo::PerformanceMonitorPtr;
 using EnumClassHash = svo::EnumClassHash;
 using Quaternion = svo::Quaternion;
-using BundleAdjustmentType = svo::BundleAdjustmentType;
-using SparseImgAlignBasePtr = svo::SparseImgAlignBasePtr;
 using ReprojectorPtr = svo::ReprojectorPtr;
 using Reprojector = svo::Reprojector;
 using DetectorPtr = svo::DetectorPtr;
-using SparseImgAlign = svo::SparseImgAlign;
 using SeedRef = svo::SeedRef;
 using GradientVector = svo::GradientVector;
 using CameraConstPtr = svo::CameraConstPtr;
 using Map = svo::Map;
 using MapPtr = svo::MapPtr;
+
+inline void changeFeatureTypeToSeed(FeatureType& t) 
+{
+  if(t == FeatureType::kCorner)
+    t = FeatureType::kCornerSeed;
+  else if(t == FeatureType::kEdgelet)
+    t = FeatureType::kEdgeletSeed;
+  else if(t == FeatureType::kMapPoint)
+    t = FeatureType::kMapPointSeed;
+  else
+    LOG(FATAL) << "Unknown feature types.";
+}
 
 }

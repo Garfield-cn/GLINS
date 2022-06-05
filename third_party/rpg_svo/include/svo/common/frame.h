@@ -43,6 +43,7 @@ public:
   int                           nframe_index_ = -1;     //!< Storage index in NFrame.
   CameraPtr                     cam_;                   //!< Camera model.
   Transformation                T_f_w_;                 //!< Transform (f)rame from (w)orld.
+  bool has_transform_ = false;
   ImgPyr                        img_pyr_;               //!< Image Pyramid.
   cv::Mat                       original_color_image_;
   // safe without the Eigen aligned allocator, since Position is 24 bytes
@@ -278,6 +279,7 @@ public:
   inline void set_T_w_imu(const Transformation& T_w_imu)
   {
     T_f_w_ = (T_w_imu * T_body_cam_).inverse();
+    has_transform_ = true;
   }
 
   /// set IMU state
@@ -476,8 +478,10 @@ public:
 
   /// Set pose of camera rig.
   void set_T_W_B(const Transformation& T_W_B) {
-    for(const FramePtr& frame : frames_)
+    for(const FramePtr& frame : frames_) {
       frame->T_f_w_ = (T_W_B*frame->T_body_cam_).inverse();
+      frame->has_transform_ = true;
+    }
   }
 
   inline void setIMUState(const Eigen::Vector3d& imu_vel_w,

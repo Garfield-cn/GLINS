@@ -51,11 +51,9 @@ bool YawError::EvaluateWithMinimalJacobians(double const* const * parameters,
       Eigen::Quaterniond(parameters[0][6], parameters[0][3], parameters[0][4],
                          parameters[0][5]));
   // delta pose
-  Eigen::Vector3d ypr = T_WS.getEigenQuaternion().matrix().eulerAngles(2, 1, 0);
-  Eigen::Quaterniond q_WS_meas = 
-    Eigen::AngleAxisd(measurement_, Eigen::Vector3d::UnitZ()) * 
-    Eigen::AngleAxisd(ypr(1), Eigen::Vector3d::UnitY()) * 
-    Eigen::AngleAxisd(ypr(2), Eigen::Vector3d::UnitX());
+  Eigen::Vector3d rpy = quaternionToEulerAngle(T_WS.getEigenQuaternion());
+  rpy.z() = measurement_;
+  Eigen::Quaterniond q_WS_meas = eulerAngleToQuaternion(rpy);
   Transformation T_WS_meas = Transformation(T_WS.getPosition(), q_WS_meas);
   Transformation dp = T_WS_meas * T_WS.inverse();
   // get the error

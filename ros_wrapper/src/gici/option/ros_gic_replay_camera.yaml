@@ -62,20 +62,20 @@ stream:
       formator_tags: [camera]
 
   - streamer:
-      tag: solution_tc
+      tag: solution_lc
       type: ros
-      formator_tag: solution_tc
-      topic_name: solution_tc
+      formator_tag: solution_lc
+      topic_name: solution_lc
       queue_size: 10
       io: output
       format: pose_stamped
       subframe_id: Body
 
   - streamer:
-      tag: path_tc
+      tag: path_lc
       type: ros
-      formator_tag: path_tc
-      topic_name: path_tc
+      formator_tag: path_lc
+      topic_name: path_lc
       queue_size: 100
       io: output
       format: path
@@ -85,6 +85,7 @@ stream:
       type: ros
       formator_tag: solution_gic_stc
       topic_name: solution_gic_stc
+      subframe_id: Body
       queue_size: 10
       io: output
       format: pose_stamped
@@ -106,7 +107,26 @@ stream:
       queue_size: 10
       io: output
       format: image
+
+  - streamer:
+      tag: map
+      type: ros
+      formator_tag: map
+      topic_name: landmarks
+      queue_size: 100
+      io: output
+      format: marker
       
+  - streamer:
+      tag: solution_rtk
+      type: file
+      path: /home/cc/datasets/tmp/solution_rtk.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution_rtk]
+
 
   formators:
 #   - formator:
@@ -151,6 +171,15 @@ stream:
       type: image-pack
       role: [mono]
 
+  - formator:
+      io: output
+      tag: solution_rtk
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: true
+
   replay:
     enable: true
     speed: 1.0
@@ -158,78 +187,165 @@ stream:
 
 estimate:
 - estimator:
-    tag: rtk-imu-tc
-    type: rtk_imu_tc
-    input_formator_tags: [gnss-head, gnss-ref, imu]
+    tag: rtk
+    type: rtk
+    input_formator_tags: [gnss-head, gnss-ref]
     input_estimator_tags: []
-    output_formator_tags: [solution_tc, path_tc]
-    loop_duration: 0 
-    loop_duration_align_tag: imu
+    output_formator_tags: [solution_rtk]
+    loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
+    loop_duration_align_tag: gnss-head
+    role: position
+    estimator_options:
+      window_length: 3
+      max_iteration: 10
+      verbose: false
+      use_ambiguity_resolution: true
+      gnss_common:
+        min_elevation: 7.0
+        period: 1.0
+      gnss_error_parameter:
+        code_to_phase_ratio: 100.0
+        phase_error_factor: [0.003, 0.003, 0]
+        system_error_ratio: [1.0, 3.0, 1.0, 1.0]
+      ambiguity_resolution:
+        system_exclude: [R, C]
+        min_percentage_fixation_nl: 0.8
+        ratio: 2.0
+        min_consistant_fix_as_stable: 5
 
-    window_length: 3
-    max_iteration: 10
-    verbose: false
-    gnss_common:
-      min_elevation: 7.0
-      period: 1.0
-    gnss_error_parameter:
-      code_to_phase_ratio: 100.0
-    ambiguity_resolution:
-      min_percentage_fixation_nl: 0.8
-    imu_parameters:
-      sigma_g_c: 1.0e-4
-      sigma_a_c: 2.0e-3
-      sigma_gw_c: 2.1e-5
-      sigma_aw_c: 8.4e-4
-    initialize:
-      verbose: true
-      max_iteration: 30
-      gnss_extrinsic: [0.1, -0.4, -0.4]
-      gnss_extrinsic_initial_std: 0.1
-      window_length_optimize: 20
+# - estimator:
+#     tag: gnss-imu-lc
+#     type: gnss_imu_lc
+#     input_formator_tags: [imu]
+#     input_estimator_tags: [rtk]
+#     output_formator_tags: [solution_lc, path_lc]
+#     loop_duration: 0
+#     loop_duration_align_tag: imu
+#     estimator_options:
+#       window_length: 3
+#       max_iteration: 5
+#       verbose: true
+#       imu_parameters:
+#         sigma_g_c: 2.7e-3
+#         sigma_a_c: 4.0e-2
+#         sigma_gw_c: 2.1e-5
+#         sigma_aw_c: 8.4e-4
+#       initialize:
+#         verbose: true
+#         max_iteration: 30
+#         gnss_extrinsic: [0.0, -0.37, -0.43]
+#         gnss_extrinsic_initial_std: 0.05
+#         time_window_length_zero_motion: 0.1
+#         min_window_length: 5
+#         min_velocity: 3.0
+
+# - estimator:
+#     tag: rtk-imu-tc
+#     type: rtk_imu_tc
+#     input_formator_tags: [gnss-head, gnss-ref, imu]
+#     input_estimator_tags: []
+#     output_formator_tags: [solution_lc, path_lc]
+#     loop_duration: 0 
+#     loop_duration_align_tag: imu
+#     estimator_options:
+#       window_length: 3
+#       max_iteration: 10
+#       verbose: false
+#       use_ambiguity_resolution: true
+#       gnss_common:
+#         min_elevation: 7.0
+#         period: 1.0
+#       gnss_error_parameter:
+#         code_to_phase_ratio: 100.0
+#         phase_error_factor: [0.003, 0.003, 0]
+#         system_error_ratio: [1.0, 3.0, 1.0, 1.0]
+#       ambiguity_resolution:
+#         system_exclude: [R, C]
+#         min_percentage_fixation_nl: 0.8
+#         ratio: 2.0
+#         min_consistant_fix_as_stable: 5
+#       imu_parameters:
+#         sigma_g_c: 2.7e-3
+#         sigma_a_c: 4.0e-2
+#         sigma_gw_c: 2.1e-5
+#         sigma_aw_c: 8.4e-4
+#       initialize:
+#         verbose: true
+#         max_iteration: 30
+#         gnss_extrinsic: [0.0, -0.37, -0.43]
+#         gnss_extrinsic_initial_std: 0.05
+#         time_window_length_zero_motion: 0.1
+#         min_window_length: 5
+#         min_velocity: 3.0
 
 - estimator:
     tag: gnss-imu-camera-stc
-    type: gnss_imu_camera_stc
+    type: gnss_imu_camera_srr
     input_formator_tags: [imu, camera]
     input_estimator_tags: [rtk]
-    output_formator_tags: [solution_gic_stc, path_gic_stc, feature]
+    output_formator_tags: [solution_gic_stc, path_gic_stc, feature, map]
     loop_duration: 0 
-    loop_duration_align_tag: imu
-
-    max_features_per_frame: 120
-    kfselect_numkfs_lower_thresh: 60
-
-    detector:
-      cell_size: 30
-
-    camera_parameters:
-      label: "gici-board"
-      cameras:
-      - camera:
-          label: cam0
-          image_width: 752
-          image_height: 480
-          type: pinhole
-          intrinsics:
-            cols: 1
-            rows: 4
-            data: [315.54083037273074, 315.1858821111163, 360.57955594734096, 251.26381960919133]
-          distortion:
-            type: radial-tangential  
-            parameters:
+    loop_duration_align_tag: camera
+    feature_handler_options:
+      max_features_per_frame: 120
+      max_n_kfs: 30
+      min_disparity_init_landmark: 10.0
+      kfselect_min_numkfs: 30
+      kfselect_min_disparity: 10.0
+      kfselect_min_dist_metric: 3.0
+      kfselect_min_angle: 10.0
+      detector:
+        cell_size: 30
+      camera_parameters:
+        label: "gici-board"
+        cameras:
+        - camera:
+            label: cam0
+            image_width: 752
+            image_height: 480
+            type: pinhole
+            intrinsics:
               cols: 1
               rows: 4
-              data: [-0.01288326670663061, -0.00021668779553504528, 0.0014331179307111846, -0.0006177362267997965]
-          mask: /home/cc/linux/softwares/gici/ros_wrapper/src/gici/option/gici-mask.png
-        # Transform of camera in body (IMU) frame
-        T_B_C:
-          cols: 4
-          rows: 4
-          data: [0.013438121069744902, 0.9999076815409128, 0.0020112925174484274,	-0.01081910899562114,
-                -0.9999015949876712, 0.01344608596596547, -0.004000389144360785,	-0.023026013140956158,
-                -0.004027063846691544, -0.0019573368825354385, 0.9999899757443084,-0.025079472391013467,
-                0, 0, 0, 1]
+              data: [315.54083037273074, 315.1858821111163, 360.57955594734096, 251.26381960919133]
+            distortion:
+              type: radial-tangential  
+              parameters:
+                cols: 1
+                rows: 4
+                data: [-0.01288326670663061, -0.00021668779553504528, 0.0014331179307111846, -0.0006177362267997965]
+            mask: /home/cc/linux/softwares/gici/ros_wrapper/src/gici/option/gici-mask.png
+          # Transform of camera in body (IMU) frame
+          T_B_C:
+            cols: 4
+            rows: 4
+            data: [0.0134381210697455122,   -0.999901594987671172, -0.00402706384669154413,  -0.0229793554058591656,
+                  0.999907681540912807,   0.0134460859659659704, -0.00195733688253543802,   0.0110786309679912626,
+                  0.00201129251744842832, -0.00400038914436078377,     0.99998997574430859,    0.025008868367930974,
+                                      0,                       0,                       0,                       1]
+            # data: [1,0,0,0,
+            #        0,1,0,0,
+            #        0,0,1,0,
+            #        0,0,0,1]
+    estimator_options:
+      max_keyframes: 10
+      max_iteration: 6
+      feature_error_std: 1
+      verbose: false
+      imu_parameters:
+        sigma_g_c: 2.7e-3
+        sigma_a_c: 4.0e-2
+        sigma_gw_c: 2.1e-5
+        sigma_aw_c: 8.4e-4
+      initialize:
+        verbose: false
+        max_iteration: 30
+        gnss_extrinsic: [0.0, -0.37, -0.43]
+        gnss_extrinsic_initial_std: 0.02
+        time_window_length_zero_motion: 0.1
+        min_gnss_window_length: 5
+        min_keyframe_window_length: 5
+        min_velocity: 2.0
 
 
 logging:

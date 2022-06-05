@@ -1,10 +1,14 @@
-/**
-* @Function: Feature matcher
-*
-* @Author  : Cheng Chi
-* @Email   : chichengcn@sjtu.edu.cn
-**/
-#include "gici/vision/matcher.h"
+// This file is part of SVO - Semi-direct Visual Odometry.
+//
+// Copyright (C) 2014 Christian Forster <forster at ifi dot uzh dot ch>
+// (Robotics and Perception Group, University of Zurich, Switzerland).
+//
+// This file is subject to the terms and conditions defined in the file
+// 'LICENSE', which is part of this source code package.
+// 
+// Modified by: Cheng Chi
+
+#include "gici/vision/feature_matcher.h"
 
 #include <opencv2/opencv.hpp>
 #include <svo/direct/patch_warp.h>
@@ -15,7 +19,7 @@ namespace gici {
 
 // #define DEBUG_IMAGE_DIR "/home/cc/datasets/tmp"
 
-Matcher::MatchResult Matcher::findMatchDirect(
+FeatureMatcher::MatchResult FeatureMatcher::findMatchDirect(
     const Frame& ref_frame,
     const Frame& cur_frame,
     const FeatureWrapper& ref_ftr,
@@ -127,7 +131,7 @@ Matcher::MatchResult Matcher::findMatchDirect(
   return MatchResult::kFailAlignment;
 }
 
-Matcher::MatchResult Matcher::findEpipolarMatchDirect(
+FeatureMatcher::MatchResult FeatureMatcher::findEpipolarMatchDirect(
     const Frame& ref_frame,
     const Frame& cur_frame,
     const FeatureWrapper& ref_ftr,
@@ -141,7 +145,7 @@ Matcher::MatchResult Matcher::findEpipolarMatchDirect(
                                  d_estimate_inv, d_min_inv, d_max_inv, depth);
 }
 
-Matcher::MatchResult Matcher::findEpipolarMatchDirect(
+FeatureMatcher::MatchResult FeatureMatcher::findEpipolarMatchDirect(
     const Frame& ref_frame,
     const Frame& cur_frame,
     const Transformation& T_cur_ref,
@@ -217,7 +221,7 @@ Matcher::MatchResult Matcher::findEpipolarMatchDirect(
       return res;
     cur_frame.cam()->backProject3(px_cur_, &f_cur_);
     f_cur_.normalize();
-    return matcher_utils::depthFromTriangulation(T_cur_ref, ref_ftr.f, f_cur_, &depth);
+    return depthFromTriangulation(T_cur_ref, ref_ftr.f, f_cur_, &depth);
   }
 
   // Case 2: search along the epipolar line for the best match
@@ -248,13 +252,13 @@ Matcher::MatchResult Matcher::findEpipolarMatchDirect(
 
     cur_frame.cam()->backProject3(px_cur_, &f_cur_);
     f_cur_.normalize();
-    return matcher_utils::depthFromTriangulation(T_cur_ref, ref_ftr.f, f_cur_, &depth);
+    return depthFromTriangulation(T_cur_ref, ref_ftr.f, f_cur_, &depth);
   }
   else
     return MatchResult::kFailScore;
 }
 
-std::string Matcher::getResultString(const Matcher::MatchResult& result)
+std::string FeatureMatcher::getResultString(const FeatureMatcher::MatchResult& result)
 {
   std::string result_str = "success";
   switch(result)
@@ -273,7 +277,7 @@ std::string Matcher::getResultString(const Matcher::MatchResult& result)
   return result_str;
 }
 
-Matcher::MatchResult Matcher::findLocalMatch(
+FeatureMatcher::MatchResult FeatureMatcher::findLocalMatch(
     const Frame& frame,
     const Eigen::Ref<GradientVector>& direction,
     const int patch_level,
@@ -303,7 +307,7 @@ Matcher::MatchResult Matcher::findLocalMatch(
 }
 
 
-bool Matcher::updateZMSSD(
+bool FeatureMatcher::updateZMSSD(
     const Frame& frame,
     const Eigen::Vector2i& pxi,
     const int patch_level,
@@ -325,7 +329,7 @@ bool Matcher::updateZMSSD(
       return false;
 }
 
-bool Matcher::isPatchWithinImage(
+bool FeatureMatcher::isPatchWithinImage(
     const Frame& frame,
     const Eigen::Vector2i& pxi,
     const int patch_level)
@@ -335,7 +339,7 @@ bool Matcher::isPatchWithinImage(
       || pxi[1] >= (static_cast<int>(frame.cam()->imageHeight()/(1<<patch_level))-kPatchSize));
 }
 
-void Matcher::scanEpipolarLine(
+void FeatureMatcher::scanEpipolarLine(
     const Frame& frame,
     const Eigen::Vector3d& A,
     const Eigen::Vector3d& B,
@@ -351,7 +355,7 @@ void Matcher::scanEpipolarLine(
     scanEpipolarUnitPlane(frame, A, B, C, patch_score, patch_level, image_best, zmssd_best);
 }
 
-void Matcher::scanEpipolarUnitPlane(
+void FeatureMatcher::scanEpipolarUnitPlane(
     const Frame& frame,
     const Eigen::Vector3d& A,
     const Eigen::Vector3d& B,
@@ -426,7 +430,7 @@ void Matcher::scanEpipolarUnitPlane(
   *image_best = projected.cast<svo::FloatType>();
 }
 
-void Matcher::scanEpipolarUnitSphere(
+void FeatureMatcher::scanEpipolarUnitSphere(
     const Frame& frame,
     const Eigen::Vector3d& A,
     const Eigen::Vector3d& B,
@@ -501,9 +505,8 @@ void Matcher::scanEpipolarUnitSphere(
   *image_best = projected.cast<svo::FloatType>();
 }
 
-namespace matcher_utils {
-
-Matcher::MatchResult depthFromTriangulation(
+// calculate feature point depth
+FeatureMatcher::MatchResult depthFromTriangulation(
     const Transformation& T_search_ref,
     const Eigen::Vector3d& f_ref,
     const Eigen::Vector3d& f_cur,
@@ -512,12 +515,88 @@ Matcher::MatchResult depthFromTriangulation(
   Eigen::Matrix<double,3,2> A; A << T_search_ref.getRotation().rotate(f_ref), f_cur;
   const Eigen::Matrix2d AtA = A.transpose()*A;
   if(AtA.determinant() < 0.000001)
-    return Matcher::MatchResult::kFailTriangulation;
+    return FeatureMatcher::MatchResult::kFailTriangulation;
   const Eigen::Vector2d depth2 = - AtA.inverse()*A.transpose()*T_search_ref.getPosition();
   (*depth) = std::fabs(depth2[0]);
-  return Matcher::MatchResult::kSuccess;
+  return FeatureMatcher::MatchResult::kSuccess;
 }
 
+// Get matched feature indexes
+void getFeatureMatches(
+    const Frame& frame1, const Frame& frame2,
+    std::vector<std::pair<size_t, size_t>>* matches_12)
+{
+  CHECK_NOTNULL(matches_12);
+
+  // Create lookup-table with track-ids from frame 1.
+  std::unordered_map<int, size_t> trackid_slotid_map;
+  for(size_t i = 0; i < frame1.num_features_; ++i)
+  {
+    int track_id_1 = frame1.track_id_vec_(i);
+    if(track_id_1 >= 0)
+      trackid_slotid_map[track_id_1] = i;
+  }
+
+  // Create list of matches.
+  matches_12->reserve(frame2.num_features_);
+  for(size_t i = 0; i < frame2.num_features_; ++i)
+  {
+    int track_id_2 = frame2.track_id_vec_(i);
+    if(track_id_2 >= 0)
+    {
+      const auto it = trackid_slotid_map.find(track_id_2);
+      if(it != trackid_slotid_map.end())
+        matches_12->push_back(std::make_pair(it->second, i));
+    }
+  }
+}
+
+// Get average disparity between two frames
+double getDisparity(const FramePtr& ref_frame, 
+                    const FramePtr& cur_frame)
+{
+  std::vector<std::pair<size_t, size_t>> matches_ref_cur;
+  getFeatureMatches(*ref_frame, *cur_frame, &matches_ref_cur);
+
+  std::vector<double> disparities;
+  for (size_t i = 0; i < matches_ref_cur.size(); i++) {
+    double disparity = (ref_frame->px_vec_.col(matches_ref_cur[i].first) - 
+      cur_frame->px_vec_.col(matches_ref_cur[i].second)).norm();
+    disparities.push_back(disparity);
+  }
+
+  if (!disparities.empty()) return vk::getMedian(disparities);
+  else return 0.0;
+}
+
+// Get disparity at a pivot
+double getDisparityPercentile(
+                    const FramePtr& ref_frame, 
+                    const FramePtr& cur_frame,
+                    double pivot_ratio)
+{
+  CHECK_GT(pivot_ratio, 0.0) << "pivot_ratio needs to be in (0,1)";
+  CHECK_LT(pivot_ratio, 1.0) << "pivot_ratio needs to be in (0,1)";
+
+  std::vector<std::pair<size_t, size_t>> matches_ref_cur;
+  getFeatureMatches(*ref_frame, *cur_frame, &matches_ref_cur);
+
+  if (matches_ref_cur.size() == 0) return 0.0;
+
+  // compute all disparities.
+  std::vector<double> disparities;
+  for (size_t i = 0; i < matches_ref_cur.size(); i++) {
+    double disparity = (ref_frame->px_vec_.col(matches_ref_cur[i].first) - 
+      cur_frame->px_vec_.col(matches_ref_cur[i].second)).norm();
+    disparities.push_back(disparity);
+  }
+
+  // compute percentile.
+  const size_t pivot = std::floor(pivot_ratio * disparities.size());
+  CHECK_LT(pivot, disparities.size());
+  std::nth_element(disparities.begin(), disparities.begin() + pivot, disparities.end(),
+                   std::greater<double>());
+  return disparities[pivot];
 }
 
 }

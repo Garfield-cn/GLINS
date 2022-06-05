@@ -21,6 +21,7 @@
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/estimate/estimator_types.h"
 #include "gici/vision/feature_handler.h"
+#include "gici/fusion/gnss_imu_camera_srr_estimator.h"
 
 namespace gici {
 
@@ -128,8 +129,8 @@ void convert<std::string, EstimatorType>
   MAP_IN_OUT("rtk", EstimatorType::Rtk);
   MAP_IN_OUT("gnss_imu_lc", EstimatorType::GnssImuLc);
   MAP_IN_OUT("rtk_imu_tc", EstimatorType::RtkImuTc);
-  MAP_IN_OUT("gnss_imu_camera_stc", EstimatorType::GnssImuCameraStc);
-  MAP_IN_OUT("rtk_imu_camera_tc", EstimatorType::RtkImuCameraTc);
+  MAP_IN_OUT("gnss_imu_camera_srr", EstimatorType::GnssImuCameraSrr);
+  MAP_IN_OUT("rtk_imu_camera_rrr", EstimatorType::RtkImuCameraRrr);
   LOG_INVALId;
 }
 
@@ -163,6 +164,15 @@ void convert<std::string, DetectorType>
   LOG_INVALId;
 }
 
+template <>
+void convert<std::string, VisualInitializerType>
+  (const std::string& in, VisualInitializerType& out)
+{
+  MAP_IN_OUT("homography", VisualInitializerType::kHomography);
+  MAP_IN_OUT("fundamental", VisualInitializerType::kFundamental);
+  LOG_INVALId;
+}
+
 // Mapping from in to return
 #define MAP_IN_RET(x, y) if (in == x) { return y; }
 
@@ -192,6 +202,7 @@ SensorType sensorType(std::string in)
   MAP_IN_RET("option", SensorType::Option);
 
   LOG_INVALId;
+  return SensorType::None;
 }
 
 // Load option with info
@@ -433,21 +444,48 @@ void loadOptions<GnssImuInitializationOptions>(
   LOAD_COMMON(num_threads);
   LOAD_COMMON(verbose);
   LOAD_COMMON(time_window_length_zero_motion);
-  LOAD_COMMON(window_length_optimize);
+  LOAD_COMMON(min_window_length);
   LOAD_COMMON(gnss_extrinsic_initial_std);
   LOAD_COMMON(min_velocity);
 
-  std::vector<double> gnss_extrinsic;
-  if (option_tools::safeGet(node, "gnss_extrinsic", &gnss_extrinsic) && 
-      gnss_extrinsic.size() == 3) {
+  std::vector<double> gnss_extrinsics;
+  if (option_tools::safeGet(node, "gnss_extrinsics", &gnss_extrinsics) && 
+      gnss_extrinsics.size() == 3) {
     for (size_t i = 0; i < 3; i++) {
-      options.gnss_extrinsic[i] = gnss_extrinsic[i];
+      options.gnss_extrinsics[i] = gnss_extrinsics[i];
     }
   }
   else {
-    options.gnss_extrinsic.setZero();
+    options.gnss_extrinsics.setZero();
     options.gnss_extrinsic_initial_std = 3.0;
-    LOG(INFO) << "Unable to load gnss_extrinsic. Using default instead.";
+    LOG(INFO) << "Unable to load gnss_extrinsics. Using default instead.";
+  }
+}
+
+template <>
+void loadOptions<GnssImuCameraInitializationOptions>(
+    YAML::Node& node, GnssImuCameraInitializationOptions& options)
+{
+  LOAD_COMMON(max_iteration);
+  LOAD_COMMON(num_threads);
+  LOAD_COMMON(verbose);
+  LOAD_COMMON(time_window_length_zero_motion);
+  LOAD_COMMON(min_gnss_window_length);
+  LOAD_COMMON(min_keyframe_window_length);
+  LOAD_COMMON(gnss_extrinsic_initial_std);
+  LOAD_COMMON(min_velocity);
+
+  std::vector<double> gnss_extrinsics;
+  if (option_tools::safeGet(node, "gnss_extrinsics", &gnss_extrinsics) && 
+      gnss_extrinsics.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.gnss_extrinsics[i] = gnss_extrinsics[i];
+    }
+  }
+  else {
+    options.gnss_extrinsics.setZero();
+    options.gnss_extrinsic_initial_std = 3.0;
+    LOG(INFO) << "Unable to load gnss_extrinsics. Using default instead.";
   }
 }
 
@@ -538,26 +576,91 @@ void loadOptions<DetectorOptions>(
 }
 
 template <>
+void loadOptions<FeatureTrackerOptions>(
+    YAML::Node& node, FeatureTrackerOptions& options)
+{
+  LOAD_COMMON(window_size);
+  LOAD_COMMON(max_level);
+  LOAD_COMMON(max_count);
+  LOAD_COMMON(epsilon);
+  LOAD_COMMON(use_relative_rotation);
+  LOAD_COMMON(ransac_threshold)
+  LOAD_COMMON(ransac_confidence);
+}
+
+template <>
+void loadOptions<VisualInitializationOptions>(
+    YAML::Node& node, VisualInitializationOptions& options)
+{
+  LOAD_COMMON(init_min_disparity);
+  LOAD_COMMON(init_disparity_pivot_ratio);
+  LOAD_COMMON(init_min_features);
+  LOAD_COMMON(init_min_inliers);
+  LOAD_COMMON(init_map_scale);
+  LOAD_COMMON(reproj_error_thresh)
+
+  std::string init_type;
+  if (option_tools::safeGet(node, "init_type", &init_type)) {
+    delete_space(init_type);
+    convert(init_type, options.init_type);
+  }
+}
+
+template <>
 void loadOptions<FeatureHandlerOptions>(
     YAML::Node& node, FeatureHandlerOptions& options)
 {
   LOAD_COMMON(max_n_kfs);
   LOAD_COMMON(max_features_per_frame);
-  LOAD_COMMON(kfselect_numkfs_lower_thresh);
+  LOAD_COMMON(kfselect_min_numkfs);
+  LOAD_COMMON(kfselect_min_disparity);
   LOAD_COMMON(kfselect_min_dist_metric);
   LOAD_COMMON(kfselect_min_angle);
-  LOAD_COMMON(kfselect_min_disparity)
   LOAD_COMMON(max_pyramid_level);
-  LOAD_COMMON(min_disparity_new_landmark);
+  LOAD_COMMON(min_disparity_init_landmark);
 
   if (checkSubOption(node, "detector")) {
     YAML::Node subnode = node["detector"];
     loadOptions(subnode, options.detector);
   }
 
+  if (checkSubOption(node, "tracker")) {
+    YAML::Node subnode = node["tracker"];
+    loadOptions(subnode, options.tracker);
+  }
+
+  if (checkSubOption(node, "initialization")) {
+    YAML::Node subnode = node["initialization"];
+    loadOptions(subnode, options.initialization);
+  }
+
   if (checkSubOption(node, "camera_parameters")) {
     YAML::Node subnode = node["camera_parameters"];
     options.cameras = CameraBundle::loadFromYaml(subnode);
+  }
+}
+
+template <>
+void loadOptions<GnssImuCameraSrrEstimatorOptions>(
+    YAML::Node& node, GnssImuCameraSrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_iteration);
+  LOAD_COMMON(num_threads);
+  LOAD_COMMON(verbose);
+  LOAD_COMMON(max_keyframes);
+  LOAD_COMMON(feature_error_std)
+  LOAD_COMMON(min_num_obs);
+
+  if (checkSubOption(node, "imu_parameters")) {
+    YAML::Node subnode = node["imu_parameters"];
+    loadOptions(subnode, options.imu_parameters);
+  }
+
+  if (checkSubOption(node, "initialize")) {
+    YAML::Node subnode = node["initialize"];
+    loadOptions(subnode, options.initialize);
+    options.initialize.imu_parameters = options.imu_parameters;
+    options.initialize.feature_error_std = options.feature_error_std;
   }
 }
 

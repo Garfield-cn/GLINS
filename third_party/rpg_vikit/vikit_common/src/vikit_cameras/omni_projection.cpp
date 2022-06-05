@@ -110,6 +110,15 @@ void OmniProjection::project3(
   }
 }
 
+Eigen::Vector2d OmniProjection::projectBearingToImage(
+    const Eigen::Vector3d& bearing) const
+{
+  Eigen::Vector2d out;
+  // affine_correction_inverse_ * (keypoint - principal_point_);
+  out = affine_correction_ * (bearing.head<2>() / bearing.z()) + principal_point_;
+  return out;
+}
+
 double OmniProjection::errorMultiplier() const
 {
   return 1.0;

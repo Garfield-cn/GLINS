@@ -23,7 +23,7 @@ class RollAndPitchError :
                                     7 /* size of first parameter */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -129,7 +129,7 @@ class RollAndPitchError :
     return ErrorType::kPoseError;
   }
 
- protected:
+protected:
   // the measurement
   Eigen::Vector2d measurement_; ///< The yaw measurement.
 

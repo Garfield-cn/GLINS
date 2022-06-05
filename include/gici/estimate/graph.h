@@ -65,7 +65,7 @@ namespace gici {
 ///        We found that our implementation was faster...
 class Graph
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
   /// @brief Constructor.
   Graph();
@@ -353,6 +353,12 @@ class Graph
   ParameterBlockCollection parameters(
       ceres::ResidualBlockId residual_block_id) const;  // get the parameter blocks connected
 
+  // Get all the residual blocks
+  ResidualBlockCollection residuals() const;
+
+  // Get all the parameter blocks
+  ParameterBlockCollection parameters() const;
+
   /// @}
 
   // Jacobian checker
@@ -404,7 +410,7 @@ class Graph
   bool computeCovariance(const std::vector<uint64_t>& parameter_block_ids,
                          Eigen::MatrixXd& covariance);
 
- public:
+public:
 
   /// \brief count the inserted residual blocks.
   uint64_t residual_counter_;

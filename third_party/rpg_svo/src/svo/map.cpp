@@ -21,7 +21,7 @@ Map::Map()
 Map::~Map()
 {
   reset();
-  SVO_INFO_STREAM("Map destructed");
+  // SVO_INFO_STREAM("Map destructed");
 }
 
 void Map::reset()

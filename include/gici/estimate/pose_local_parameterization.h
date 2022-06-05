@@ -62,7 +62,7 @@ class PoseLocalParameterization :
     public ceres::LocalParameterization,
     public LocalParamizationAdditionalInterfaces
 {
- public:
+public:
 
   /// \brief Trivial destructor.
   virtual ~PoseLocalParameterization() = default;

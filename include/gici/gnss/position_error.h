@@ -32,7 +32,7 @@ class PositionError :
     Ns ... /* parameter blocks */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -125,7 +125,7 @@ class PositionError :
     return ErrorType::kPositionError;
   }
 
- protected:
+protected:
   Eigen::Vector3d measurement_; ///< The measurement.
 
   // weighting related

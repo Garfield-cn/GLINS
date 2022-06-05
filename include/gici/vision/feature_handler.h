@@ -10,12 +10,13 @@
 
 #include "gici/utility/svo.h"
 #include "gici/imu/imu_types.h"
-#include "gici/vision/matcher.h"
-#include "gici/vision/tracker.h"
+#include "gici/vision/feature_matcher.h"
+#include "gici/vision/feature_tracker.h"
+#include "gici/vision/visual_initialization.h"
 
 namespace gici {
 
-// SDGNSS options
+// Feature handler options
 struct FeatureHandlerOptions {
   // Max number of keyframes to keep
   size_t max_n_kfs = 10;
@@ -24,26 +25,31 @@ struct FeatureHandlerOptions {
   size_t max_features_per_frame = 120;
 
   // If we have less than this amount of features we always select a new keyframe.
-  size_t kfselect_numkfs_lower_thresh = 80;
+  size_t kfselect_min_numkfs = 60;
 
-  // Keyframe selection for FORWARD : Minimum distance in meters (set initial
-  // scale!) before a new keyframe is selected.
+  // Minimum disparity to select a new keyframe
+  double kfselect_min_disparity = 10.0;
+
+  // Minimum distance in meters before a new keyframe is selected.
   double kfselect_min_dist_metric = 0.5;
 
   // Minimum angle in degrees to closest KF
   double kfselect_min_angle = 5.0;
 
-  // Minimum disparity to select a new keyframe
-  double kfselect_min_disparity = -1;
-
   // Image max pyramid level
   int max_pyramid_level = 4;
 
-  // Minimum disparity to initialize a new landmark (for triangulation)
-  double min_disparity_new_landmark = 5.0;
+  // Minimum disparity to triangulate a landmark
+  double min_disparity_init_landmark = 5.0;
 
   // Feature detector options
   DetectorOptions detector;
+
+  // Feature tracker options
+  FeatureTrackerOptions tracker;
+
+  // Initialization options
+  VisualInitializationOptions initialization;
 
   // Camera model, can be ATAN, Pinhole or Ocam (see vikit)
   CameraBundlePtr cameras;
@@ -61,19 +67,25 @@ public:
   bool addImageBundle(const std::vector<cv::Mat>& imgs, 
                       const double timestamp);
 
-  // Add images with current pose. The pose can help improve the accuracy and efficiency
-  // of feature tracking. If you cannot get a good pose estimate, try to ensure the precision
-  // of the relative pose between current and last frame.
-  bool addImageBundle(const std::vector<cv::Mat>& imgs, 
-                      const double timestamp,
-                      const Transformation& T_WS);
+  // Add camera pose to a specific frame at given timestamp
+  bool addCameraPose(const double timestamp, 
+                     const Transformation& T_WS);
 
-  // Add images with current pose and its covariance. We will consider the uncertainty of 
-  // the given pose, i.e. enlarge the search area. This will increase the reliability.
-  bool addImageBundle(const std::vector<cv::Mat>& imgs, 
-                      const double timestamp,
-                      const Transformation& T_WS,
-                      const Eigen::Matrix<double, 6, 6>& T_WS_covariance);
+  // After the poses and landmarks were adjusted to global, call this function to 
+  // apply the changes.
+  void setGlobalInitializationResult(const std::deque<FramePtr>& scaled_frames);
+
+  // Add IMU measurement for pose integration
+  void addImuMeasurement(const ImuMeasurement& imu_measurement);
+
+  // Set current speed and bias
+  void setSpeedAndBias(const double timestamp, 
+                       const SpeedAndBias speed_and_bias);
+
+  // Set a rotation prior for initialization
+  inline void setRotationPrior(const Eigen::Quaterniond& R_WS) {
+    initializer_->setRotationPrior(R_WS);
+  }
 
   // Get current map
   inline const MapPtr& getMap() const { return map_; }
@@ -96,28 +108,6 @@ public:
   // Get current processed frame
   FramePtr getFrame() { return lastFrame(); }
 
-protected:
-  // Pose measurement
-  struct Pose {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-    Pose() {}
-    Pose(const Transformation T_WS_in) {
-      T_WS = T_WS_in; has_pose = true;
-    }
-    Pose(const Transformation T_WS_in, 
-         const Eigen::Matrix<double, 6, 6>& T_WS_covariance_in) {
-      T_WS = T_WS_in; has_pose = true;
-      T_WS_covariance = T_WS_covariance_in; 
-      has_covariance = true;
-    }
-
-    Transformation T_WS;
-    Eigen::Matrix<double, 6, 6> T_WS_covariance;
-    bool has_pose = false;
-    bool has_covariance = false;
-  };
-
 private:
   // Get frame
   const FramePtr& lastFrame() {
@@ -137,21 +127,17 @@ private:
     return frame_bundles_.back();
   }
 
-  // Get pose
-  Pose& lastPose() {
-    CHECK(poses_.size() > 1);
-    return poses_[poses_.size() - 2];
-  }
-  Pose& curPose() {
-    CHECK(poses_.size() > 0);
-    return poses_.back();
-  }
-
   // Keyframe selection criterion.
   bool needNewKeyFrame();
 
   // Detect features
   void detectFeatures(const FramePtr& frame);
+
+  // Track featuers using LK optical flow
+  void trackFeatures();
+
+  // Optimize pose of new frame using tracked (and initialized) landmarks
+  void optimizePose();
 
   // Check disparity between two frames
   double getDisparity(const FramePtr& ref_frame, 
@@ -163,8 +149,11 @@ private:
   // Set the new frame as keyframe
   void setNewKeyFrame();
 
-  // Initialize landmarks in new keyframe
-  void initializeNewKeyFrame();
+  // Initialize landmarks 
+  void initializeNewLandmarks();
+
+  // Initialize scale and landmarks at first
+  bool initialize();
 
   // Processes frame bundle
   bool processFrameBundle();
@@ -182,15 +171,22 @@ protected:
   // Frames
   std::deque<FrameBundlePtr> frame_bundles_;
   size_t frame_counter_ = 0;
-  std::deque<Pose> poses_;
-  bool first_keyframe_initialized_;
+  bool initialized_;
+  bool global_scale_initialized_;
 
-  // Feature detector
+  // IMU
+  ImuMeasurements imu_measurements_;
+  std::mutex imu_mutex_;
+  double speed_and_bias_timestamp_;
+  SpeedAndBias speed_and_bias_;
+
+  // Modules
   DetectorPtr detector_;
+  FeatureTrackerPtr tracker_;
+  AbstractVisualInitialization::UniquePtr initializer_;
 
   // Map that handles keyframes and keypoints
   MapPtr map_;
-  std::vector<std::vector<FramePtr>> overlap_kfs_;
 };
 
 }

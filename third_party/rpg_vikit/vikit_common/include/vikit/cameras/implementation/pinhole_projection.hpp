@@ -64,6 +64,16 @@ void PinholeProjection<Distortion>::project3(
 }
 
 template<typename Distortion>
+Eigen::Vector2d PinholeProjection<Distortion>::projectBearingToImage(
+    const Eigen::Vector3d& bearing) const
+{
+  Eigen::Vector2d out;
+  out.x() = fx_ * bearing.x() / bearing.z() + cx_;
+  out.y() = fy_ * bearing.y() / bearing.z() + cy_;
+  return out;
+}
+
+template<typename Distortion>
 double PinholeProjection<Distortion>::errorMultiplier() const
 {
   return std::abs(fx_);

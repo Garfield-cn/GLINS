@@ -154,7 +154,7 @@ public:
   };
 
   AmbiguityResolution(const AmbiguityResolutionOptions options,
-                      const std::shared_ptr<Graph>& graph_ptr);
+                      const std::shared_ptr<Graph>& graph);
   ~AmbiguityResolution();
 
   // Solve ambiguity at given epoch
@@ -201,11 +201,11 @@ private:
 
 private:
   // Graph in RTK estimator class
-  std::shared_ptr<Graph> graph_ptr_;
+  std::shared_ptr<Graph> graph_;
 
   // loss function
-  std::shared_ptr< ceres::LossFunction> cauchy_loss_function_ptr_; ///< Cauchy loss.
-  std::shared_ptr< ceres::LossFunction> huber_loss_function_ptr_; ///< Huber loss.
+  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
+  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
 
   // Ambiguity handles
   std::deque<std::vector<Spec>> ambiguities_;
@@ -269,5 +269,11 @@ void cycleSlipDetectionTimeGap(
                           GnssMeasurement& measurement_pre, 
                           GnssMeasurement& measurement_cur,
                           double max_time_gap);
+
+// Compute initial ambiguity for single differenced measurements
+double getInitialAmbiguitySD(const GnssMeasurement& measurement_rov, 
+                            const GnssMeasurement& measurement_ref,
+                            const GnssMeasurementIndex& index_rov,
+                            const GnssMeasurementIndex& index_ref);
 
 }

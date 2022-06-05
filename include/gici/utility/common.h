@@ -44,6 +44,20 @@ inline bool checkEqual(Eigen::Matrix<FloatT, Rows, Cols> mat_x,
   return !has_none_equal;
 }
 
+// Check less than and equal to for float types
+template<typename FloatT>
+inline bool checkLessEqual(FloatT x, FloatT y, 
+                       float precision = DEFAULT_PRECISION) {
+  return (x <= (y + DEFAULT_PRECISION));
+}
+
+// Check larger than and equal to for float types
+template<typename FloatT>
+inline bool checkLargerEqual(FloatT x, FloatT y, 
+                       float precision = DEFAULT_PRECISION) {
+  return (x >= (y - DEFAULT_PRECISION));
+}
+
 // Check float matrix equals zero
 template<typename FloatT, int Rows, int Cols>
 inline bool checkZero(Eigen::Matrix<FloatT, Rows, Cols> mat, 

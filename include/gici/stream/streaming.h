@@ -74,6 +74,9 @@ public:
     return false;
   }
 
+  // Check if valid
+  inline bool valid() { return valid_; }
+
   // Bind input and logging streams
   static void bindLogWithInput();
 
@@ -103,6 +106,7 @@ protected:
 
   // Stream control
   std::string tag_, input_tag_;  // streamer tags
+  bool valid_, opened_;
   std::shared_ptr<StreamerBase> streamer_;
   std::vector<FormatorCtrl> formators_;
   DataClusters data_clusters_;  // store data from each formators

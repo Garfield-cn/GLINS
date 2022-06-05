@@ -58,7 +58,7 @@ class SpeedAndBiasError : public ceres::SizedCostFunction<
     9 /* size of first parameter */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -156,7 +156,7 @@ class SpeedAndBiasError : public ceres::SizedCostFunction<
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const { return ErrorType::kSpeedAndBiasError; }
 
- protected:
+protected:
 
   // the measurement
   SpeedAndBias measurement_; ///< The (9D) measurement.

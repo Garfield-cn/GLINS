@@ -46,13 +46,13 @@ int main(void)
   Eigen::Quaterniond quatB = quaty * quatp * quatr;
   Eigen::Quaterniond quatC = quaty * quatpr;
   
-  std::shared_ptr<Graph> graph_ptr_ = std::make_shared<Graph>();
+  std::shared_ptr<Graph> graph_ = std::make_shared<Graph>();
   
   BackendId pose_id = createGnssPoseId(1);
   std::shared_ptr<PoseParameterBlock> pose_parameter_block = 
     std::make_shared<PoseParameterBlock>(
     Transformation(Eigen::Vector3d::Zero(), q_pr), pose_id.asInteger());
-  if (!graph_ptr_->addParameterBlock(pose_parameter_block, Graph::Pose6d)) {
+  if (!graph_->addParameterBlock(pose_parameter_block, Graph::Pose6d)) {
     return false;
   }
 
@@ -62,12 +62,12 @@ int main(void)
     // information(5, 5) = 1.0; 
     // std::shared_ptr<PoseError> yaw_pose_error = 
     //   std::make_shared<PoseError>(T_WS_y, information);
-    // graph_ptr_->addResidualBlock(yaw_pose_error, nullptr,
-    //   graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+    // graph_->addResidualBlock(yaw_pose_error, nullptr,
+    //   graph_->parameterBlockPtr(pose_id.asInteger()));
     std::shared_ptr<YawError> yaw_error = 
       std::make_shared<YawError>(ypr1(0), 1.0e2);
-    graph_ptr_->addResidualBlock(yaw_error, nullptr,
-      graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+    graph_->addResidualBlock(yaw_error, nullptr,
+      graph_->parameterBlockPtr(pose_id.asInteger()));
   }
 
   {
@@ -77,14 +77,14 @@ int main(void)
     // information(4, 4) = 1.0e2;
     // std::shared_ptr<PoseError> pose_error = 
     //   std::make_shared<PoseError>(T_WS_rp, information);
-    // graph_ptr_->addResidualBlock(pose_error, nullptr,
-    //   graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+    // graph_->addResidualBlock(pose_error, nullptr,
+    //   graph_->parameterBlockPtr(pose_id.asInteger()));
     Eigen::Vector2d roll_pitch(ypr0(2), ypr0(1));
     Eigen::Matrix2d information = Eigen::Matrix2d::Identity() * 1e2;
     std::shared_ptr<RollAndPitchError> roll_and_pitch_error = 
       std::make_shared<RollAndPitchError>(roll_pitch, information);
-    graph_ptr_->addResidualBlock(roll_and_pitch_error, nullptr,
-      graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+    graph_->addResidualBlock(roll_and_pitch_error, nullptr,
+      graph_->parameterBlockPtr(pose_id.asInteger()));
   }
 
   {
@@ -93,29 +93,29 @@ int main(void)
     information.topLeftCorner(3, 3) = Eigen::Matrix3d::Identity() * 1.0e2;
     std::shared_ptr<PoseError> pose_error = 
       std::make_shared<PoseError>(T_WS_position, information);
-    graph_ptr_->addResidualBlock(pose_error, nullptr,
-      graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+    graph_->addResidualBlock(pose_error, nullptr,
+      graph_->parameterBlockPtr(pose_id.asInteger()));
   }
 
-  graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-  graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-  graph_ptr_->options.max_num_iterations = 10;
-  graph_ptr_->options.logging_type = ceres::LoggingType::SILENT;
-  graph_ptr_->options.minimizer_progress_to_stdout = true;
+  graph_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+  graph_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
+  graph_->options.max_num_iterations = 10;
+  graph_->options.logging_type = ceres::LoggingType::SILENT;
+  graph_->options.minimizer_progress_to_stdout = true;
 
-  graph_ptr_->solve();
+  graph_->solve();
 
-  LOG(INFO) << graph_ptr_->summary.BriefReport();
+  LOG(INFO) << graph_->summary.BriefReport();
 
-  CHECK(graph_ptr_->parameterBlockExists(pose_id.asInteger()));
+  CHECK(graph_->parameterBlockExists(pose_id.asInteger()));
   std::shared_ptr<PoseParameterBlock> pose_ptr = 
     std::dynamic_pointer_cast<PoseParameterBlock>(
-    graph_ptr_->parameterBlockPtr(pose_id.asInteger()));
+    graph_->parameterBlockPtr(pose_id.asInteger()));
   CHECK(pose_ptr != nullptr);
   Transformation T_WS = pose_ptr->estimate();
 
   Eigen::MatrixXd cov_T_WS;
-  graph_ptr_->computeCovariance({pose_id.asInteger()}, cov_T_WS);
+  graph_->computeCovariance({pose_id.asInteger()}, cov_T_WS);
   Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
   Eigen::Matrix<double, 7, 1> parameters;
   parameters << T_WS.getPosition().x(), T_WS.getPosition().y(), T_WS.getPosition().z(),

@@ -36,7 +36,7 @@ class PseudorangeErrorSD :
     Ns ... /* parameter blocks */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -125,7 +125,7 @@ class PseudorangeErrorSD :
     return ErrorType::kPseudorangeErrorSD;
   }
 
- protected:
+protected:
   GnssMeasurement measurement_rov_, measurement_ref_; ///< The measurement.
   Satellite satellite_rov_, satellite_ref_;;
   Observation observation_rov_, observation_ref_;

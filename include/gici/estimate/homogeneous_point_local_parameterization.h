@@ -57,7 +57,7 @@ class HomogeneousPointLocalParameterization :
     public ceres::LocalParameterization,
     public LocalParamizationAdditionalInterfaces
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief Destructor (does nothing)

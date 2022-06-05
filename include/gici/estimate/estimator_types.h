@@ -51,6 +51,7 @@
 #include "gici/imu/imu_types.h"
 #include "gici/gnss/geodetic_coordinate.h"
 #include "gici/gnss/gnss_types.h"
+#include "gici/utility/option.h"
 
 namespace gici {
 
@@ -73,11 +74,14 @@ enum class IdType : uint8_t
   gIonosphere = 12
 };
 
+using SensorType = option_tools::SensorType;
+
 // The BackendID for multiple types
 // bit 0-5:   IdType
 // bit 6-13:  CameraIdx, GNSS system
 // bit 14-21: GNSS PRN number
 // bit 22-49: BundleID
+// 0 ~ 2^25-1 for Image, 2^25 ~ 2^26-1 for GNSS
 // bit 50-55: GNSS PhaseID
 // bit 32-63: Landmark ID
 #define BITS_IDTYPE 0, 5
@@ -87,6 +91,10 @@ enum class IdType : uint8_t
 #define BITS_BUNDLEID 22, 49
 #define BITS_GNSS_PHASEID 50, 55
 #define BITS_LANDMARKID 32, 63
+#define RANGE_IMAGE_MIN 0
+#define RANGE_IMAGE_MAX 33554431
+#define RANGE_GNSS_MIN 33554432
+#define RANGE_GNSS_MAX 67108863
 class BackendId
 {
 public:
@@ -136,6 +144,35 @@ public:
       out_id |= byte;
     }
     return out_id;
+  }
+
+  // Check sensor type
+  inline static SensorType sensorType(IdType type) {
+    if (type == IdType::cNFrame || type == IdType::cExtrinsics || 
+        type == IdType::cLandmark) return SensorType::Camera;
+    if (type == IdType::ImuStates) return SensorType::IMU;
+    if (type == IdType::gAmbiguity || type == IdType::gClock || 
+        type == IdType::gExtrinsics || type == IdType::gFrequency ||
+        type == IdType::gIonosphere || type == IdType::gPose || 
+        type == IdType::gPosition || type == IdType::gTroposphere ||
+        type == IdType::gVelocity) return SensorType::GNSS;
+    return SensorType::None;
+  }
+
+  // Adjust bundle_id for sensor types
+  inline static int32_t adjustBundleId(int32_t bundle_id, IdType type) {
+    int32_t out = bundle_id;
+    if (sensorType(type) == SensorType::Camera) {
+      const int32_t length = RANGE_IMAGE_MAX - RANGE_IMAGE_MIN + 1;
+      while (out < RANGE_IMAGE_MIN) out += length;
+      while (out > RANGE_IMAGE_MAX) out -= length;
+    }
+    if (sensorType(type) == SensorType::GNSS) {
+      const int32_t length = RANGE_GNSS_MAX - RANGE_GNSS_MIN + 1;
+      while (out < RANGE_GNSS_MIN) out += length;
+      while (out > RANGE_GNSS_MAX) out -= length;
+    }
+    return out;
   }
 
   inline uint64_t asInteger() const {
@@ -202,7 +239,8 @@ inline BackendId createNFrameId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
   return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::cNFrame), BITS_BUNDLEID) |
     BackendId::setBits(IdType::cNFrame, BITS_IDTYPE));
 }
 
@@ -210,7 +248,8 @@ inline BackendId createGnssPositionId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
   return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gPosition), BITS_BUNDLEID) |
     BackendId::setBits(IdType::gPosition, BITS_IDTYPE));
 }
 
@@ -218,7 +257,8 @@ inline BackendId createGnssVelocityId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
   return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gVelocity), BITS_BUNDLEID) |
     BackendId::setBits(IdType::gVelocity, BITS_IDTYPE));
 }
 
@@ -226,7 +266,8 @@ inline BackendId createGnssPoseId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
   return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gPose), BITS_BUNDLEID) |
     BackendId::setBits(IdType::gPose, BITS_IDTYPE));
 }
 
@@ -235,7 +276,8 @@ inline BackendId createGnssClockId(char system,
 {
   CHECK_GE(bundle_id, 0);
   return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gClock), BITS_BUNDLEID) |
     BackendId::setBits(system, BITS_GNSS_SYSTEM) |
     BackendId::setBits(IdType::gClock, BITS_IDTYPE));
 }
@@ -248,26 +290,12 @@ inline BackendId createGnssAmbiguityId(std::string prn,
   char system = prn[0];
   int prn_number = atoi(prn.substr(1, 2).data());
   return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) |
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gAmbiguity), BITS_BUNDLEID) |
     BackendId::setBits(system, BITS_GNSS_SYSTEM) |
     BackendId::setBits(prn_number, BITS_GNSS_PRN) |
     BackendId::setBits(phase_id, BITS_GNSS_PHASEID) |
     BackendId::setBits(IdType::gAmbiguity, BITS_IDTYPE));
-}
-
-inline BackendId createExtrinsicsId(uint8_t camera_index,
-                                    int32_t bundle_id){
-  return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) | 
-    BackendId::setBits(camera_index, BITS_CAMERA_IDX) |
-    BackendId::setBits(IdType::cExtrinsics, BITS_IDTYPE));
-}
-
-inline BackendId createImuStateId(int32_t bundle_id)
-{
-  return BackendId(
-    BackendId::setBits(bundle_id, BITS_BUNDLEID) | 
-    BackendId::setBits(IdType::ImuStates, BITS_IDTYPE));
 }
 
 inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
@@ -276,6 +304,8 @@ inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
   CHECK(type != IdType::cLandmark);
   CHECK(cam_index == 0 || type == IdType::cExtrinsics || type == IdType::gVelocity ||
         type == IdType::gExtrinsics);
+  CHECK((BackendId::sensorType(id.type()) == BackendId::sensorType(type)) || 
+        (BackendId::sensorType(type) == SensorType::IMU));
   uint64_t out = id.asInteger();
   out = BackendId::resetBits(out, cam_index, BITS_CAMERA_IDX);
   out = BackendId::resetBits(out, type, BITS_IDTYPE);
@@ -286,6 +316,8 @@ inline BackendId changeIdType(BackendId id, IdType type, const char system)
 {
   CHECK(id.type() != IdType::gClock);
   CHECK(type == IdType::gClock);
+  CHECK((BackendId::sensorType(id.type()) == BackendId::sensorType(type)) || 
+        (BackendId::sensorType(type) == SensorType::IMU));
   uint64_t out = id.asInteger();
   out = BackendId::resetBits(out, system, BITS_GNSS_SYSTEM);
   out = BackendId::resetBits(out, type, BITS_IDTYPE);
@@ -349,8 +381,8 @@ enum class EstimatorType {
   Rtk, 
   GnssImuLc,
   RtkImuTc,
-  GnssImuCameraStc,
-  RtkImuCameraTc
+  GnssImuCameraSrr,
+  RtkImuCameraRrr
 };
 
 // Solution generated by estimators

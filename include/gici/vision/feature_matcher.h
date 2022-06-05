@@ -1,9 +1,13 @@
-/**
-* @Function: Feature matcher
-*
-* @Author  : Cheng Chi
-* @Email   : chichengcn@sjtu.edu.cn
-**/
+// This file is part of SVO - Semi-direct Visual Odometry.
+//
+// Copyright (C) 2014 Christian Forster <forster at ifi dot uzh dot ch>
+// (Robotics and Perception Group, University of Zurich, Switzerland).
+//
+// This file is subject to the terms and conditions defined in the file
+// 'LICENSE', which is part of this source code package.
+// 
+// Modified by: Cheng Chi
+
 #pragma once
 
 #include "gici/utility/svo.h"
@@ -11,7 +15,7 @@
 namespace gici {
 
 /// Patch-matcher for reprojection-matching and epipolar search in triangulation.
-class Matcher
+class FeatureMatcher
 {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
@@ -20,7 +24,7 @@ public:
   static const int kPatchSize = 8;
 
   typedef svo::patch_score::ZMSSD<kHalfPatchSize> PatchScore;
-  typedef std::shared_ptr<Matcher> Ptr;
+  typedef std::shared_ptr<FeatureMatcher> Ptr;
 
   struct Options
   {
@@ -64,8 +68,8 @@ public:
   Keypoint px_cur_;
   BearingVector f_cur_;
 
-  Matcher() = default;
-  ~Matcher() = default;
+  FeatureMatcher() = default;
+  ~FeatureMatcher() = default;
 
   /// Find a match by directly applying subpix refinement.
   /// IMPORTANT! This function assumes that px_cur is already set to an estimate that is within ~2-3 pixel of the final result!
@@ -122,7 +126,7 @@ public:
       Keypoint* image_best,
       int* zmssd_best);
 
-  static std::string getResultString(const Matcher::MatchResult& result);
+  static std::string getResultString(const FeatureMatcher::MatchResult& result);
 
 public:
   // TODO(zzc): perhaps some of these should be inline
@@ -171,16 +175,27 @@ public:
       int* zmssd_best);
 };
 
-namespace matcher_utils {
-
 // calculate feature point depth
-Matcher::MatchResult depthFromTriangulation(
+FeatureMatcher::MatchResult depthFromTriangulation(
     const Transformation& T_search_ref,
     const Eigen::Vector3d& f_ref,
     const Eigen::Vector3d& f_cur,
     double* depth);
 
-}
+// Get matched feature indexes
+void getFeatureMatches(
+    const Frame& frame1, const Frame& frame2,
+    std::vector<std::pair<size_t, size_t>>* matches_12);
+
+// Get average disparity between two frames
+double getDisparity(const FramePtr& ref_frame, 
+                    const FramePtr& cur_frame);
+
+// Get disparity at a pivot
+double getDisparityPercentile(
+                    const FramePtr& ref_frame, 
+                    const FramePtr& cur_frame,
+                    double pivot_ratio);
 
 }
 

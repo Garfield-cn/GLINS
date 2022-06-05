@@ -58,7 +58,7 @@ class PoseError :
                                     7 /* size of first parameter */>,
     public ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// \brief The base class type.
@@ -171,7 +171,7 @@ class PoseError :
     return ErrorType::kPoseError;
   }
 
- protected:
+protected:
 
   // the measurement
   Transformation measurement_; ///< The pose measurement.

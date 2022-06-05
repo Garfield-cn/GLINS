@@ -75,7 +75,7 @@ extern const std::map<ErrorType, std::string> kErrorToStr;
 /// @brief Simple interface class the errors implemented here should inherit from.
 class ErrorInterface
 {
- public:
+public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   /// @brief Constructor

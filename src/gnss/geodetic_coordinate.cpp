@@ -100,7 +100,7 @@ Eigen::Vector3d GeoCoordinate::convert(const Eigen::Vector3d& position,
   return Eigen::Vector3d::Zero();
 }
 
-// ECEF to ENU rotation matrix
+// Rotation matrices
 Eigen::Matrix3d GeoCoordinate::rotationMatrix(GeoType from, GeoType to)
 {
   if (!lla_zero_setted_) {

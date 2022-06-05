@@ -14,13 +14,13 @@ namespace gici {
 
 // The default constructor
 DgnssEstimator::DgnssEstimator(const DgnssEstimatorOptions& options) :
-  options_(options), graph_ptr_(std::make_shared<Graph>()),
+  options_(options), graph_(std::make_shared<Graph>()),
   cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
   huber_loss_function_ptr_(new ceres::HuberLoss(1)),
   debug_callback_(new CeresDebugCallback())
 {
   // For debug
-  graph_ptr_->options.callbacks.push_back(debug_callback_.get());
+  // graph_->options.callbacks.push_back(debug_callback_.get());
 }
 
 // The default destructor
@@ -51,7 +51,7 @@ bool DgnssEstimator::addGnssMeasurementAndState(
 
   // Erase all parameters
   for (auto id : parameter_ids_) {
-    graph_ptr_->removeParameterBlock(id.asInteger());
+    graph_->removeParameterBlock(id.asInteger());
   }
   parameter_ids_.clear();
 
@@ -61,7 +61,7 @@ bool DgnssEstimator::addGnssMeasurementAndState(
   if (!checkZero(last_position)) position_prior = last_position;
   std::shared_ptr<PositionParameterBlock> position_parameter_block = 
     std::make_shared<PositionParameterBlock>(position_prior, position_id.asInteger());
-  if (!graph_ptr_->addParameterBlock(position_parameter_block)) {
+  if (!graph_->addParameterBlock(position_parameter_block)) {
     return false;
   }
   parameter_ids_.push_back(position_id);
@@ -87,9 +87,9 @@ bool DgnssEstimator::addGnssMeasurementAndState(
       std::make_shared<PseudorangeErrorDD<3>>(measurement_rov_, measurement_ref_,
       dd_pair.rov, dd_pair.ref, dd_pair.rov_base, dd_pair.ref_base, 
       options_.error_parameter);
-    graph_ptr_->addResidualBlock(pseudorange_error, 
+    graph_->addResidualBlock(pseudorange_error, 
       huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_ptr_->parameterBlockPtr(position_id.asInteger()));
+      graph_->parameterBlockPtr(position_id.asInteger()));
 
     // get number of satellites
     if (last_prn != satellite.prn) {
@@ -114,39 +114,39 @@ bool DgnssEstimator::addGnssMeasurementAndState(
   return true;
 }
 
-// Start ceres optimization
+// Apply ceres optimization
 void DgnssEstimator::optimize()
 {
-  graph_ptr_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-  graph_ptr_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-  graph_ptr_->options.num_threads = options_.num_threads;
-  graph_ptr_->options.max_num_iterations = options_.max_iteration;
+  graph_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
+  graph_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
+  graph_->options.num_threads = options_.num_threads;
+  graph_->options.max_num_iterations = options_.max_iteration;
 
   if (options_.verbose) {
-    graph_ptr_->options.minimizer_progress_to_stdout = true;
+    graph_->options.minimizer_progress_to_stdout = true;
   }
   else {
-    graph_ptr_->options.logging_type = ceres::LoggingType::SILENT;
-    graph_ptr_->options.minimizer_progress_to_stdout = false;
+    graph_->options.logging_type = ceres::LoggingType::SILENT;
+    graph_->options.minimizer_progress_to_stdout = false;
   }
 
   // call solver
-  graph_ptr_->solve();
+  graph_->solve();
 
   if (options_.verbose) {
-    LOG(INFO) << graph_ptr_->summary.BriefReport();
+    LOG(INFO) << graph_->summary.BriefReport();
   }
 }
 
 // Get position in ECEF coordinate
 Eigen::Vector3d DgnssEstimator::getPositionEstimate()
 {
-  if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
+  if (!graph_->parameterBlockExists(current_state_.id.asInteger())) {
     return Eigen::Vector3d::Zero();
   }
 
   std::shared_ptr<ParameterBlock> base_ptr =
-      graph_ptr_->parameterBlockPtr(current_state_.id.asInteger());
+      graph_->parameterBlockPtr(current_state_.id.asInteger());
   if (base_ptr != nullptr) {
     std::shared_ptr<PositionParameterBlock> block_ptr = 
       std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
@@ -172,14 +172,14 @@ GnssSolution DgnssEstimator::getSolution()
   solution.velocity.setZero();
   solution.num_satellites = num_satellites_;
   solution.differential_age = differential_age_;
-  if (!graph_ptr_->parameterBlockExists(current_state_.id.asInteger())) {
+  if (!graph_->parameterBlockExists(current_state_.id.asInteger())) {
     return solution;
   }
   else {
     parameter_block_ids.push_back(current_state_.id.asInteger());
 
     std::shared_ptr<ParameterBlock> base_ptr =
-        graph_ptr_->parameterBlockPtr(current_state_.id.asInteger());
+        graph_->parameterBlockPtr(current_state_.id.asInteger());
     if (base_ptr != nullptr) {
       std::shared_ptr<PositionParameterBlock> block_ptr = 
         std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
@@ -190,11 +190,11 @@ GnssSolution DgnssEstimator::getSolution()
 
   // velocity
   BackendId velocity_id = changeIdType(current_state_.id, IdType::gVelocity);
-  if (!graph_ptr_->parameterBlockExists(velocity_id.asInteger())) {
+  if (!graph_->parameterBlockExists(velocity_id.asInteger())) {
     // we did not estimate velocity
     // get the position covariance and return
     Eigen::MatrixXd position_covariance;
-    graph_ptr_->computeCovariance(parameter_block_ids, position_covariance);
+    graph_->computeCovariance(parameter_block_ids, position_covariance);
     CHECK(position_covariance.cols() == 3);
     solution.covariance.topLeftCorner(3, 3) = position_covariance;
   }
@@ -202,7 +202,7 @@ GnssSolution DgnssEstimator::getSolution()
     parameter_block_ids.push_back(velocity_id.asInteger());
 
     std::shared_ptr<ParameterBlock> base_ptr =
-        graph_ptr_->parameterBlockPtr(velocity_id.asInteger());
+        graph_->parameterBlockPtr(velocity_id.asInteger());
     if (base_ptr != nullptr) {
       std::shared_ptr<VelocityParameterBlock> block_ptr = 
         std::dynamic_pointer_cast<VelocityParameterBlock>(base_ptr);
@@ -211,7 +211,7 @@ GnssSolution DgnssEstimator::getSolution()
     }
 
     Eigen::MatrixXd covariance;
-    graph_ptr_->computeCovariance(parameter_block_ids, covariance);
+    graph_->computeCovariance(parameter_block_ids, covariance);
     CHECK(covariance.cols() == 6);
     solution.covariance = covariance;
   }

@@ -54,7 +54,7 @@ class ReprojectionErrorBase :
     7 /* size of third parameter (camera extrinsics) */>,
     public ErrorInterface
 {
- public:
+public:
   /// \brief Measurement type (2D).
   typedef Eigen::Vector2d measurement_t;
 

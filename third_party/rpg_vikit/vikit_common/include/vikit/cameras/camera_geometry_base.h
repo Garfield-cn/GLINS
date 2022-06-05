@@ -115,6 +115,10 @@ public:
       Eigen::Vector2d* out_keypoint,
       Eigen::Matrix<double, 2, 3>* out_jacobian_point = nullptr) const = 0;
 
+  // Project bearing vector to image plane
+  virtual Eigen::Vector2d projectBearingToImage(
+    const Eigen::Ref<const Eigen::Vector3d>& bearing) const = 0;
+
   /// Print camera info
   virtual void printParameters(std::ostream& out, const std::string& s = "Camera: ") const = 0;
 
