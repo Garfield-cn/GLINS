@@ -114,9 +114,6 @@ private:
     frame_bundles_.pop_front();
   }
 
-  // Update map points of in-windows keyframes
-  void updateMap();
-
   // Camera frontend processing
   void runFrontend();
 
@@ -129,7 +126,6 @@ protected:
 
   // Front thread handles
   std::unique_ptr<std::thread> frontend_thread_;
-  std::mutex mutex_frontend_;
 
   // Sensor sequence control
   std::list<SensorType> sensor_sequence_;
@@ -140,7 +136,6 @@ protected:
 
   // Frontend control
   std::shared_ptr<FeatureHandler> feature_handler_;
-  Solution camera_pose_;
 
   // Data buffers
   std::map<GnssRole, std::deque<GnssMeasurement>> gnss_measurements_;

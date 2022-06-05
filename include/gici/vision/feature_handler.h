@@ -36,6 +36,10 @@ struct FeatureHandlerOptions {
   // Minimum angle in degrees to closest KF
   double kfselect_min_angle = 5.0;
 
+  // Minimum time duration in seconds to forcely select a new keyframe
+  // This is used to control the long duration IMU drift under a slow or static motion.
+  double kfselect_min_dt = 2.0;
+
   // Image max pyramid level
   int max_pyramid_level = 4;
 
@@ -107,6 +111,10 @@ public:
 
   // Get current processed frame
   FramePtr getFrame() { return lastFrame(); }
+
+  // Lock or unlock frame and map (landmarks)
+  inline void lock() { mutex_.lock(); }
+  inline void unlock() { mutex_.unlock(); }
 
 private:
   // Get frame
@@ -187,6 +195,9 @@ protected:
 
   // Map that handles keyframes and keypoints
   MapPtr map_;
+
+  // Mutex lock to protect feature and landmark variables
+  std::mutex mutex_;
 };
 
 }

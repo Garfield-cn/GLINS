@@ -359,6 +359,9 @@ public:
   // Get all the parameter blocks
   ParameterBlockCollection parameters() const;
 
+  // Get the ceres problem handle
+  inline std::shared_ptr<ceres::Problem> problem() const { return problem_; }
+
   /// @}
 
   // Jacobian checker

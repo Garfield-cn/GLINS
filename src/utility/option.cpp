@@ -616,6 +616,7 @@ void loadOptions<FeatureHandlerOptions>(
   LOAD_COMMON(kfselect_min_disparity);
   LOAD_COMMON(kfselect_min_dist_metric);
   LOAD_COMMON(kfselect_min_angle);
+  LOAD_COMMON(kfselect_min_dt);
   LOAD_COMMON(max_pyramid_level);
   LOAD_COMMON(min_disparity_init_landmark);
 

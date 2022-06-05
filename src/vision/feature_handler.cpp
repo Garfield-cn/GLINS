@@ -300,6 +300,16 @@ bool FeatureHandler::needNewKeyFrame()
     }
   }
 
+  // Check time duration
+  const double time_duration = 
+    curFrame()->getTimestampSec() - keyframe->getTimestampSec();
+  if (time_duration > options_.kfselect_min_dt) {
+    LOG(INFO) << "Select new keyframe by time duration: " 
+              << time_duration << " vs " << options_.kfselect_min_dt;
+    return true;
+  }
+
+  // Not a new keyframe
   return false;
 }
 

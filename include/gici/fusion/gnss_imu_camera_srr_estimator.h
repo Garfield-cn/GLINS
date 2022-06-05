@@ -45,6 +45,9 @@ struct GnssImuCameraSrrEstimatorOptions {
   // Only add landmarks to backend with minimum number of observations
   int min_num_obs = 2;
 
+  // Landmark outliter rejection threshold (n sigma)
+  double landmark_outlier_rejection_threshold = 3.0;
+
   // IMU parameters
   ImuParameters imu_parameters;
 
@@ -69,6 +72,11 @@ public:
 
   GnssImuCameraSrrEstimator(const GnssImuCameraSrrEstimatorOptions& options);
   ~GnssImuCameraSrrEstimator();
+
+  // Set visual front-end handler. 
+  void setFeatureHandler(const std::shared_ptr<FeatureHandler>& feature_handler) {
+    feature_handler_ = feature_handler;
+  }
 
   // Set initialization result 
   void setInitializationResult(
@@ -120,9 +128,6 @@ public:
   // Get IMU parameters
   ImuParameters& getImuParameters() { return options_.imu_parameters; }
 
-  // Update map points of in-windows keyframes
-  void updateMap();
-
   // Check if it is the first epoch
   bool isFirstEpoch() { return states_.size() < 2; }
 
@@ -168,6 +173,9 @@ private:
 
   // Erase a state inside the window
   bool eraseState(double timestamp, BackendId id);
+
+  // Reject landmark outliers at current frame
+  void rejectLandmarkOutliers();
 
   // Getters
   inline GnssSolution& curGnss() { return gnss_solutions_.back(); }
@@ -259,6 +267,9 @@ private:
 
   // Initialization
   bool initialized_ = false;
+
+  // Feature handler
+  std::shared_ptr<FeatureHandler> feature_handler_;
 
   // the marginalized error term
   std::shared_ptr<MarginalizationError> marginalization_error_ptr_;

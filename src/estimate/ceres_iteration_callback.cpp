@@ -13,6 +13,11 @@ namespace gici {
 ceres::CallbackReturnType CeresDebugCallback::handle(
   const ceres::IterationSummary& summary) 
 {
+  // if (summary.cost > 1e4) 
+  // {
+  //   LOG(ERROR) << "Not good!";
+  // }
+
   return ceres::SOLVER_CONTINUE;
 }
 

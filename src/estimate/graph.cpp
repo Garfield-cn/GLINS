@@ -571,6 +571,7 @@ bool Graph::removeResidualBlock(ceres::ResidualBlockId residual_block_id)
       residual_block_id_to_parameter_block_collection_map_.find(residual_block_id);
   if (it == residual_block_id_to_parameter_block_collection_map_.end())
   {
+    LOG(ERROR) << "Residual block " << residual_block_id << " not in graph!";
     return false;
   }
 

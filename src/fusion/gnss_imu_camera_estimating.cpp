@@ -38,6 +38,7 @@ GnssImuCameraEstimating::GnssImuCameraEstimating(YAML::Node& node) :
     gnss_imu_camera_srr_estimator_.reset(new GnssImuCameraSrrEstimator(options));
     gnss_imu_camera_initializer_.reset(new GnssImuCameraInitialization(
       options.initialize, gnss_imu_camera_srr_estimator_->getGraph()));
+    gnss_imu_camera_srr_estimator_->setFeatureHandler(feature_handler_);
   }
   else if (type_ == EstimatorType::RtkImuCameraRrr) {
 
@@ -47,7 +48,6 @@ GnssImuCameraEstimating::GnssImuCameraEstimating(YAML::Node& node) :
   // Initial values
   solution_.timestamp = 0.0;
   solution_.backend.timestamp = 0.0;
-  camera_pose_.backend.timestamp = 0.0;
 }
 
 GnssImuCameraEstimating::~GnssImuCameraEstimating()
@@ -235,9 +235,9 @@ bool GnssImuCameraEstimating::processInitialize()
   }
 
   // add measurement and solve
-  mutex_frontend_.lock(); // lock to avoid frontend modifying frames during initialization
+  feature_handler_->lock();
   bool ret = gnss_imu_camera_initializer_->addGnssMeasurement(gnss_solution);
-  mutex_frontend_.unlock();
+  feature_handler_->unlock();
   if (!ret) return false;
   gnss_imu_camera_initializer_->initialize();
   if (!gnss_imu_camera_initializer_->finished()) return false;
@@ -322,12 +322,14 @@ bool GnssImuCameraEstimating::processGnssImuCameraSrr()
       backend_processing_timestamp_, frame_bundle->getMinTimestampSeconds());
 
     // add measurement
-    mutex_frontend_.lock();
+    feature_handler_->lock();
     bool ret = gnss_imu_camera_srr_estimator_->addImageMeasurementAndState(frame_bundle);
-    mutex_frontend_.unlock();
+    feature_handler_->unlock();
     if (ret) {
       // solve
+      double t = vk::Timer::getCurrentTime();
       gnss_imu_camera_srr_estimator_->optimize();
+      LOG(INFO) << "backend_dt = " << vk::Timer::getCurrentTime() - t; 
       is_updated = true;
     }
   }
@@ -345,9 +347,6 @@ bool GnssImuCameraEstimating::processGnssImuCameraSrr()
       solution_.num_satellites = gnss_solution.num_satellites;
       solution_.differential_age = gnss_solution.differential_age;
     }
-    if (has_frame) {
-      camera_pose_ = solution_;
-    }
     mutex_output_.unlock();
   }
 #else
@@ -356,9 +355,6 @@ bool GnssImuCameraEstimating::processGnssImuCameraSrr()
     solution_.backend.timestamp = frame_bundle->getMinTimestampSeconds();
     solution_.backend.pose = frame_bundle->get_T_W_B();
     solution_.backend.speed_and_bias = gnss_imu_camera_srr_estimator_->getSpeedAndBias();
-    if (has_frame) {
-      camera_pose_ = solution_;
-    }
     mutex_output_.unlock();
   }
 #endif
@@ -468,17 +464,6 @@ void GnssImuCameraEstimating::integrateSolution()
   mutex_input_.unlock();
 }
 
-// Update map points of in-windows keyframes
-void GnssImuCameraEstimating::updateMap()
-{
-  if (type_ == EstimatorType::GnssImuCameraSrr) {
-    gnss_imu_camera_srr_estimator_->updateMap();
-  }
-  else if (type_ == EstimatorType::RtkImuCameraRrr) {
-
-  }
-}
-
 // Camera frontend processing
 void GnssImuCameraEstimating::runFrontend()
 {
@@ -514,21 +499,10 @@ void GnssImuCameraEstimating::runFrontend()
     // Process feature detecting and tracking
     cv::Mat& image = images_[CameraRole::Mono].front().second;
     mutex_input_.unlock();
-    // add last pose and speed and bias
-    mutex_process_.lock();
-    if (camera_pose_.backend.timestamp != 0.0) {
-      feature_handler_->addCameraPose(
-        camera_pose_.backend.timestamp, camera_pose_.backend.pose);
-      feature_handler_->setSpeedAndBias(
-        camera_pose_.backend.timestamp, camera_pose_.backend.speed_and_bias);
-    }
-    // update landmarks
-    updateMap();
-    mutex_process_.unlock();
     // process image
-    mutex_frontend_.lock();
+    feature_handler_->lock();
     bool ret = feature_handler_->addImageBundle({image}, timestamp);
-    mutex_frontend_.unlock();
+    feature_handler_->unlock();
     if (ret) {
       mutex_input_.lock();
       frame_bundles_.push_back(feature_handler_->getFrameBundle());

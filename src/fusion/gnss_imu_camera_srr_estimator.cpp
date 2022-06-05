@@ -346,15 +346,39 @@ void GnssImuCameraSrrEstimator::optimize()
     LOG(INFO) << graph_->summary.BriefReport();
   }
 
+  // Update frontend variables
+  feature_handler_->lock();
+  // state
+  if (new_state_type_ == IdType::cNFrame) {
+    State& cur_state = curState();
+    feature_handler_->addCameraPose(
+      cur_state.timestamp, getPoseEstimate(cur_state));
+    feature_handler_->setSpeedAndBias(
+      cur_state.timestamp, getSpeedAndBias(cur_state));
+  }
+  // Update map points
+  for(auto &id_and_map_point : landmarks_map_) {
+    id_and_map_point.second.point->pos_=
+        id_and_map_point.second.hom_coordinates.head<3>();
+  }
+  feature_handler_->unlock();
+
+  // Reject landmark outliers
+  if (new_state_type_ == IdType::cNFrame) {
+    feature_handler_->lock();
+    rejectLandmarkOutliers();
+    feature_handler_->unlock();
+  }
+  
   // Marginalization
   if (new_state_type_ == IdType::cNFrame) {
     marginalization();
   }
 
-  LOG(INFO) << "### State size = " << states_.size() << ", Para size = " << graph_->parameters().size()
-    << " " << ", Res size = " << graph_->residuals().size() << ", per " 
-    << (double)graph_->residuals().size() / (double)graph_->parameters().size()
-    << ", num_keyframes = " << sizeOfKeyframeStates();
+  // LOG(INFO) << "### State size = " << states_.size() << ", Para size = " << graph_->parameters().size()
+  //   << " " << ", Res size = " << graph_->residuals().size() << ", per " 
+  //   << (double)graph_->residuals().size() / (double)graph_->parameters().size()
+  //   << ", num_keyframes = " << sizeOfKeyframeStates();
     
   // Shift state and measurement
   if (new_state_type_ == IdType::gPose) gnss_solutions_.push_back(GnssSolution());
@@ -401,16 +425,6 @@ Eigen::Vector3d GnssImuCameraSrrEstimator::getGnssExtrinsic()
         graph_->parameterBlockPtr(gnss_extrinsics_id.asInteger()));
   CHECK(block_ptr != nullptr);
   return block_ptr->estimate();
-}
-
-// Update map points of in-windows keyframes
-void GnssImuCameraSrrEstimator::updateMap()
-{
-  // Update map points
-  for(auto &id_and_map_point : landmarks_map_) {
-    id_and_map_point.second.point->pos_=
-        id_and_map_point.second.hom_coordinates.head<3>();
-  }
 }
 
 // Marginalization
@@ -966,8 +980,6 @@ bool GnssImuCameraSrrEstimator::eraseState(
   Graph::ResidualBlockCollection residuals = 
     graph_->residuals(id.asInteger());
   for (size_t r = 0; r < residuals.size(); ++r) {
-    if (residuals[r].error_interface_ptr->typeInfo() == ErrorType::kIMUError) {
-    }
     graph_->removeResidualBlock(residuals[r].residual_block_id);
   }
   graph_->removeParameterBlock(id.asInteger());
@@ -1000,6 +1012,59 @@ bool GnssImuCameraSrrEstimator::eraseState(
   //   " and " << state_rhs.timestamp;
 
   return true;
+}
+
+// Reject landmark outliers at current frame
+void GnssImuCameraSrrEstimator::rejectLandmarkOutliers()
+{
+  const double outlier_threshold = options_.landmark_outlier_rejection_threshold;
+  int num_rejected = 0;
+  for(auto it = landmarks_map_.begin(); it != landmarks_map_.end(); )
+  {
+    const BackendId& landmark_id = it->first;
+    MapPoint& map_point = it->second;
+
+    // calculate residual
+    bool need_add_it = true;
+    for (auto obs : map_point.observations) {
+      if (obs.first.frame_id != curFrame()->id()) continue;
+
+      ceres::ResidualBlockId residual_block_id = ceres::ResidualBlockId(obs.second);
+      Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(2);
+      graph_->problem()->EvaluateResidualBlock(
+          residual_block_id, false, nullptr, Residuals.data(), nullptr);
+      // outlier detected
+      if (Residuals.norm() > outlier_threshold) {
+        // erase in backend
+        removeLandmarkObservation(residual_block_id);
+
+        // notify to frontend
+        for (auto front_obs : map_point.point->obs_) {
+          if (FramePtr f = front_obs.frame.lock()) {
+            f->type_vec_[front_obs.keypoint_index_] = FeatureType::kOutlier;
+          }
+        }
+
+        // check if no observation left
+        if (map_point.observations.size() == 0) {
+          graph_->removeParameterBlock(landmark_id.asInteger());
+          map_point.point->in_ba_graph_ = false;
+          it = landmarks_map_.erase(it);
+          need_add_it = false;
+        }
+
+        num_rejected++;
+        break;
+      }
+    }
+
+    if (need_add_it) it++;
+  }
+
+  if (num_rejected > 0) {
+    LOG(INFO) << "Rejected " << num_rejected << " landmark outliers. Remaining " 
+              << landmarks_map_.size() << " landmarks.";
+  }
 }
 
 }
