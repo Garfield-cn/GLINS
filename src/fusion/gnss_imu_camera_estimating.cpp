@@ -327,9 +327,7 @@ bool GnssImuCameraEstimating::processGnssImuCameraSrr()
     feature_handler_->unlock();
     if (ret) {
       // solve
-      double t = vk::Timer::getCurrentTime();
       gnss_imu_camera_srr_estimator_->optimize();
-      LOG(INFO) << "backend_dt = " << vk::Timer::getCurrentTime() - t; 
       is_updated = true;
     }
   }
