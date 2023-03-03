@@ -859,7 +859,7 @@ bool Graph::computeCovariance(
   }
   ceres::Covariance covariance_handle(options);
   if (!covariance_handle.Compute(covariance_blocks, problem_.get())) {
-    LOG(ERROR) << "Failed to compute covariance!";
+    LOG(WARNING) << "Failed to compute covariance!";
     return false;
   }
 

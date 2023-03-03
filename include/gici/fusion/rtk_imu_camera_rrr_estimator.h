@@ -25,8 +25,7 @@ struct RtkImuCameraRrrEstimatorOptions {
   int max_keyframes = 5;
 
   // GNSS state window length before visual has been initialized
-  // TODO: Rank deficiency when setting as 3
-  int max_gnss_window_length_minor = 4;
+  int max_gnss_window_length_minor = 3;
 
   // Maximum yaw STD to start visual initialization (deg)
   double min_yaw_std_init_visual = 0.5;
@@ -109,9 +108,6 @@ protected:
 
   // Measurement alignment handle
   DifferentialMeasurementsAlign meausrement_align_;
-
-  // Flags
-  bool gnss_just_initialized_ = true;
 
   // RTK estimator used for ambiguity covariance estimation
   std::unique_ptr<RtkEstimator> ambiguity_covariance_estimator_;

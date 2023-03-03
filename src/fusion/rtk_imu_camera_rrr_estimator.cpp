@@ -185,15 +185,13 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
   addDopplerResidualBlocks(curGnssRov(), states_[index], num_valid_satellite);
 
   // Add relative errors
-  if (!gnss_just_initialized_ &&  // currently last GNSS state is a loosely coupled state
-      lastGnssState().valid()) {  // maybe invalid here because of long term GNSS absent
+  if (lastGnssState().valid()) {  // maybe invalid here because of long term GNSS absent
     // frequency
     addRelativeFrequencyBlock(lastGnssState(), states_[index]);
     // ambiguity
     addRelativeAmbiguityResidualBlock(
       lastGnssRov(), curGnssRov(), lastAmbiguityState(), curAmbiguityState());
   }
-  if (gnss_just_initialized_) gnss_just_initialized_ = false;
 
   // Car motion
   if (imu_base_options_.car_motion) {
@@ -426,9 +424,6 @@ void RtkImuCameraRrrEstimator::setInitializationResult(
   gnss_measurement_pairs_.resize(states_.size());
   ambiguity_states_.resize(states_.size());
   frame_bundles_.push_back(nullptr);
-
-  // Set flags
-  gnss_just_initialized_ = true;
 }
 
 // Marginalization

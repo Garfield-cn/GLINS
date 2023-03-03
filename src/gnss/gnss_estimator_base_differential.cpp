@@ -157,15 +157,7 @@ void GnssEstimatorBase::addSdAmbiguityParameterBlocks(
       state.ids.push_back(ambiguity_base_id);
 
       // add initial prior measurement
-      if (isFirstEpoch()) {
-        addAmbiguityResidualBlock(ambiguity_base_id, init_base[0], 
-          gnss_base_options_.error_parameter.initial_ambiguity);
-      }
-    }
-
-    // add initial prior measurement
-    if (isFirstEpoch()) {
-      addAmbiguityResidualBlock(ambiguity_id, init[0], 
+      addAmbiguityResidualBlock(ambiguity_base_id, init_base[0], 
         gnss_base_options_.error_parameter.initial_ambiguity);
     }
   }
