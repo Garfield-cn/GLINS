@@ -6,85 +6,90 @@
 **/
 #pragma once
 
-#include <memory>
-
-#include "gici/estimate/graph.h"
-#include "gici/gnss/gnss_types.h"
-#include "gici/estimate/estimator_types.h"
+#include "gici/gnss/gnss_estimator_base.h"
 
 namespace gici {
 
 // SPP options
 struct SppEstimatorOptions {
-  // Max iteration number for ceres optimization
-  int max_iteration = 15;
+  // If true, we will use the first valid frequency in observation list.
+  // If false, we will use all the valid frequencies. 
+  bool use_single_frequency = true;
 
-  // Number of threads used for ceres optimization
-  int num_threads = 2;
-
-  // Verbose optimization output
-  bool verbose = false;
-
-  // GNSS common options
-  GnssCommonOptions common;
-
-  // GNSS error parameter
-  GnssErrorParameter error_parameter;
+  // Estimate velocity or not
+  bool estimate_velocity = true;
 };
 
 // Estimator
-class SppEstimator {
+class SppEstimator : public GnssEstimatorBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  struct State {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    BackendId id;
-    double timestamp = 0.0;
-  };
+  // Contructor with full options
+  SppEstimator(const SppEstimatorOptions& options, 
+               const GnssEstimatorBaseOptions& gnss_base_options, 
+               const EstimatorBaseOptions& base_options);
 
-  SppEstimator(const SppEstimatorOptions& options);
+  // Contructor with GNSS estimator options. Other options are setted as defualt
+  SppEstimator(const GnssEstimatorBaseOptions& gnss_base_options);
+
   ~SppEstimator();
 
+  // Add measurement
+  bool addMeasurement(const EstimatorDataCluster& measurement) override;
+
   // Add GNSS measurements and state
-  bool addGnssMeasurementAndState(const GnssMeasurement& measurement);
+  bool addGnssMeasurementAndState(const GnssMeasurement& measurement); 
 
-  // Apply ceres optimization
-  void optimize();
+  // Estimate current graph
+  bool estimate() override;
 
-  // Get position in ECEF coordinate
-  Eigen::Vector3d getPositionEstimate();
+  // Get position estimate in ECEF
+  inline Eigen::Vector3d getPositionEstimate() {
+    return getPositionEstimate(lastState());
+  }
 
-  // Get Satellite clock
-  double getClockEstimate(const char system);
+  // Get clock estimate
+  inline std::map<char, double> getClockEstimate() {
+    return getClockEstimate(lastState());
+  }
 
-  // Get solution
-  GnssSolution getSolution();
+  // Get velocity estimate in ECEF
+  inline Eigen::Vector3d getVelocityEstimate() {
+    return getVelocityEstimate(lastState());
+  }
 
-  // Correct DCB (or TGD)
-  void correctDCB(GnssMeasurement& measurement);
+  // Get frequency estimate
+  inline std::map<char, double> getFrequencyEstimate() {
+    return getFrequencyEstimate(lastState());
+  }
 
-  // Compute and set coarse position on measurement
-  static bool setCoarsePosition(GnssMeasurement& measurement);
+  // Get velocity covariance in ECEF
+  inline Eigen::Matrix3d getVelocityCovariance() {
+    return getVelocityCovariance(lastState());
+  }
 
-private:
-  // Graph that handles residuals and states
-  std::shared_ptr<Graph> graph_;
+protected:
+  // Get position estimate in ECEF
+  Eigen::Vector3d getPositionEstimate(const State& state);
 
+  // Get clock estimate
+  std::map<char, double> getClockEstimate(const State& state);
+
+  // Get velocity estimate in ECEF
+  Eigen::Vector3d getVelocityEstimate(const State& state);
+
+  // Get frequency estimate
+  std::map<char, double> getFrequencyEstimate(const State& state);
+
+  // Get velocity covariance in ECEF
+  Eigen::Matrix3d getVelocityCovariance(const State& state);
+
+protected:
   // Options
-  SppEstimatorOptions options_;
-
-  // loss function
-  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
-  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
-
-  // Measurement
-  GnssMeasurement measurement_;
-
-  // States
-  State current_state_;
-  std::vector<BackendId> parameter_ids_;
-  int num_satellites_;
+  SppEstimatorOptions spp_options_;
+  double min_elevation_;
+  bool estimate_velocity_;
 };
 
 }

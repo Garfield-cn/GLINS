@@ -22,6 +22,28 @@ find_package(catkin REQUIRED COMPONENTS
   eigen_conversions
   pcl_conversions
   pcl_ros
+  message_generation
+)
+
+add_message_files(
+  FILES
+  GlonassEphemeris.msg
+  GnssAntennaPosition.msg
+  GnssEphemerides.msg
+  GnssEphemeris.msg
+  GnssIonosphereParameter.msg
+  GnssObservation.msg
+  GnssObservations.msg
+  GnssSsrCodeBias.msg
+  GnssSsrCodeBiases.msg
+  GnssSsrEphemerides.msg
+  GnssSsrEphemeris.msg
+  GnssSsrPhaseBias.msg
+  GnssSsrPhaseBiases.msg
+) 
+
+generate_messages(
+  DEPENDENCIES std_msgs
 )
 
 include_directories(
@@ -39,33 +61,17 @@ catkin_package(
         sensor_msgs geometry_msgs 
         tf tf_conversions cv_bridge
         image_transport eigen_conversions
+        message_generation
   DEPENDS EIGEN3 OpenCV
 )
+
+# Add definitions here to ensure correct memory allocation in RTKLIB
+add_definitions(-DENAGLO -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 
 # Sources
 aux_source_directory(src/ros_interface DIR_ROS_TOOLS)
 
-# test
-# add_executable(test_ros_gnss_imu_lc 
-#                src/test/test_ros_gnss_imu_lc.cpp ${DIR_ROS_TOOLS})
-# target_link_libraries(test_ros_gnss_imu_lc 
-#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
-
-# add_executable(test_ros_rtk_imu_tc 
-#       src/test/test_ros_rtk_imu_tc.cpp ${DIR_ROS_TOOLS})
-# target_link_libraries(test_ros_rtk_imu_tc 
-#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
-
-# add_executable(test_ros_imu 
-#                src/test/test_ros_imu.cpp ${DIR_ROS_TOOLS})
-# target_link_libraries(test_ros_imu 
-#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
-
-# add_executable(test_ros_plot_traj 
-#       src/test/test_ros_plot_traj.cpp ${DIR_ROS_TOOLS})
-# target_link_libraries(test_ros_plot_traj 
-#       gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
-
+# GICI ROS interface
 add_executable(gici_ros_main
                src/gici_ros_main.cpp ${DIR_ROS_TOOLS})
 target_link_libraries(gici_ros_main 

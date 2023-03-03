@@ -18,7 +18,8 @@ namespace gici {
 DataCluster::DataCluster(FormatorType type)
 {
   if (type == FormatorType::RTCM2 || type == FormatorType::RTCM3 ||
-    type == FormatorType::GnssRaw) {
+    type == FormatorType::GnssRaw || type == FormatorType::DcbFile || 
+    type == FormatorType::AtxFile) {
     gnss = std::make_shared<GNSS>();
     gnss->init();
     return;
@@ -42,11 +43,11 @@ DataCluster::DataCluster(FormatorType type)
   LOG(FATAL) << "Cannot initialize: Data format not recognized!";
 }
 
-DataCluster::DataCluster(FormatorType type, int _width, int _height)
+DataCluster::DataCluster(FormatorType type, int _width, int _height, int _step)
 {
   if (type == FormatorType::ImagePack || type == FormatorType::ImageV4L2) {
     image = std::make_shared<Image>();
-    image->init(_width, _height);
+    image->init(_width, _height, _step);
     return;
   }
   LOG(FATAL) << "Cannot initialize: Data format not recognized!";
@@ -74,6 +75,7 @@ void DataCluster::GNSS::init()
   for (int i = 0; i < NSATGLO * 2 ; i++) ephemeris->geph[i] = geph0;
   ephemeris->n = MAXSAT * 2;
   ephemeris->ng = NSATGLO * 2;
+  memset(ephemeris->ssr, 0, sizeof(ssr_t) * MAXSAT);
   memset(antenna, 0, sizeof(sta_t));
 }
 
@@ -86,11 +88,12 @@ void DataCluster::GNSS::free()
   ::free(antenna); antenna = NULL;
 }
 
-void DataCluster::Image::init(int _width, int _height)
+void DataCluster::Image::init(int _width, int _height, int _step)
 {
   width = _width;
   height = _height;
-  if (!(image = (uint8_t *)malloc(sizeof(uint8_t) * width * height)))
+  step = _step;
+  if (!(image = (uint8_t *)malloc(sizeof(uint8_t) * width * height * step)))
     free();
 }
 
@@ -193,24 +196,71 @@ extern void updateAntennaPosition(
 }
 
 // Update ssr corrections
-extern void updateSSR(
-  ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data)
+extern void updateSsr(
+  ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data,
+  std::vector<UpdateSsrType> type)
 {
   if (ssr == NULL) {
     LOG(ERROR) << "SSR parameter has NULL pointer!";
     return;
   }
-  for (int i = 0; i < MAXSAT; i++) {
+  for (int i = 0; i < MAXSAT; i++) 
+  {
     if (!ssr[i].update) continue;
-
-    // check consistency between iods of orbit and clock
-    if (ssr[i].iod[0] != ssr[i].iod[1]) continue;
-
     ssr[i].update = 0;
+    
+    // update ephemeris
+    if (std::find(type.begin(), type.end(), 
+        UpdateSsrType::Ephemeris) != type.end()) 
+    {
+      // check consistency between iods of orbit and clock
+      if (ssr[i].iod[0] != ssr[i].iod[1]) continue;
 
-    // TODO: check corresponding ephemeris exists
-    gnss_data->ephemeris->ssr[i] = ssr[i];
-    gnss_data->ephemeris->ssr[i].update = 1;
+      // TODO: check corresponding ephemeris exists
+      for (int j = 0; j < 4; j++) {
+        gnss_data->ephemeris->ssr[i].t0[j] = ssr[i].t0[j];
+        gnss_data->ephemeris->ssr[i].udi[j] = ssr[i].udi[j];
+        gnss_data->ephemeris->ssr[i].iod[j] = ssr[i].iod[j];
+      }
+      gnss_data->ephemeris->ssr[i].iode = ssr[i].iode;
+      gnss_data->ephemeris->ssr[i].iodcrc = ssr[i].iodcrc;
+      gnss_data->ephemeris->ssr[i].ura = ssr[i].ura;
+      gnss_data->ephemeris->ssr[i].refd = ssr[i].refd;
+      for (int j = 0; j < 3; j++) {
+        gnss_data->ephemeris->ssr[i].deph[j] = ssr[i].deph[j];
+        gnss_data->ephemeris->ssr[i].ddeph[j] = ssr[i].ddeph[j];
+        gnss_data->ephemeris->ssr[i].dclk[j] = ssr[i].dclk[j];
+      }
+      gnss_data->ephemeris->ssr[i].hrclk = ssr[i].hrclk;
+    }
+    // update code bias
+    if (std::find(type.begin(), type.end(), 
+        UpdateSsrType::CodeBias) != type.end()) 
+    {
+      gnss_data->ephemeris->ssr[i].t0[4] = ssr[i].t0[4];
+      gnss_data->ephemeris->ssr[i].udi[4] = ssr[i].udi[4];
+      memcpy(gnss_data->ephemeris->ssr[i].cbias, 
+            ssr[i].cbias, sizeof(float) * MAXCODE);
+      gnss_data->ephemeris->ssr[i].isdcb = ssr[i].isdcb;
+    }
+    // update phase bias
+    if (std::find(type.begin(), type.end(), 
+        UpdateSsrType::PhaseBias) != type.end()) 
+    {
+      gnss_data->ephemeris->ssr[i].t0[5] = ssr[i].t0[5];
+      gnss_data->ephemeris->ssr[i].udi[5] = ssr[i].udi[5];
+      memcpy(gnss_data->ephemeris->ssr[i].pbias, 
+            ssr[i].pbias, sizeof(double) * MAXCODE);
+      memcpy(gnss_data->ephemeris->ssr[i].stdpb, 
+            ssr[i].stdpb, sizeof(float) * MAXCODE);
+      gnss_data->ephemeris->ssr[i].yaw_ang = ssr[i].yaw_ang;
+      gnss_data->ephemeris->ssr[i].yaw_rate = ssr[i].yaw_rate;
+      gnss_data->ephemeris->ssr[i].isdpb = ssr[i].isdpb;
+    }
+
+    if (type.size() > 0) {
+      gnss_data->ephemeris->ssr[i].update = 1;
+    }
   }
 }
 
@@ -238,7 +288,7 @@ extern void updateStreamData(int ret, obs_t *obs, nav_t *nav,
   }
   // SSR (precise ephemeris, DCBs, etc..)
   else if (type == GnssDataType::SSR) {
-    updateSSR(ssr, gnss_data[0]);
+    updateSsr(ssr, gnss_data[0]);
   }
 }
 
@@ -246,23 +296,52 @@ extern void updateStreamData(int ret, obs_t *obs, nav_t *nav,
 
 // Load option with info
 #define LOAD_COMMON(opt) \
-  if (!option_tools::safeGet(node, #opt, &config.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &option.opt)) { \
   LOG(INFO) << __FUNCTION__ << ": Unable to load " << #opt \
          << ". Using default instead."; }
 // Load option with fatal error
 #define LOAD_REQUIRED(opt) \
-  if (!option_tools::safeGet(node, #opt, &config.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &option.opt)) { \
   LOG(FATAL) << __FUNCTION__ << ": Unable to load " << #opt << "!"; }
 
 // RTCM 2 ----------------------------------------------------
-RTCM2Formator::RTCM2Formator(Config& config)
+// Load date
+inline bool loadStartTime(YAML::Node& node, double& start_time) {
+  std::string str;
+  if (!option_tools::safeGet(node, "start_time", &str)) {
+    LOG(INFO) << __FUNCTION__ << ": Unable to load " << "start_time"
+         << ". Using default instead.";
+    return false;
+  }
+  std::string strs[4];
+  int index = 0;
+  for (size_t i = 0; i < str.size(); i++) {
+    if (str[i] == '.') {
+      index++; continue;
+    }
+    strs[index] = strs[index] + str[i];
+  }
+  CHECK(index == 3) << "Start time format illegal!";
+  int year = atoi(strs[0].data());
+  int month = atoi(strs[1].data());
+  int day = atoi(strs[2].data());
+  int hour = atoi(strs[3].data());
+  int min = 0, sec = 0;
+  double ep[] = { (double)year, (double)month, (double)day,
+                  (double)hour, (double)min, (double)sec };
+  start_time = gnss_common::gtimeToDouble(epoch2time(ep));
+
+  return true;
+}
+
+RTCM2Formator::RTCM2Formator(Option& option)
 {
   type_ = FormatorType::RTCM2;
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
   sprintf(rtcm_.opt, "-EPHALL");
-  rtcm_.time = gnss_common::doubleToGtime(config.start_time);
+  rtcm_.time = gnss_common::doubleToGtime(option.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
   }
@@ -270,16 +349,16 @@ RTCM2Formator::RTCM2Formator(Config& config)
 
 RTCM2Formator::RTCM2Formator(YAML::Node& node)
 {
-  Config config;
-  config.start_time = vk::Timer::getCurrentTime();
-  LOAD_COMMON(start_time);
+  Option option;
+  option.start_time = vk::Timer::getCurrentTime();
+  loadStartTime(node, option.start_time);
 
   type_ = FormatorType::RTCM2;
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
   sprintf(rtcm_.opt, "-EPHALL");
-  rtcm_.time = gnss_common::doubleToGtime(config.start_time);
+  rtcm_.time = gnss_common::doubleToGtime(option.start_time);
   for (int i = 0; i < MaxDataSize::RTCM2; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
   }
@@ -302,7 +381,7 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
   }
 
   bool is_observation = false;
-  bool is_others = false;
+  bool has_others = false;
   int iobs = 0;
   for (int i = 0; i < size; i++) {
     int ret = input_rtcm2(&rtcm_, buf[i]);
@@ -331,12 +410,14 @@ int RTCM2Formator::decode(const uint8_t *buf, int size,
       }
       is_observation = true;
     }
-    else is_others = true;
+    else {
+      has_others = true;
+    }
   }
 
   data = data_;
 
-  return is_observation ? iobs : is_others;
+  return is_observation ? iobs : has_others;
 }
 
 // Encode data to stream
@@ -347,14 +428,14 @@ int RTCM2Formator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf
 }
 
 // RTCM 3 -------------------------------------------------
-RTCM3Formator::RTCM3Formator(Config& config)
+RTCM3Formator::RTCM3Formator(Option& option)
 {
   type_ = FormatorType::RTCM3;
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
   sprintf(rtcm_.opt, "-EPHALL");
-  rtcm_.time = gnss_common::doubleToGtime(config.start_time);
+  rtcm_.time = gnss_common::doubleToGtime(option.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
   }
@@ -362,16 +443,16 @@ RTCM3Formator::RTCM3Formator(Config& config)
 
 RTCM3Formator::RTCM3Formator(YAML::Node& node)
 {
-  Config config;
-  config.start_time = vk::Timer::getCurrentTime();
-  LOAD_COMMON(start_time);
+  Option option;
+  option.start_time = vk::Timer::getCurrentTime();
+  loadStartTime(node, option.start_time);
 
   type_ = FormatorType::RTCM3;
 
   memset(&rtcm_, 0, sizeof(rtcm_t));
   init_rtcm(&rtcm_);
   sprintf(rtcm_.opt, "-EPHALL");
-  rtcm_.time = gnss_common::doubleToGtime(config.start_time);
+  rtcm_.time = gnss_common::doubleToGtime(option.start_time);
   for (int i = 0; i < MaxDataSize::RTCM3; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
   }
@@ -394,7 +475,7 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
   }
 
   bool is_observation = false;
-  bool is_others = false;
+  bool has_others = false;
   int iobs = 0;
   for (int i = 0; i < size; i++) {
     int ret = input_rtcm3(&rtcm_, buf[i]);
@@ -405,7 +486,6 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
     sta_t *sta = &rtcm_.sta;
     ssr_t *ssr = rtcm_.ssr;
     int sat = rtcm_.ephsat;
-    gnss_data[1]->observation[0].data[0].code[0] = 1;
     gnss_common::updateStreamData(
         ret, obs, nav, sta, ssr, iobs, sat, gnss_data);
     GnssDataType type = static_cast<GnssDataType>(ret);
@@ -415,7 +495,7 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
       == gnss->types.end()) {
       gnss->types.push_back(type);
     }
-    
+
     if (type == GnssDataType::Observation) {
       if (iobs < MaxDataSize::RTCM3) iobs++;
       if (iobs >= MaxDataSize::RTCM3) {
@@ -424,23 +504,29 @@ int RTCM3Formator::decode(const uint8_t *buf, int size,
       }
       is_observation = true;
     }
-    else is_others = true;
+    else {
+      has_others = true;
+    }
   }
 
   data = data_;
 
-  return is_observation ? iobs : is_others;
+  return is_observation ? iobs : has_others;
 }
 
 // Encode data to stream
 int RTCM3Formator::encode(
   const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
+#if 0  // not finished yet
   // Check the control structure
   std::map<GnssDataType, bool> type_valid;
   type_valid.insert(std::make_pair(GnssDataType::Observation, false));
   type_valid.insert(std::make_pair(GnssDataType::Ephemeris, false));
   type_valid.insert(std::make_pair(GnssDataType::AntePos, false));
+  type_valid.insert(std::make_pair(GnssDataType::IonPara, false));
+  type_valid.insert(std::make_pair(GnssDataType::SSR, false));
+  type_valid.insert(std::make_pair(GnssDataType::PhaseCenter, false));
   for (auto it : data->gnss->types) {
     type_valid.at(it) = true;
   }
@@ -483,16 +569,20 @@ int RTCM3Formator::encode(
   }
 
   return n;
+#else
+  LOG(ERROR) << "RTCM3 Encoding not supported!";
+  return 0;
+#endif
 }
 
 // GNSS raw --------------------------------------------------------
-GnssRawFormator::GnssRawFormator(Config& config)
+GnssRawFormator::GnssRawFormator(Option& option)
 {
   type_ = FormatorType::GnssRaw;
-  option_tools::convert(config.sub_type, format_);
+  option_tools::convert(option.sub_type, format_);
 
   init_raw(&raw_, static_cast<int>(format_));
-  raw_.time = gnss_common::doubleToGtime(config.start_time);
+  raw_.time = gnss_common::doubleToGtime(option.start_time);
   for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
   }
@@ -500,16 +590,16 @@ GnssRawFormator::GnssRawFormator(Config& config)
   
 GnssRawFormator::GnssRawFormator(YAML::Node& node)
 {
-  Config config;
-  config.start_time = vk::Timer::getCurrentTime();
-  LOAD_COMMON(start_time);
+  Option option;
+  option.start_time = vk::Timer::getCurrentTime();
+  loadStartTime(node, option.start_time);
   LOAD_REQUIRED(sub_type);
 
   type_ = FormatorType::GnssRaw;
-  option_tools::convert(config.sub_type, format_);
+  option_tools::convert(option.sub_type, format_);
 
   init_raw(&raw_, static_cast<int>(format_));
-  raw_.time = gnss_common::doubleToGtime(config.start_time);
+  raw_.time = gnss_common::doubleToGtime(option.start_time);
   for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
     data_.push_back(std::make_shared<DataCluster>(type_));
   }
@@ -532,7 +622,7 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
   }
 
   bool is_observation = false;
-  bool is_others = false;
+  bool has_others = false;
   int iobs = 0;
   for (int i = 0; i < size; i++) {
     int ret = input_raw(&raw_, static_cast<int>(format_), buf[i]);
@@ -560,12 +650,14 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
       }
       is_observation = true;
     }
-    else is_others = true;
+    else {
+      has_others = true;
+    }
   }
 
   data = data_;
 
-  return is_observation ? iobs : is_others;
+  return is_observation ? iobs : has_others;
 }
 
 // Encode data to stream
@@ -576,26 +668,27 @@ int GnssRawFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *b
 }
 
 // Image V4L2 ------------------------------------------------
-ImageV4L2Formator::ImageV4L2Formator(Config& config)
+ImageV4L2Formator::ImageV4L2Formator(Option& option)
 {
   type_ = FormatorType::ImageV4L2;
 
-  init_img(&image_, config.width, config.height);
+  init_img(&image_, option.width, option.height, option.step);
   data_.push_back(std::make_shared<DataCluster>(
-    FormatorType::ImageV4L2, config.width, config.height));
+    FormatorType::ImageV4L2, option.width, option.height, option.step));
 }
 
 ImageV4L2Formator::ImageV4L2Formator(YAML::Node& node)
 {
-  Config config;
+  Option option;
   LOAD_REQUIRED(width);
   LOAD_REQUIRED(height);
+  LOAD_COMMON(step);
 
   type_ = FormatorType::ImageV4L2;
 
-  init_img(&image_, config.width, config.height);
+  init_img(&image_, option.width, option.height, option.step);
   data_.push_back(std::make_shared<DataCluster>(
-    FormatorType::ImageV4L2, config.width, config.height));
+    FormatorType::ImageV4L2, option.width, option.height, option.step));
 }
 
 ImageV4L2Formator::~ImageV4L2Formator()
@@ -611,7 +704,7 @@ int ImageV4L2Formator::decode(const uint8_t *buf, int size,
   if (ret <= 0) return 0;
 
   memcpy(data_[0]->image->image, image_.image, 
-    sizeof(uint8_t) * image_.width * image_.height);
+    sizeof(uint8_t) * image_.width * image_.height * image_.step);
   data = data_;
 
   return 1;
@@ -625,29 +718,30 @@ int ImageV4L2Formator::encode(const std::shared_ptr<DataCluster>& data, uint8_t 
 }
   
 // Image pack -------------------------------------------------
-ImagePackFormator::ImagePackFormator(Config& config)
+ImagePackFormator::ImagePackFormator(Option& option)
 {
   type_ = FormatorType::ImagePack;
 
-  init_img(&image_, config.width, config.height);
+  init_img(&image_, option.width, option.height, option.step);
   for (int i = 0; i < MaxDataSize::ImagePack; i++) {
     data_.push_back(std::make_shared<DataCluster>(
-      FormatorType::ImagePack, config.width, config.height));
+      FormatorType::ImagePack, option.width, option.height, option.step));
   }
 }
 
 ImagePackFormator::ImagePackFormator(YAML::Node& node)
 {
-  Config config;
+  Option option;
   LOAD_REQUIRED(width);
   LOAD_REQUIRED(height);
+  LOAD_COMMON(step);
 
   type_ = FormatorType::ImagePack;
 
-  init_img(&image_, config.width, config.height);
+  init_img(&image_, option.width, option.height, option.step);
   for (int i = 0; i < MaxDataSize::ImagePack; i++) {
     data_.push_back(std::make_shared<DataCluster>(
-      FormatorType::ImagePack, config.width, config.height));
+      FormatorType::ImagePack, option.width, option.height, option.step));
   }
 }
 
@@ -671,7 +765,7 @@ int ImagePackFormator::decode(const uint8_t *buf, int size,
     // convertion between physical and vitural memory, and this is not 
     // a memory leak.
     memcpy(data_[iobs]->image->image, image_.image, 
-      sizeof(uint8_t) * image_.width * image_.height);
+      sizeof(uint8_t) * image_.width * image_.height * image_.step);
 
     if (++iobs >= MaxDataSize::ImagePack) {
       LOG(WARNING) << "Max data length surpassed!";
@@ -689,10 +783,10 @@ int ImagePackFormator::encode(
     const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   img_t *image;
-  init_img(image, data->image->width, data->image->height);
+  init_img(image, data->image->width, data->image->height, data->image->step);
   image->time = gnss_common::doubleToGtime(data->image->time);
   memcpy(image->image, data->image->image, 
-       data->image->width * data->image->height);
+       data->image->width * data->image->height * data->image->step);
 
   if (!gen_img(image)) return 0;
 
@@ -704,7 +798,7 @@ int ImagePackFormator::encode(
 }
 
 // IMU pack --------------------------------------------------
-IMUPackFormator::IMUPackFormator(Config& config)
+IMUPackFormator::IMUPackFormator(Option& option)
 {
   type_ = FormatorType::IMUPack;
 
@@ -771,7 +865,7 @@ int IMUPackFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *b
 }
 
 // Option pack --------------------------------------------------
-OptionFormator::OptionFormator(Config& config)
+OptionFormator::OptionFormator(Option& option)
 {
 
 }
@@ -800,23 +894,23 @@ int OptionFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *bu
 }
 
 // NMEA ----------------------------------------------------------
-NmeaFormator::NmeaFormator(Config& config)
+NmeaFormator::NmeaFormator(Option& option)
 {
   type_ = FormatorType::NMEA;
 
-  config_ = config;
+  option_ = option;
 }
 
 NmeaFormator::NmeaFormator(YAML::Node& node)
 {
   type_ = FormatorType::NMEA;
 
-  Config config;
+  Option option;
   LOAD_COMMON(use_gga);
   LOAD_COMMON(use_rmc);
   LOAD_COMMON(use_esa);
   LOAD_COMMON(talker_id);
-  config_ = config;
+  option_ = option;
 }
 
 NmeaFormator::~NmeaFormator()
@@ -838,25 +932,14 @@ int NmeaFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   if (data->solution == nullptr) return 0;
 
-#if 1
-  // Rotate to body frame for gici-board (camera perspective is the y-axis, the right
-  // hand side is the x-axis, and the up direction is the z-axis).
-  Eigen::Quaterniond R_SB = 
-    Eigen::AngleAxisd(PI / 2, Eigen::Vector3d::UnitZ()) * 
-    Eigen::AngleAxisd(0.0, Eigen::Vector3d::UnitY()) * 
-    Eigen::AngleAxisd(PI / 2, Eigen::Vector3d::UnitX());
-  Transformation T_SB(Eigen::Vector3d::Zero(), R_SB);
-  data->solution->pose = data->solution->pose * T_SB;
-#endif
-
   uint8_t *p = buf;
-  if (config_.use_gga) {
+  if (option_.use_gga) {
     p += encodeGGA(*data->solution, p);
   }
-  if (config_.use_rmc) {
+  if (option_.use_rmc) {
     p += encodeRMC(*data->solution, p);
   }
-  if (config_.use_esa) {
+  if (option_.use_esa) {
     p += encodeESA(*data->solution, p);
   }
 
@@ -867,7 +950,7 @@ int NmeaFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 #define MAXNMEA    256          /* max length of nmea sentence */
 #define KNOT2M     0.514444444  /* m/knot */
 static const int nmea_solq[]={  /* NMEA GPS quality indicator */
-    /* 0=Fix not available or invalidi */
+    /* 0=Fix not available or invalid */
     /* 1=GPS SPS Mode, fix valid */
     /* 2=Differential GPS, SPS Mode, fix valid */
     /* 3=GPS PPS Mode, fix valid */
@@ -892,7 +975,7 @@ int NmeaFormator::encodeGGA(const Solution& solution, uint8_t* buf)
   char *p=(char *)buf,*q,sum;
   
   if (sol.stat<=SOLQ_NONE) {
-    p+=sprintf(p,"$%sGGA,,,,,,,,,,,,,,",config_.talker_id.data());
+    p+=sprintf(p,"$%sGGA,,,,,,,,,,,,,,",option_.talker_id.data());
     for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q;
     p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
     return p-(char *)buf;
@@ -907,7 +990,7 @@ int NmeaFormator::encodeGGA(const Solution& solution, uint8_t* buf)
   deg2dms(fabs(pos[1])*R2D,dms2,7);
   p+=sprintf(p,"$%sGGA,%02.0f%02.0f%06.3f,%02.0f%010.7f,%s,%03.0f%010.7f,%s,"
               "%d,%02d,%.1f,%.3f,M,%.3f,M,%.1f,%04d",
-              config_.talker_id.data(),ep[3],ep[4],ep[5],dms1[0],dms1[1]+dms1[2]/60.0,
+              option_.talker_id.data(),ep[3],ep[4],ep[5],dms1[0],dms1[1]+dms1[2]/60.0,
               pos[0]>=0?"N":"S",dms2[0],dms2[1]+dms2[2]/60.0,pos[1]>=0?"E":"W",
               solq,sol.ns,dop,pos[2]-h,h,sol.age,refid);
   for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
@@ -930,7 +1013,7 @@ int NmeaFormator::encodeRMC(const Solution& solution, uint8_t* buf)
   trace(3,"outnmea_rmc:\n");
   
   if (sol.stat<=SOLQ_NONE) {
-    p+=sprintf(p,"$%sRMC,,,,,,,,,,,,,",config_.talker_id.data());
+    p+=sprintf(p,"$%sRMC,,,,,,,,,,,,,",option_.talker_id.data());
     for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q;
     p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
     return p-(char *)buf;
@@ -955,7 +1038,7 @@ int NmeaFormator::encodeRMC(const Solution& solution, uint8_t* buf)
   deg2dms(fabs(pos[1])*R2D,dms2,7);
   p+=sprintf(p,"$%sRMC,%02.0f%02.0f%06.3f,A,%02.0f%010.7f,%s,%03.0f%010.7f,"
               "%s,%4.2f,%4.2f,%02.0f%02.0f%02d,%.1f,%s,%s,%s",
-              config_.talker_id.data(),ep[3],ep[4],ep[5],dms1[0],dms1[1]+dms1[2]/60.0,
+              option_.talker_id.data(),ep[3],ep[4],ep[5],dms1[0],dms1[1]+dms1[2]/60.0,
               pos[0]>=0?"N":"S",dms2[0],dms2[1]+dms2[2]/60.0,pos[1]>=0?"E":"W",
               vel/KNOT2M,dir,ep[2],ep[1],(int)ep[0]%100,amag,emag,mode,status);
   for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
@@ -978,7 +1061,7 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
   char *p=(char *)buf,*q,sum;
   
   if (sol.stat<=SOLQ_NONE) {
-    p+=sprintf(p,"$%sESA,,,,,,,",config_.talker_id.data());
+    p+=sprintf(p,"$%sESA,,,,,,,",option_.talker_id.data());
     for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q;
     p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
     return p-(char *)buf;
@@ -989,7 +1072,7 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
   time2epoch(time,ep);
   p+=sprintf(p,"$%sESA,%02.0f%02.0f%06.3f,%+.3f,%+.3f,%+.3f,"
              "%+.3f,%+.3f,%+.3f",
-             config_.talker_id.data(),ep[3],ep[4],ep[5],sol.rr[3],sol.rr[4],sol.rr[5],
+             option_.talker_id.data(),ep[3],ep[4],ep[5],sol.rr[3],sol.rr[4],sol.rr[5],
              rpy[0],rpy[1],rpy[2]);
   for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
   p+=sprintf(p,"*%02X\r\n",sum);
@@ -1005,15 +1088,333 @@ void NmeaFormator::convertSolution(const Solution& solution, sol_t& sol)
   sol.age = solution.differential_age;
   sol.ns = solution.num_satellites;
   Eigen::Map<Eigen::Vector3d> rr(sol.rr);
-  rr = solution.backend.coordinate->convert(
+  rr = solution.coordinate->convert(
     solution.pose.getPosition(), GeoType::ENU, GeoType::ECEF);
-  for (int i = 0; i < 3; i++) sol.rr[i + 3] = solution.speed_and_bias(i);
+  Eigen::Map<Eigen::Vector3d> vv(sol.rr + 3);
+  vv = solution.speed_and_bias.head<3>();
   if (solution.status == GnssSolutionStatus::Fixed) sol.stat = SOLQ_FIX;
   else if (solution.status == GnssSolutionStatus::Float) sol.stat = SOLQ_FLOAT;
   else if (solution.status == GnssSolutionStatus::DGNSS) sol.stat = SOLQ_DGPS;
   else if (solution.status == GnssSolutionStatus::Single) sol.stat = SOLQ_SINGLE;
   else if (solution.status == GnssSolutionStatus::DeadReckoning) sol.stat = SOLQ_DR;
   else sol.stat = SOLQ_NONE;
+}
+
+// DCB file pack --------------------------------------------------
+DcbFileFormator::DcbFileFormator(Option& option)
+{
+  type_ = FormatorType::DcbFile;
+  line_.reserve(max_line_length_); 
+}
+
+DcbFileFormator::DcbFileFormator(YAML::Node& node)
+{
+  type_ = FormatorType::DcbFile;
+  line_.reserve(max_line_length_); 
+}
+
+DcbFileFormator::~DcbFileFormator()
+{
+
+}
+
+// Decode stream to data
+int DcbFileFormator::decode(const uint8_t *buf, int size, 
+    std::vector<std::shared_ptr<DataCluster>>& data)
+{
+  if (finished_reading_) return 0;
+
+  for (int i = 0; i < size; i++) {
+    if (buf[i] != '\n') line_ = line_ + (char)buf[i];
+    // decode line
+    else {
+      if (passed_header_ && line_.substr(1, 3) == "DSB") {
+        // reached the station DCB part
+        if (line_.substr(15, 4) != "    ") {
+          finished_reading_ = true;
+          break;
+        }
+
+        std::string str_prn = line_.substr(11, 3);
+        std::string str_obs1 = line_.substr(25, 3);
+        std::string str_obs2 = line_.substr(30, 3);
+        std::string str_value = line_.substr(72, 19);
+
+        Dcb dcb;
+        char system = str_prn[0];
+        if (std::find(getGnssSystemList().begin(), getGnssSystemList().end(), 
+            system) != getGnssSystemList().end()) {
+          dcb.code1 = gnss_common::rinexTypeToCodeType(system, str_obs1.substr(1, 2));
+          dcb.code2 = gnss_common::rinexTypeToCodeType(system, str_obs2.substr(1, 2));
+          dcb.value = atof(str_value.data()) * 1e-9 * CLIGHT; // ns to m
+          dcbs_.insert(std::make_pair(str_prn, dcb));
+        }
+      }
+      if (line_.substr(0, 5) == "*BIAS") {
+        passed_header_ = true;
+      }
+      line_.clear();
+    }
+  }
+
+  // convert to DataCluster
+  if (finished_reading_) {
+    std::shared_ptr<DataCluster> data_cluster = 
+      std::make_shared<DataCluster>(FormatorType::DcbFile);
+    nav_t* ephemeris = data_cluster->gnss->ephemeris;
+
+    // get all PRNs
+    std::vector<std::string> prns;
+    for (auto dcb : dcbs_) {
+      if (prns.size() == 0 || prns.back() != dcb.first) {
+        prns.push_back(dcb.first);
+      }
+    }
+    // fill DCBs of every satellites
+    for (auto prn : prns) {
+      std::vector<int> codes;
+      std::vector<Dcb> dcbs;
+      for (auto dcb = dcbs_.lower_bound(prn); 
+          dcb != dcbs_.upper_bound(prn); dcb++) {
+        if (std::find(codes.begin(), codes.end(), dcb->second.code1) 
+            == codes.end()) { 
+          codes.push_back(dcb->second.code1);
+        } 
+        if (std::find(codes.begin(), codes.end(), dcb->second.code2) 
+            == codes.end()) { 
+          codes.push_back(dcb->second.code2);
+        } 
+        dcbs.push_back(dcb->second);
+      }
+
+      // apply a least-square to convert DCB to code biases
+      Eigen::VectorXd x = Eigen::VectorXd::Zero(codes.size());
+      Eigen::VectorXd z = Eigen::VectorXd::Zero(dcbs.size() + 1);
+      Eigen::MatrixXd H = Eigen::MatrixXd::Zero(dcbs.size() + 1, codes.size());
+      for (size_t i = 0; i < dcbs.size(); i++) {
+        z(i) = dcbs[i].value;
+        for (size_t j = 0; j < codes.size(); j++) {
+          if (codes[j] == dcbs[i].code1) H(i, j) = -1.0;
+          if (codes[j] == dcbs[i].code2) H(i, j) = 1.0;
+        }
+      }
+      // set the first code of each satellite as zero
+      z(dcbs.size()) = 0.0;
+      H(dcbs.size(), 0) = 1.0;
+      // add a further contraint for Galileo: C1C = C1X
+      if (prn[0] == 'E') {
+        z.conservativeResize(dcbs.size() + 2);
+        H.conservativeResize(dcbs.size() + 2, Eigen::NoChange);
+        size_t i = dcbs.size() + 1;
+        z(i) = 0.0;
+        for (size_t j = 0; j < codes.size(); j++) {
+          if (codes[j] == CODE_L1C) H(i, j) = 1.0;
+          else if (codes[j] == CODE_L1X) H(i, j) = -1.0;
+          else H(i, j) = 0.0;
+        }
+      }
+
+      // Check rank
+      if (checkZero((H.transpose() * H).determinant())) {
+        LOG(INFO) << "Input DCBs are not closed for " << prn;
+        continue;
+      }
+
+      // solve
+      x = (H.transpose() * H).inverse() * H.transpose() * z;
+
+      // fill ephemeris
+      int sat = gnss_common::prnToSat(prn);
+      for (size_t i = 0; i < codes.size(); i++) {
+        if (sat <= 0 || codes[i] <= 0) continue;
+        if (x(i) == 0.0) x(i) = 1e-4;
+        ephemeris->ssr[sat - 1].cbias[codes[i] - 1] = x(i);
+        ephemeris->ssr[sat - 1].update = 1;
+        ephemeris->ssr[sat - 1].isdcb = 1;
+      }
+    }
+    
+    data_cluster->gnss->types.push_back(GnssDataType::SSR);
+    data.clear();
+    data.push_back(data_cluster);
+    return 1;
+  }
+
+  return 0;
+}
+
+// Encode data to stream
+int DcbFileFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
+{
+  LOG(ERROR) << "DCB file encoding not supported!";
+
+  return 0;
+}
+
+// ATX file pack --------------------------------------------------
+AtxFileFormator::AtxFileFormator(Option& option)
+{
+  type_ = FormatorType::AtxFile;
+  line_.reserve(max_line_length_); 
+  if (!(pcvs_ = (pcvs_t *)malloc(sizeof(pcvs_t)))) {
+    free(pcvs_); return;
+  }
+}
+
+AtxFileFormator::AtxFileFormator(YAML::Node& node)
+{
+  type_ = FormatorType::AtxFile;
+  line_.reserve(max_line_length_); 
+  if (!(pcvs_ = (pcvs_t *)malloc(sizeof(pcvs_t)))) {
+    free(pcvs_); return;
+  }
+}
+
+AtxFileFormator::~AtxFileFormator()
+{
+  free(pcvs_);
+}
+
+// Decode stream to data
+int AtxFileFormator::decode(const uint8_t *buf, int size, 
+    std::vector<std::shared_ptr<DataCluster>>& data)
+{
+  const pcv_t pcv0={0};
+  double neu[3];
+  int i,f,freq=0,freqs[]={1,2,5,0};
+
+  for (int k = 0; k < size; k++) {
+    if (buf[k] != '\n') line_ = line_ + (char)buf[k];
+    // decode line
+    else {
+      const char *buff = line_.data();
+      if (strlen(buff)<60||strstr(buff+60,"COMMENT")) {
+        line_.clear(); continue;
+      }
+      
+      if (strstr(buff+60,"START OF ANTENNA")) {
+        pcv_=pcv0;
+        state_=1;
+      }
+      if (strstr(buff+60,"END OF ANTENNA")) {
+        addpcv(&pcv_,pcvs_);
+        state_=0;
+      }
+      if (!state_) {
+        line_.clear(); continue;
+      }
+      
+      if (strstr(buff+60,"TYPE / SERIAL NO")) {
+        strncpy(pcv_.type,buff   ,20); pcv_.type[20]='\0';
+        strncpy(pcv_.code,buff+20,20); pcv_.code[20]='\0';
+        if (!strncmp(pcv_.code+3,"        ",8)) {
+            pcv_.sat=satid2no(pcv_.code);
+        }
+      }
+      else if (strstr(buff+60,"VALID FROM")) {
+        if (!str2time(buff,0,43,&pcv_.ts)) {
+          line_.clear(); continue;
+        }
+      }
+      else if (strstr(buff+60,"VALID UNTIL")) {
+        if (!str2time(buff,0,43,&pcv_.te)) {
+          line_.clear(); continue;
+        }
+      }
+      else if (strstr(buff+60,"START OF FREQUENCY")) {
+        if (!pcv_.sat&&buff[3]!='G') {
+          line_.clear(); continue;
+        } /* only read rec ant for GPS */
+        if (sscanf(buff+4,"%d",&f)<1) {
+          line_.clear(); continue;
+        }
+        for (i=0;freqs[i];i++) if (freqs[i]==f) break;
+        if (freqs[i]) freq=i+1;
+      }
+      else if (strstr(buff+60,"END OF FREQUENCY")) {
+        freq=0;
+      }
+      else if (strstr(buff+60,"NORTH / EAST / UP")) {
+        if (freq<1||NFREQ<freq) {
+          line_.clear(); continue;
+        }
+        if (decodef((char *)buff,3,neu)<3) {
+          line_.clear(); continue;
+        }
+        pcv_.off[freq-1][0]=neu[pcv_.sat?0:1]; /* x or e */
+        pcv_.off[freq-1][1]=neu[pcv_.sat?1:0]; /* y or n */
+        pcv_.off[freq-1][2]=neu[2];           /* z or u */
+      }
+      else if (strstr(buff,"NOAZI")) {
+        if (freq<1||NFREQ<freq) {
+          line_.clear(); continue;
+        }
+        if ((i=decodef((char *)(buff+8),19,pcv_.var[freq-1]))<=0) {
+          line_.clear(); continue;
+        }
+        for (;i<19;i++) pcv_.var[freq-1][i]=pcv_.var[freq-1][i-1];
+      }
+      line_.clear();
+    }
+  }
+
+  // convert to DataCluster
+  if (last_size_ != 0 && last_size_ > size) {
+    std::shared_ptr<DataCluster> data_cluster = 
+      std::make_shared<DataCluster>(FormatorType::AtxFile);
+    nav_t* ephemeris = data_cluster->gnss->ephemeris;
+
+    pcv_t *pcv;
+    for (i=0;i<MAXSAT;i++) {
+      pcv=searchpcv(i+1,"",timeget(),pcvs_);
+      ephemeris->pcvs[i]=pcv?*pcv:pcv0;
+    }
+    free(pcvs_->pcv);
+
+    data_cluster->gnss->types.push_back(GnssDataType::PhaseCenter);
+    data.clear();
+    data.push_back(data_cluster);
+    return 1;
+  }
+  last_size_ = size;
+
+  return 0;
+}
+
+// Encode data to stream
+int AtxFileFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
+{
+  LOG(ERROR) << "ATX file encoding not supported!";
+
+  return 0;
+}
+
+// Add antenna parameter
+void AtxFileFormator::addpcv(const pcv_t *pcv, pcvs_t *pcvs)
+{
+  pcv_t *pcvs_pcv;
+  
+  if (pcvs->nmax<=pcvs->n) {
+    pcvs->nmax+=256;
+    if (!(pcvs_pcv=(pcv_t *)realloc(pcvs->pcv,sizeof(pcv_t)*pcvs->nmax))) {
+      free(pcvs->pcv); pcvs->pcv=NULL; pcvs->n=pcvs->nmax=0;
+      return;
+    }
+    pcvs->pcv=pcvs_pcv;
+  }
+  pcvs->pcv[pcvs->n++]=*pcv;
+}
+
+// Decode antenna parameter field
+int AtxFileFormator::decodef(char *p, int n, double *v)
+{
+  int i;
+  
+  for (i=0;i<n;i++) v[i]=0.0;
+  for (i=0,p=strtok(p," ");p&&i<n;p=strtok(NULL," ")) {
+    v[i++]=atof(p)*1E-3;
+  }
+  return i;
 }
 
 // -------------------------------------------------------------
@@ -1042,7 +1443,10 @@ std::shared_ptr<FormatorBase> makeFormator(YAML::Node& node)
   MAP_FORMATOR(FormatorType::IMUPack, IMUPackFormator);
   MAP_FORMATOR(FormatorType::OptionPack, OptionFormator);
   MAP_FORMATOR(FormatorType::NMEA, NmeaFormator);
+  MAP_FORMATOR(FormatorType::DcbFile, DcbFileFormator);
+  MAP_FORMATOR(FormatorType::AtxFile, AtxFileFormator);
   LOG_UNSUPPORT;
+  return nullptr;
 }
 
 }

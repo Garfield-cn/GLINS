@@ -1,5 +1,5 @@
 /**
-* @Function: GNSS Position error used of loosely integration with other sensors
+* @Function: GNSS Position error used for loosely integration with other sensors
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn

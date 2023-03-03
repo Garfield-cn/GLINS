@@ -1,83 +1,62 @@
 /**
-* @Function: Single differenced pseudorange positioning implementation
+* @Function: Single-differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
 #pragma once
 
-#include <memory>
-
-#include "gici/estimate/graph.h"
-#include "gici/gnss/gnss_types.h"
-#include "gici/estimate/estimator_types.h"
+#include "gici/gnss/spp_estimator.h"
+#include "gici/gnss/differential_measurement_align.h"
 
 namespace gici {
 
 // SDGNSS options
 struct SdgnssEstimatorOptions {
-  // Max iteration number for ceres optimization
-  int max_iteration = 15;
+  // If true, we will use the first valid frequency in observation list.
+  // If false, we will use all the valid frequencies. 
+  bool use_single_frequency = true;
 
-  // Number of threads used for ceres optimization
-  int num_threads = 2;
+  // Estimate velocity or not
+  bool estimate_velocity = true;
 
-  // Verbose optimization output
-  bool verbose = false;
-
-  // Max age to apply difference
-  double max_age = 30.0;
-
-  // GNSS common options
-  GnssCommonOptions common;
-
-  // GNSS error parameter
-  GnssErrorParameter error_parameter;
+  // Maximum age to apply difference
+  double max_age = 20.0;
 };
 
 // Estimator
-class SdgnssEstimator {
+class SdgnssEstimator : public GnssEstimatorBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  struct State {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-    BackendId id;
-    double timestamp = 0.0;
-  };
-
-  SdgnssEstimator(const SdgnssEstimatorOptions& options);
+  // The default constructor
+  SdgnssEstimator(const SdgnssEstimatorOptions& options, 
+               const GnssEstimatorBaseOptions& gnss_base_options, 
+               const EstimatorBaseOptions& base_options);
   ~SdgnssEstimator();
 
+  // Add measurement
+  bool addMeasurement(const EstimatorDataCluster& measurement) override;
+
   // Add GNSS measurements and state
-  // measurement_ref should from the reference station
-  bool addGnssMeasurementAndState(const GnssMeasurement& measurement_rov, 
-                                  const GnssMeasurement& measurement_ref);
+  bool addGnssMeasurementAndState(
+    const GnssMeasurement& measurement_rov, 
+    const GnssMeasurement& measurement_ref); 
 
-  // Apply ceres optimization
-  void optimize();
+  // Estimate current graph
+  bool estimate() override;
 
-  // Get position in ECEF coordinate
-  Eigen::Vector3d getPositionEstimate();
-
-private:
-  // Graph that handles residuals and states
-  std::shared_ptr<Graph> graph_;
-
+protected:
   // Options
-  SdgnssEstimatorOptions options_;
+  SdgnssEstimatorOptions sdgnss_options_;
+  double min_elevation_;
+  bool estimate_velocity_;
 
-  // loss function
-  std::shared_ptr<ceres::LossFunction> cauchy_loss_function_ptr_; 
-  std::shared_ptr<ceres::LossFunction> huber_loss_function_ptr_; 
+  // SPP estimator to get initial states
+  std::unique_ptr<SppEstimator> spp_estimator_;
 
-  // Measurement
-  GnssMeasurement measurement_rov_;
-  GnssMeasurement measurement_ref_;
-
-  // States
-  State current_state_;
-  std::vector<BackendId> parameter_ids_;
+  // Measurement alignment handle
+  DifferentialMeasurementsAlign meausrement_align_;
 };
 
 }

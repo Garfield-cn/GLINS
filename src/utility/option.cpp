@@ -14,14 +14,21 @@
 #include "gici/gnss/gnss_types.h"
 #include "gici/imu/imu_types.h"
 #include "gici/vision/image_types.h"
-#include "gici/gnss/rtk_estimator.h"
 #include "gici/gnss/spp_estimator.h"
+#include "gici/gnss/ppp_estimator.h"
+#include "gici/gnss/rtk_estimator.h"
+#include "gici/gnss/sdgnss_estimator.h"
 #include "gici/gnss/dgnss_estimator.h"
-#include "gici/fusion/gnss_imu_lc_estimator.h"
-#include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/estimate/estimator_types.h"
 #include "gici/vision/feature_handler.h"
+#include "gici/gnss/code_phase_maps.h"
+#include "gici/imu/imu_estimator_base.h"
+#include "gici/gnss/gnss_loose_estimator_base.h"
+#include "gici/fusion/gnss_imu_lc_estimator.h"
+#include "gici/fusion/gnss_imu_initializer.h"
+#include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
 namespace gici {
 
@@ -66,6 +73,8 @@ void convert<std::string, FormatorType>
   MAP_IN_OUT("imu-pack", FormatorType::IMUPack);
   MAP_IN_OUT("option", FormatorType::OptionPack);
   MAP_IN_OUT("nmea", FormatorType::NMEA);
+  MAP_IN_OUT("dcb-file", FormatorType::DcbFile);
+  MAP_IN_OUT("atx-file", FormatorType::AtxFile);
   LOG_INVALId;
 }
 
@@ -75,6 +84,8 @@ void convert<std::string, GnssRawFormats>
 {
   MAP_IN_OUT("ublox", GnssRawFormats::Ublox);
   MAP_IN_OUT("septentrio", GnssRawFormats::Septentrio);
+  MAP_IN_OUT("novatel", GnssRawFormats::Novatel);
+  MAP_IN_OUT("tersus", GnssRawFormats::Tersus);
   LOG_INVALId;
 }
 
@@ -95,8 +106,11 @@ void convert<std::string, GnssRole>
   MAP_IN_OUT("rover", GnssRole::Rover);
   MAP_IN_OUT("reference", GnssRole::Reference);
   MAP_IN_OUT("ephemeris", GnssRole::Ephemeris);
-  MAP_IN_OUT("correction", GnssRole::Correction);
+  MAP_IN_OUT("ssr_ephemeris", GnssRole::SsrEphemeris);
+  MAP_IN_OUT("code_bias", GnssRole::CodeBias);
+  MAP_IN_OUT("phase_bias", GnssRole::PhaseBias);
   MAP_IN_OUT("heading", GnssRole::Heading);
+  MAP_IN_OUT("phase_center", GnssRole::PhaseCenter);
   LOG_INVALId;
 }
 
@@ -114,8 +128,8 @@ void convert<std::string, CameraRole>
   (const std::string& in, CameraRole& out)
 {
   MAP_IN_OUT("mono", CameraRole::Mono);
-  MAP_IN_OUT("stereo-major", CameraRole::StereoMajor);
-  MAP_IN_OUT("stereo-minor", CameraRole::StereoMinor);
+  MAP_IN_OUT("stereo_major", CameraRole::StereoMajor);
+  MAP_IN_OUT("stereo_minor", CameraRole::StereoMinor);
   MAP_IN_OUT("array", CameraRole::Array);
   LOG_INVALId;
 }
@@ -125,8 +139,10 @@ void convert<std::string, EstimatorType>
   (const std::string& in, EstimatorType& out)
 {
   MAP_IN_OUT("spp", EstimatorType::Spp);
+  MAP_IN_OUT("sdgnss", EstimatorType::Sdgnss);
   MAP_IN_OUT("dgnss", EstimatorType::Dgnss);
   MAP_IN_OUT("rtk", EstimatorType::Rtk);
+  MAP_IN_OUT("ppp", EstimatorType::Ppp);
   MAP_IN_OUT("gnss_imu_lc", EstimatorType::GnssImuLc);
   MAP_IN_OUT("rtk_imu_tc", EstimatorType::RtkImuTc);
   MAP_IN_OUT("gnss_imu_camera_srr", EstimatorType::GnssImuCameraSrr);
@@ -173,6 +189,29 @@ void convert<std::string, VisualInitializerType>
   LOG_INVALId;
 }
 
+template <>
+void convert<std::string, ceres::LinearSolverType>
+  (const std::string& in, ceres::LinearSolverType& out)
+{
+  MAP_IN_OUT("dense_normal_cholesky", ceres::DENSE_NORMAL_CHOLESKY);
+  MAP_IN_OUT("dense_qr", ceres::DENSE_QR);
+  MAP_IN_OUT("sparse_normal_cholesky", ceres::SPARSE_NORMAL_CHOLESKY);
+  MAP_IN_OUT("dense_schur", ceres::DENSE_SCHUR);
+  MAP_IN_OUT("sparse_schur", ceres::SPARSE_SCHUR);
+  MAP_IN_OUT("iterative_schur", ceres::ITERATIVE_SCHUR);
+  MAP_IN_OUT("cgnr", ceres::CGNR);
+  LOG_INVALId;
+}
+
+template <>
+void convert<std::string, ceres::TrustRegionStrategyType>
+  (const std::string& in, ceres::TrustRegionStrategyType& out)
+{
+  MAP_IN_OUT("levenberg_marquardt", ceres::LEVENBERG_MARQUARDT);
+  MAP_IN_OUT("dogleg", ceres::DOGLEG);
+  LOG_INVALId;
+}
+
 // Mapping from in to return
 #define MAP_IN_RET(x, y) if (in == x) { return y; }
 
@@ -184,6 +223,10 @@ SensorType sensorType(std::string in)
   MAP_IN_RET("reference", SensorType::GNSS);
   MAP_IN_RET("ephemeris", SensorType::GNSS);
   MAP_IN_RET("heading", SensorType::GNSS);
+  MAP_IN_RET("code_bias", SensorType::GNSS);
+  MAP_IN_RET("phase_bias", SensorType::GNSS);
+  MAP_IN_RET("ssr_ephemeris", SensorType::GNSS);
+  MAP_IN_RET("phase_center", SensorType::GNSS);
   MAP_IN_RET("major", SensorType::IMU);
   MAP_IN_RET("major", SensorType::IMU);
   MAP_IN_RET("mono", SensorType::Camera);
@@ -277,6 +320,7 @@ void loadOptions<GnssCommonOptions>(
     YAML::Node& node, GnssCommonOptions& options)
 {
   LOAD_COMMON(min_elevation);
+  LOAD_COMMON(max_gdop);
   LOAD_COMMON(mw_slip_thres);
   LOAD_COMMON(gf_slip_thres);
   LOAD_COMMON(gf_sd_slip_thres);
@@ -302,8 +346,35 @@ void loadOptions<GnssCommonOptions>(
   if (option_tools::safeGet(node, "code_exclude", &code_excludes)) {
     options.code_exclude.clear();
     for (auto code_exclude : code_excludes) {
-      // TODO
+      char system = code_exclude[0];
+      std::string code_str = code_exclude.substr(2, 2);
+      int code = gnss_common::rinexTypeToCodeType(system, code_str);
+      options.code_exclude.push_back(std::make_pair(system, code));
     }
+  }
+
+  std::vector<double> min_SNR;
+  if (option_tools::safeGet(node, "min_SNR", 
+      &min_SNR) && 
+      min_SNR.size() == 2) {
+    for (size_t i = 0; i < 2; i++) {
+      options.min_SNR[i] = min_SNR[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load min_SNR. Using default instead.";
+  }
+
+  std::vector<double> receiver_pco;
+  if (option_tools::safeGet(node, "receiver_pco", 
+      &receiver_pco) && 
+      receiver_pco.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.receiver_pco[i] = receiver_pco[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load receiver_pco. Using default instead.";
   }
 }
 
@@ -313,6 +384,7 @@ void loadOptions<GnssErrorParameter>(
 {
   LOAD_COMMON(code_to_phase_ratio);
   LOAD_COMMON(phase_error_factor);
+  LOAD_COMMON(doppler_error_factor);
   LOAD_COMMON(ionosphere_broadcast_factor);
   LOAD_COMMON(ionosphere_dual_frequency);
   LOAD_COMMON(ionosphere_augment);
@@ -321,6 +393,15 @@ void loadOptions<GnssErrorParameter>(
   LOAD_COMMON(doppler_frequency);
   LOAD_COMMON(ephemeris_broadcast);
   LOAD_COMMON(ephemeris_precise);
+  LOAD_COMMON(initial_troposphere);
+  LOAD_COMMON(initial_ionosphere);
+  LOAD_COMMON(initial_ambiguity);
+  LOAD_COMMON(relative_troposphere);
+  LOAD_COMMON(relative_ionosphere);
+  LOAD_COMMON(relative_ambiguity);
+  LOAD_COMMON(relative_gps_ifcb);
+  LOAD_COMMON(relative_frequency);
+  LOAD_COMMON(residual_gps_ifcb);
 
   std::vector<double> system_error_ratio;
   if (option_tools::safeGet(node, "system_error_ratio", &system_error_ratio)) {
@@ -332,91 +413,77 @@ void loadOptions<GnssErrorParameter>(
   else {
     LOG(INFO) << "Unable to load system_error_ratio. Using default instead.";
   }
+
+  std::vector<double> relative_position;
+  if (option_tools::safeGet(node, "relative_position", 
+      &relative_position) && 
+      relative_position.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.relative_position[i] = relative_position[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load relative_position. Using default instead.";
+  }
+
+  std::vector<double> relative_velocity;
+  if (option_tools::safeGet(node, "relative_velocity", 
+      &relative_velocity) && 
+      relative_velocity.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.relative_velocity[i] = relative_velocity[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load relative_velocity. Using default instead.";
+  }
 }
 
 template <>
 void loadOptions<AmbiguityResolutionOptions>(
     YAML::Node& node, AmbiguityResolutionOptions& options)
 {
+  LOAD_COMMON(min_elevation);
   LOAD_COMMON(min_percentage_fixation_nl);
   LOAD_COMMON(min_percentage_fixation_wl);
   LOAD_COMMON(min_percentage_fixation_uwl);
   LOAD_COMMON(ratio);
-  LOAD_COMMON(norm_phase_residual_reject_thres);
-  LOAD_COMMON(min_consistant_fix_as_stable);
 
   std::vector<std::string> system_excludes;
+  bool has_glonass = false;
   if (option_tools::safeGet(node, "system_exclude", &system_excludes)) {
     options.system_exclude.clear();
     for (auto system_exclude : system_excludes) {
       options.system_exclude.push_back(system_exclude[0]);
+      if (system_exclude[0] == 'R') has_glonass = true;
     }
   }
-}
-
-template <>
-void loadOptions<RtkEstimatorOptions>(
-    YAML::Node& node, RtkEstimatorOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(max_age);
-  LOAD_COMMON(window_length);
-  LOAD_COMMON(use_ambiguity_resolution);
-
-  if (checkSubOption(node, "gnss_common")) {
-    YAML::Node subnode = node["gnss_common"];
-    loadOptions(subnode, options.common);
+  if (!has_glonass) {
+    LOG(WARNING) << "Currently we do not support GLONASS ambiguity resolution!";
+    options.system_exclude.push_back('R');
   }
 
-  if (checkSubOption(node, "gnss_error_parameter")) {
-    YAML::Node subnode = node["gnss_error_parameter"];
-    loadOptions(subnode, options.error_parameter);
+  std::vector<std::string> satellite_excludes;
+  if (option_tools::safeGet(node, "satellite_exclude", &satellite_excludes)) {
+    options.satellite_exclude.clear();
+    for (auto satellite_exclude : satellite_excludes) {
+      options.satellite_exclude.push_back(satellite_exclude);
+    }
   }
 
-  if (checkSubOption(node, "ambiguity_resolution")) {
-    YAML::Node subnode = node["ambiguity_resolution"];
-    loadOptions(subnode, options.ambiguity_resolution);
-  }
-}
-
-template <>
-void loadOptions<SppEstimatorOptions>(
-    YAML::Node& node, SppEstimatorOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-
-  if (checkSubOption(node, "gnss_common")) {
-    YAML::Node subnode = node["gnss_common"];
-    loadOptions(subnode, options.common);
-  }
-
-  if (checkSubOption(node, "gnss_error_parameter")) {
-    YAML::Node subnode = node["gnss_error_parameter"];
-    loadOptions(subnode, options.error_parameter);
-  }
-}
-
-template <>
-void loadOptions<DgnssEstimatorOptions>(
-    YAML::Node& node, DgnssEstimatorOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(max_age);
-
-  if (checkSubOption(node, "gnss_common")) {
-    YAML::Node subnode = node["gnss_common"];
-    loadOptions(subnode, options.common);
-  }
-
-  if (checkSubOption(node, "gnss_error_parameter")) {
-    YAML::Node subnode = node["gnss_error_parameter"];
-    loadOptions(subnode, options.error_parameter);
+  std::vector<std::string> phase_excludes;
+  if (option_tools::safeGet(node, "phase_exclude", &phase_excludes)) {
+    options.phase_exclude.clear();
+    for (auto phase_exclude : phase_excludes) {
+      char system = phase_exclude[0];
+      std::string phase_str = phase_exclude.substr(2, phase_exclude.size() - 2);
+      int phase = PHASE_NONE;
+#define MAP(S, P, PS) \
+  if (system == S && phase_str == PS) { phase = P; }
+  PHASE_CHANNEL_TO_STR_MAPS;
+#undef MAP
+      options.phase_exclude.push_back(std::make_pair(system, phase));
+    }
   }
 }
 
@@ -434,124 +501,6 @@ void loadOptions<ImuParameters>(
   LOAD_COMMON(sigma_aw_c);
   LOAD_COMMON(rate);
   LOAD_COMMON(delay_imu_cam);
-}
-
-template <>
-void loadOptions<GnssImuInitializationOptions>(
-    YAML::Node& node, GnssImuInitializationOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(time_window_length_zero_motion);
-  LOAD_COMMON(min_window_length);
-  LOAD_COMMON(gnss_extrinsic_initial_std);
-  LOAD_COMMON(min_velocity);
-
-  std::vector<double> gnss_extrinsics;
-  if (option_tools::safeGet(node, "gnss_extrinsics", &gnss_extrinsics) && 
-      gnss_extrinsics.size() == 3) {
-    for (size_t i = 0; i < 3; i++) {
-      options.gnss_extrinsics[i] = gnss_extrinsics[i];
-    }
-  }
-  else {
-    options.gnss_extrinsics.setZero();
-    options.gnss_extrinsic_initial_std = 3.0;
-    LOG(INFO) << "Unable to load gnss_extrinsics. Using default instead.";
-  }
-}
-
-template <>
-void loadOptions<GnssImuCameraInitializationOptions>(
-    YAML::Node& node, GnssImuCameraInitializationOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(time_window_length_zero_motion);
-  LOAD_COMMON(min_gnss_window_length);
-  LOAD_COMMON(min_keyframe_window_length);
-  LOAD_COMMON(gnss_extrinsic_initial_std);
-  LOAD_COMMON(min_velocity);
-
-  std::vector<double> gnss_extrinsics;
-  if (option_tools::safeGet(node, "gnss_extrinsics", &gnss_extrinsics) && 
-      gnss_extrinsics.size() == 3) {
-    for (size_t i = 0; i < 3; i++) {
-      options.gnss_extrinsics[i] = gnss_extrinsics[i];
-    }
-  }
-  else {
-    options.gnss_extrinsics.setZero();
-    options.gnss_extrinsic_initial_std = 3.0;
-    LOG(INFO) << "Unable to load gnss_extrinsics. Using default instead.";
-  }
-}
-
-template <>
-void loadOptions<GnssImuLcEstimatorOptions>(
-    YAML::Node& node, GnssImuLcEstimatorOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(window_length);
-  LOAD_COMMON(gnss_relative_extrinsic_std);
-
-  if (checkSubOption(node, "imu_parameters")) {
-    YAML::Node subnode = node["imu_parameters"];
-    loadOptions(subnode, options.imu_parameters);
-  }
-
-  if (checkSubOption(node, "initialize")) {
-    YAML::Node subnode = node["initialize"];
-    loadOptions(subnode, options.initialize);
-    options.initialize.gnss_relative_extrinsic_std = 
-      options.gnss_relative_extrinsic_std;
-    options.initialize.imu_parameters = options.imu_parameters;
-  }
-}
-
-template <>
-void loadOptions<RtkImuTcEstimatorOptions>(
-    YAML::Node& node, RtkImuTcEstimatorOptions& options)
-{
-  LOAD_COMMON(max_iteration);
-  LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(max_age);
-  LOAD_COMMON(window_length);
-  LOAD_COMMON(use_ambiguity_resolution)
-  LOAD_COMMON(gnss_relative_extrinsic_std);
-
-  if (checkSubOption(node, "gnss_common")) {
-    YAML::Node subnode = node["gnss_common"];
-    loadOptions(subnode, options.gnss_common);
-  }
-
-  if (checkSubOption(node, "gnss_error_parameter")) {
-    YAML::Node subnode = node["gnss_error_parameter"];
-    loadOptions(subnode, options.gnss_error_parameter);
-  }
-
-  if (checkSubOption(node, "ambiguity_resolution")) {
-    YAML::Node subnode = node["ambiguity_resolution"];
-    loadOptions(subnode, options.ambiguity_resolution);
-  }
-
-  if (checkSubOption(node, "imu_parameters")) {
-    YAML::Node subnode = node["imu_parameters"];
-    loadOptions(subnode, options.imu_parameters);
-  }
-
-  if (checkSubOption(node, "initialize")) {
-    YAML::Node subnode = node["initialize"];
-    loadOptions(subnode, options.initialize);
-    options.initialize.gnss_relative_extrinsic_std = 
-      options.gnss_relative_extrinsic_std;
-    options.initialize.imu_parameters = options.imu_parameters;
-  }
 }
 
 template <>
@@ -642,27 +591,244 @@ void loadOptions<FeatureHandlerOptions>(
 }
 
 template <>
-void loadOptions<GnssImuCameraSrrEstimatorOptions>(
-    YAML::Node& node, GnssImuCameraSrrEstimatorOptions& options)
+void loadOptions<EstimatorBaseOptions>(
+    YAML::Node& node, EstimatorBaseOptions& options)
 {
   LOAD_COMMON(max_iteration);
   LOAD_COMMON(num_threads);
-  LOAD_COMMON(verbose);
-  LOAD_COMMON(max_keyframes);
-  LOAD_COMMON(feature_error_std)
-  LOAD_COMMON(min_num_obs);
+  LOAD_COMMON(max_solver_time);
+  LOAD_COMMON(verbose_output);
+  LOAD_COMMON(force_initial_global_position);
+  LOAD_COMMON(log_intermediate_data);
+  LOAD_COMMON(log_intermediate_data_directory);
+
+  std::string solver_type;
+  if (option_tools::safeGet(node, "solver_type", &solver_type)) {
+    delete_space(solver_type);
+    convert(solver_type, options.solver_type);
+  }
+
+  std::string trust_region_strategy_type;
+  if (option_tools::safeGet(
+      node, "trust_region_strategy_type", &trust_region_strategy_type)) {
+    delete_space(trust_region_strategy_type);
+    convert(trust_region_strategy_type, options.trust_region_strategy_type);
+  }
+
+  if (options.trust_region_strategy_type == ceres::DOGLEG) {
+    if (options.solver_type != ceres::SPARSE_SCHUR && 
+        options.solver_type != ceres::DENSE_SCHUR &&
+        options.solver_type != ceres::DENSE_QR && 
+        options.solver_type != ceres::SPARSE_NORMAL_CHOLESKY) {
+      LOG(FATAL) << "Ceres solver do not support " << solver_type
+                 << " for " << trust_region_strategy_type;
+    }
+  }
+
+  std::vector<double> initial_global_position;
+  if (option_tools::safeGet(node, "initial_global_position", 
+      &initial_global_position) && 
+      initial_global_position.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.initial_global_position[i] = initial_global_position[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load initial_global_position. Using default instead.";
+  }
+}
+
+template <>
+void loadOptions<GnssEstimatorBaseOptions>(
+    YAML::Node& node, GnssEstimatorBaseOptions& options)
+{
+  LOAD_COMMON(use_outlier_rejection);
+  LOAD_COMMON(reject_one_outlier_once);
+  LOAD_COMMON(max_pesudorange_norm_error);
+  LOAD_COMMON(max_phaserange_norm_error);
+  LOAD_COMMON(max_doppler_norm_error);
+
+  if (checkSubOption(node, "gnss_common")) {
+    YAML::Node subnode = node["gnss_common"];
+    loadOptions(subnode, options.common);
+  }
+
+  if (checkSubOption(node, "gnss_error_parameter")) {
+    YAML::Node subnode = node["gnss_error_parameter"];
+    loadOptions(subnode, options.error_parameter);
+  }
+}
+
+template <>
+void loadOptions<GnssLooseEstimatorBaseOptions>(
+    YAML::Node& node, GnssLooseEstimatorBaseOptions& options)
+{
+
+}
+
+template <>
+void loadOptions<ImuEstimatorBaseOptions>(
+    YAML::Node& node, ImuEstimatorBaseOptions& options)
+{
+  LOAD_COMMON(car_motion);
+  LOAD_COMMON(body_to_imu_rotation_std);
+  LOAD_COMMON(car_motion_min_velocity);
+  LOAD_COMMON(car_motion_max_anguler_velocity);
 
   if (checkSubOption(node, "imu_parameters")) {
     YAML::Node subnode = node["imu_parameters"];
     loadOptions(subnode, options.imu_parameters);
   }
 
-  if (checkSubOption(node, "initialize")) {
-    YAML::Node subnode = node["initialize"];
-    loadOptions(subnode, options.initialize);
-    options.initialize.imu_parameters = options.imu_parameters;
-    options.initialize.feature_error_std = options.feature_error_std;
+  std::vector<double> body_to_imu_rotation;
+  if (option_tools::safeGet(node, "body_to_imu_rotation", 
+      &body_to_imu_rotation) && 
+      body_to_imu_rotation.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.body_to_imu_rotation[i] = body_to_imu_rotation[i];
+    }
   }
+  else {
+    LOG(INFO) << "Unable to load body_to_imu_rotation. Using default instead.";
+  }
+}
+
+template <>
+void loadOptions<SppEstimatorOptions>(
+    YAML::Node& node, SppEstimatorOptions& options)
+{
+  LOAD_COMMON(use_single_frequency);
+  LOAD_COMMON(estimate_velocity);
+}
+
+template <>
+void loadOptions<PppEstimatorOptions>(
+    YAML::Node& node, PppEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+  LOAD_COMMON(use_ambiguity_resolution);
+  LOAD_COMMON(estimate_velocity);
+}
+
+template <>
+void loadOptions<RtkEstimatorOptions>(
+    YAML::Node& node, RtkEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+  LOAD_COMMON(use_ambiguity_resolution);
+  LOAD_COMMON(estimate_velocity);
+  LOAD_COMMON(max_age);
+}
+
+template <>
+void loadOptions<SdgnssEstimatorOptions>(
+    YAML::Node& node, SdgnssEstimatorOptions& options)
+{
+  LOAD_COMMON(use_single_frequency);
+  LOAD_COMMON(estimate_velocity);
+  LOAD_COMMON(max_age);
+}
+
+template <>
+void loadOptions<DgnssEstimatorOptions>(
+    YAML::Node& node, DgnssEstimatorOptions& options)
+{
+  LOAD_COMMON(use_single_frequency);
+  LOAD_COMMON(estimate_velocity);
+  LOAD_COMMON(max_age);
+}
+
+template <>
+void loadOptions<GnssImuLcEstimatorOptions>(
+    YAML::Node& node, GnssImuLcEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+}
+
+template <>
+void loadOptions<RtkImuTcEstimatorOptions>(
+    YAML::Node& node, RtkImuTcEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+}
+
+template <>
+void loadOptions<GnssImuInitializerOptions>(
+    YAML::Node& node, GnssImuInitializerOptions& options)
+{
+  LOAD_COMMON(max_iteration);
+  LOAD_COMMON(num_threads);
+  LOAD_COMMON(max_solver_time);
+  LOAD_COMMON(time_window_length_slow_motion);
+  LOAD_COMMON(time_window_length_dynamic_motion);
+  LOAD_COMMON(min_acceleration);
+
+  std::vector<double> gnss_extrinsics;
+  if (option_tools::safeGet(node, "gnss_extrinsics", 
+      &gnss_extrinsics) && 
+      gnss_extrinsics.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.gnss_extrinsics[i] = gnss_extrinsics[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load gnss_extrinsics. Using default instead.";
+  }
+
+  std::vector<double> gnss_extrinsics_initial_std;
+  if (option_tools::safeGet(node, "gnss_extrinsics_initial_std", 
+      &gnss_extrinsics_initial_std) && 
+      gnss_extrinsics_initial_std.size() == 3) {
+    for (size_t i = 0; i < 3; i++) {
+      options.gnss_extrinsics_initial_std[i] = gnss_extrinsics_initial_std[i];
+    }
+  }
+  else {
+    LOG(INFO) << "Unable to load gnss_extrinsics_initial_std. Using default instead.";
+  } 
+}
+
+template <>
+void loadOptions<GnssImuCameraSrrEstimatorOptions>(
+    YAML::Node& node, GnssImuCameraSrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_keyframes);
+  LOAD_COMMON(max_gnss_window_length_minor);
+  LOAD_COMMON(min_yaw_std_init_visual);
+}
+
+template <>
+void loadOptions<RtkImuCameraRrrEstimatorOptions>(
+    YAML::Node& node, RtkImuCameraRrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_keyframes);
+  LOAD_COMMON(max_gnss_window_length_minor);
+  LOAD_COMMON(min_yaw_std_init_visual);
+}
+
+template <>
+void loadOptions<VisualEstimatorBaseOptions>(
+    YAML::Node& node, VisualEstimatorBaseOptions& options)
+{
+  LOAD_COMMON(feature_error_std);
+  LOAD_COMMON(landmark_outlier_rejection_threshold);
+}
+
+// Copy the options with the same name from in to out
+#define COPY(opt) out.opt = in.opt
+
+// Copy options for similar estimators
+template <typename OptionTypeIn, typename OptionTypeOut>
+void copyOptions(const OptionTypeIn& in, OptionTypeOut& out)
+{
+  LOG(FATAL) << "Copying from " << typeid(in).name() << " to " 
+             << typeid(out).name() << " is not supported!";
+}
+
+template <>
+void copyOptions(const PppEstimatorOptions& in, SppEstimatorOptions& out)
+{
+  COPY(estimate_velocity);
 }
 
 }

@@ -74,6 +74,8 @@
 *                           accept HTTP/1.1 as protocol for NTRIP caster
 *                           suppress warning for buffer overflow by sprintf()
 *                           use integer types in stdint.h
+*
+* modified : Cheng Chi
 *-----------------------------------------------------------------------------*/
 #include <ctype.h>
 #include "rtklib.h"
@@ -82,7 +84,9 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/time.h>
+#ifndef __USE_MISC
 #define __USE_MISC
+#endif  
 #ifndef CRTSCTS
 #define CRTSCTS  020000000000
 #endif
@@ -858,6 +862,57 @@ static int readfile(file_t *file, uint8_t *buff, int nmax, char *msg)
     tracet(5,"readfile: fp=%d nr=%d\n",file->fp,nr);
     return nr;
 }
+/* pre-shift file ------------------------------------------------------------*/
+extern void fileshift(stream_t *stream)
+{
+    struct timeval tv={0};
+    fd_set rs;
+    uint64_t fpos_8B;
+    uint32_t t,tick,fpos_4B;
+    long pos,n;
+    int nr=0;
+    file_t *file=(file_t *)stream->port;
+
+    tracet(4,"fileshift: fp=%d\n",file->fp);
+    
+    if (!file) return;
+    if (!file->fp_tag) return;
+        
+    /* target tick */
+    if (file->repmode) { /* slave */
+        t=(uint32_t)(tick_master+file->offset);
+    }
+    else { /* master */
+        t=(uint32_t)((tickget()-file->tick)*file->speed+file->start*1000.0);
+        tick_master=t;
+    }
+    /* seek time-tag file to get next tick and file position */
+    while ((int)(file->tick_n-t)<=0) {
+        
+        if (fread(&file->tick_n,sizeof(tick),1,file->fp_tag)<1||
+            fread((file->size_fpos==4)?(void *)&fpos_4B:(void *)&fpos_8B,
+                    file->size_fpos,1,file->fp_tag)<1) {
+            file->tick_n=(uint32_t)(-1);
+            pos=ftell(file->fp);
+            fseek(file->fp,0L,SEEK_END);
+            file->fpos_n=ftell(file->fp);
+            fseek(file->fp,pos,SEEK_SET);
+            break;
+        }
+        file->fpos_n=(long)((file->size_fpos==4)?fpos_4B:fpos_8B);
+    }
+    if (file->tick_n==(uint32_t)(-1)) {
+
+    }
+    else {
+        file->wtime=timeadd(file->time,(int)t*0.001);
+        timeset(timeadd(gpst2utc(file->time),(int)file->tick_n*0.001));
+    }
+    n=file->fpos_n-ftell(file->fp);
+    if (n>0) {
+        fseek(file->fp,file->fpos_n,SEEK_SET);
+    }
+}
 /* write file ----------------------------------------------------------------*/
 static int writefile(file_t *file, uint8_t *buff, int n, char *msg)
 {
@@ -1131,6 +1186,13 @@ static int gentcp(tcp_t *tcp, int type, char *msg)
             tcp->state=0;
             tcp->tcon=ticonnect;
             tcp->tdis=tickget();
+            return 0;
+        }
+        /* TODO: this may cause segment fault */
+        if (hp->h_addr == NULL || sizeof(&tcp->addr.sin_addr) != sizeof(hp->h_addr)) {
+            sprintf(msg, 
+                "Unfixed BUG: Segment falult when initializing Ntrip: %p - %ld, %p - %ld\r\n", 
+                &tcp->addr.sin_addr, sizeof(&tcp->addr.sin_addr), hp->h_addr, sizeof(hp->h_addr));
             return 0;
         }
         memcpy(&tcp->addr.sin_addr,hp->h_addr,hp->h_length);

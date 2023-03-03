@@ -13,13 +13,15 @@
 #include "gici/estimate/homogeneous_point_parameter_block.h"
 #include "gici/estimate/pose_error.h"
 #include "gici/vision/reprojection_error.h"
+#include "gici/imu/imu_error.h"
 
 namespace gici {
 
 // The default constructor
-FeatureHandler::FeatureHandler(const FeatureHandlerOptions& options) :
+FeatureHandler::FeatureHandler(const FeatureHandlerOptions& options,
+                               const ImuEstimatorBaseOptions& imu_options) :
   options_(options), cams_(options.cameras), map_(new Map()),
-  initialized_(false), speed_and_bias_timestamp_(0.0), 
+  local_scale_initialized_(false), speed_and_bias_timestamp_(0.0), 
   speed_and_bias_(SpeedAndBias::Zero()), global_scale_initialized_(false)
 {
   // initialize modules
@@ -37,7 +39,7 @@ FeatureHandler::~FeatureHandler()
 
 // Add images
 bool FeatureHandler::addImageBundle(
-  const std::vector<cv::Mat>& imgs, const double timestamp)
+  const std::vector<std::shared_ptr<cv::Mat>>& imgs, const double timestamp)
 {
   if (!isFirstFrame())
   {
@@ -54,70 +56,46 @@ bool FeatureHandler::addImageBundle(
   for (size_t i = 0; i < imgs.size(); ++i)
   {
     frames.push_back(std::make_shared<Frame>(
-      cams_->getCameraShared(i), imgs[i].clone(), 
+      cams_->getCameraShared(i), imgs[i]->clone(), 
       static_cast<int64_t>(timestamp * 1.0e9), options_.max_pyramid_level + 1));
     frames.back()->set_T_cam_imu(cams_->get_T_C_B(i));
     frames.back()->setNFrameIndex(i);
   }
   FrameBundlePtr frame_bundle(new FrameBundle(frames));
-  
-  // Add IMU measurements
-  if (!isFirstFrame()) 
-  {
-    imu_mutex_.lock();
-    ImuMeasurements::iterator imu_measurement = imu_measurements_.begin();
-    ImuMeasurements::iterator imu_measurements_end = imu_measurements_.end();
-    imu_mutex_.unlock();
-    ImuMeasurements::iterator next_imu_measurement;
-    bool start_fill = false, end_fill = false;
-    double last_timestamp = lastFrames()->getMinTimestampSeconds();
-    double keep_imu_front_timestamp;
-    for (; imu_measurement != imu_measurements_end; imu_measurement++) {
-      next_imu_measurement = imu_measurement; next_imu_measurement++;
-      if (next_imu_measurement == imu_measurements_end && !start_fill) break;
-      if (next_imu_measurement->timestamp >= last_timestamp && 
-          imu_measurement->timestamp < last_timestamp) {
-        // start add imu
-        start_fill = true;
-      }
-      if (start_fill) {
-        size_t k = frame_bundle->imu_timestamps_ns_.cols();
-        frame_bundle->imu_timestamps_ns_.conservativeResize(Eigen::NoChange, k + 1);
-        frame_bundle->imu_measurements_.conservativeResize(Eigen::NoChange, k + 1);
-        frame_bundle->imu_timestamps_ns_.col(k)(0) = 
-          static_cast<int64_t>(imu_measurement->timestamp * 1.0e9);
-        frame_bundle->imu_measurements_.col(k).segment<3>(0) = 
-          imu_measurement->linear_acceleration;
-        frame_bundle->imu_measurements_.col(k).segment<3>(3) = 
-          imu_measurement->angular_velocity;
-      }
-      if (end_fill) break;
-      if (start_fill && next_imu_measurement != imu_measurements_end && 
-          next_imu_measurement->timestamp > timestamp) {
-        // add last imu
-        end_fill = true;
-        keep_imu_front_timestamp = imu_measurement->timestamp;
-      }
-    }
-    // erase IMU measurements
-    imu_mutex_.lock();
-    while (imu_measurements_.front().timestamp < keep_imu_front_timestamp) {
-      imu_measurements_.pop_front();
-    }
-    imu_mutex_.unlock();
-  }
 
   // Add to pipeline.
+  mutex_.lock();
   curFrames() = frame_bundle;
+  mutex_.unlock();
   ++frame_counter_;
 
+  return true;
+}
+
+// Add images with poses
+bool FeatureHandler::addImageBundle(const std::vector<std::shared_ptr<cv::Mat>>& imgs, 
+                    const double timestamp, const std::vector<Transformation>& T_WSs)
+{
+  if (!addImageBundle(imgs, timestamp)) return false;
+
+  CHECK(T_WSs.size() == curFrames()->size());
+  for (size_t i = 0; i < curFrames()->size(); i++) {
+    curFrames()->frames_[i]->set_T_w_imu(T_WSs[i]);
+  }
+
+  return true;
+} 
+
+// Process current added image bundle. Should be called after addImageBundle.
+bool FeatureHandler::processImageBundle()
+{
   // Perform detecting and tracking
   bool ret = processFrameBundle();
 
   // Shift memory
   frame_bundles_.push_back(std::make_shared<FrameBundle>(std::vector<FramePtr>()));
-  if (!initialized_) {
-    while (frame_bundles_.size() > 2) {
+  if (map_->size() == 0) {
+    while (frame_bundles_.size() > 3) {
       frame_bundles_.pop_front();
     }
   }
@@ -131,142 +109,82 @@ bool FeatureHandler::addImageBundle(
   return true;
 }
 
-// Add camera pose to a specific frame at given timestamp
-bool FeatureHandler::addCameraPose(const double timestamp, 
-                    const Transformation& T_WS)
+// Set pose for a frame and adjust the frames behind
+void FeatureHandler::setPoseAndAdjust(const double timestamp, const Transformation& T_WS)
 {
-  int index = -1;
-  Transformation T_W_B_ref_store;
-  for (int i = frame_bundles_.size() - 1; i >= 0; i--) {
-    if (frame_bundles_[i]->frames_.size() == 0) continue;
-    if (checkEqual(timestamp, frame_bundles_[i]->getMinTimestampSeconds())) {
-      frame_bundles_[i]->set_T_W_B(T_WS);
-      T_W_B_ref_store = frame_bundles_[i]->get_T_W_B();
-      index = i;
+  mutex_.lock();
+
+  // Get the start iterator
+  std::deque<FrameBundlePtr>::iterator it_start = frame_bundles_.end();
+  for (auto it = frame_bundles_.begin(); it != frame_bundles_.end(); it++) {
+    if (checkEqual((*it)->getMinTimestampSeconds(), timestamp)) {
+      it_start = it; break;
+    }
+  }
+  if (it_start == frame_bundles_.end()) {
+    LOG(WARNING) << "Cannot find a frame bundle at timestamp " << std::fixed << timestamp;
+  }
+
+  // Adjust poses
+  std::vector<Transformation> old_poses;
+  Transformation last_pose;
+  for (auto it = it_start; it != frame_bundles_.end(); it++) {
+    if ((*it)->size() == 0) continue;
+    const FramePtr& frame = (*it)->at(0);
+    old_poses.push_back(frame->T_world_imu());
+    if (it == it_start) {
+      frame->set_T_w_imu(T_WS);
+    }
+    else {
+      const Transformation& last_old_pose = old_poses[old_poses.size() - 2];
+      const Transformation& cur_old_pose = frame->T_world_imu();
+      const Transformation T_last_cur = last_old_pose.inverse() * cur_old_pose;
+      Transformation T_WS_cur = last_pose * T_last_cur;
+      T_WS_cur.getRotation().normalize();
+      frame->set_T_w_imu(T_WS_cur);
+    }
+    last_pose = frame->T_world_imu();
+  }
+
+  // Adjust landmarks
+  size_t index = 0;
+  std::unordered_set<int> adjusted_ids;
+  for (auto it = it_start; it != frame_bundles_.end(); it++, index++) {
+    if ((*it)->size() == 0) continue;
+    const FramePtr& frame = (*it)->at(0);
+    for (size_t i = 0; i < frame->landmark_vec_.size(); i++) {
+      const auto& landmark = frame->landmark_vec_[i];
+      // just not-in-graph landmarks 
+      if (landmark->in_ba_graph_) continue;
+      // just initialized landmarks
+      if (!isSeed(frame->type_vec_[i])) continue;
+      // adjusted
+      if (adjusted_ids.find(landmark->id()) != adjusted_ids.end()) continue;
+      
+      // adjust landmark position
+      Eigen::Vector3d t_C = (frame->T_cam_imu() * 
+        old_poses[index].inverse()) * landmark->pos();
+      landmark->pos_ = frame->T_world_cam() * t_C;
+      adjusted_ids.insert(landmark->id());
     }
   }
 
-  // adjust poses behind
-  if (index != -1)
-  {
-    for (int i = index + 1; i < frame_bundles_.size(); i++) {
-      if (frame_bundles_[i]->frames_.size() == 0) continue;
-      Transformation T_W_B_cur = frame_bundles_[i]->get_T_W_B();
-      Transformation T_cur_ref = T_W_B_cur.inverse() * T_W_B_ref_store;
-      Transformation T_W_B_cur_adjusted = T_WS * T_cur_ref.inverse();
-      frame_bundles_[i]->set_T_W_B(T_W_B_cur_adjusted);
-
-      // check scale
-      // if (i - 2 >= 0) {
-      //   Transformation T_WS_l2 = frame_bundles_[i - 2]->get_T_W_B();
-      //   Transformation T_WS_l1 = frame_bundles_[i - 1]->get_T_W_B();
-      //   Transformation T_WS_0 = frame_bundles_[i]->get_T_W_B();
-      //   double distance = T_WS_l1.getRotation().inverse().rotate(
-      //     T_WS_l1.getPosition() - T_WS_l2.getPosition()).norm();
-      //   double distance_0 = T_WS_0.getRotation().inverse().rotate(
-      //     T_WS_0.getPosition() - T_WS_l1.getPosition()).norm();
-      //   double scale = distance / distance_0;
-      //   // large scale difference, rescale current frame
-      //   if (fabs(scale - 1.0) > 0.05) {
-      //     LOG(INFO) << "Tolerant of scale change exceeded (" << fabs(scale - 1.0) 
-      //               << " vs 0.05)! Rescaling frame poses.";
-      //     for (size_t k = 0; k < frame_bundles_[i]->frames_.size(); k++) {
-      //       const FramePtr& frame = frame_bundles_[i]->at(k);
-      //       const FramePtr& ref_frame = frame_bundles_[i - 1]->at(k);
-      //       frame->T_f_w_.getPosition() = -frame->T_f_w_.getRotation().rotate(
-      //         ref_frame->pos() + scale * (frame->pos() - ref_frame->pos()));
-      //     }
-      //   }
-      // }
-    }
-
-    return true;
-  }
-
-  LOG(WARNING) << "Cannot find image bundle at timestamp " 
-               << std::fixed << timestamp << "!";
-  return false;
-}
-
-// After the poses and landmarks were adjusted to global, call this function to 
-// apply the changes.
-void FeatureHandler::setGlobalInitializationResult(
-  const std::deque<FramePtr>& scaled_frames)
-{
-  // Erase all the unscaled frames and landmark observations
-  // frames
-  for (auto it = frame_bundles_.begin(); it != frame_bundles_.end(); )
-  {
-    if ((*it)->frames_.size() == 0) {
-      it++; continue;
-    }
-    FramePtr frame = (*it)->at(0);
-
-    bool found = false;
-    for (auto scaled_frame : scaled_frames) {
-      if (scaled_frame->id() == frame->id()) {
-        found = true; break;
-      }
-    }
-    if (found) {
-      it++; continue;
-    }
-    it = frame_bundles_.erase(it);
-  }
-
-  // landmarks
-  for (auto& frame : scaled_frames) {
-    for (auto& landmark : frame->landmark_vec_) {
-      if (landmark == nullptr) continue;
-      for (auto it = landmark->obs_.begin(); it != landmark->obs_.end(); ) {
-        if (FramePtr f = it->frame.lock()) {
-          // valid observation
-          it++;
-        }
-        else {
-          it = landmark->obs_.erase(it);
-        }
-      }
-    }
-  }
-
-  // Set flag
-  global_scale_initialized_ = true;
-}
-
-// Add IMU measurement for pose integration
-void FeatureHandler::addImuMeasurement(const ImuMeasurement& imu_measurement)
-{
-  if (imu_measurements_.size() != 0 && 
-      imu_measurements_.back().timestamp > imu_measurement.timestamp) {
-    LOG(WARNING) << "Received IMU with previous timestamp!";
-  }
-  else {
-    imu_mutex_.lock();
-    imu_measurements_.push_back(imu_measurement);
-    imu_mutex_.unlock();
-  }
-}
-
-// Set current speed and bias
-void FeatureHandler::setSpeedAndBias(const double timestamp, 
-                      const SpeedAndBias speed_and_bias)
-{
-  imu_mutex_.lock();
-  speed_and_bias_timestamp_ = timestamp;
-  speed_and_bias_ = speed_and_bias;
-  imu_mutex_.unlock();
+  mutex_.unlock();
 }
 
 // Keyframe selection criterion.
-bool FeatureHandler::needNewKeyFrame()
+bool FeatureHandler::needKeyFrame(
+  const FramePtr& last_keyframe, const FramePtr& frame)
 {
   // Get last keyframe
-  const FramePtr keyframe = map_->getLastKeyframe();
+  const FramePtr keyframe = last_keyframe;
+
+  // If first frame
+  if (keyframe == nullptr) return true;
 
   // Number of tracked features are too little
   std::vector<std::pair<size_t, size_t>> matches_ref_cur;
-  getFeatureMatches(*keyframe, *curFrame(), &matches_ref_cur);
+  getFeatureMatches(*keyframe, *frame, &matches_ref_cur);
   size_t n_tracked_fts = matches_ref_cur.size();
   if (n_tracked_fts < options_.kfselect_min_numkfs) {
     LOG(INFO) << "Select new keyframe by number: " 
@@ -278,10 +196,10 @@ bool FeatureHandler::needNewKeyFrame()
   if (global_scale_initialized_)
   {
     const double a =
-        Quaternion::log(curFrames()->at(0)->T_f_w_.getRotation() *
+        Quaternion::log(frame->T_f_w_.getRotation() *
                         keyframe->T_f_w_.getRotation().inverse()).norm()
             * 180/M_PI;
-    const double d = (curFrames()->at(0)->pos() - keyframe->pos()).norm();
+    const double d = (frame->pos() - keyframe->pos()).norm();
     if (!(a < options_.kfselect_min_angle
         && d < options_.kfselect_min_dist_metric))
     {
@@ -292,7 +210,7 @@ bool FeatureHandler::needNewKeyFrame()
   }
   // Select keyframe with disparity
   else {
-    double disparity = getDisparity(keyframe, curFrame());
+    double disparity = getDisparity(keyframe, frame);
     if (disparity > options_.kfselect_min_disparity) {
       LOG(INFO) << "Select new keyframe by disparity: " 
                 << disparity << " vs " << options_.kfselect_min_disparity;
@@ -300,9 +218,9 @@ bool FeatureHandler::needNewKeyFrame()
     }
   }
 
-  // Check time duration
+  // Check time duration  
   const double time_duration = 
-    curFrame()->getTimestampSec() - keyframe->getTimestampSec();
+    getCurrent(frame_bundles_)->at(0)->getTimestampSec() - keyframe->getTimestampSec();
   if (time_duration > options_.kfselect_min_dt) {
     LOG(INFO) << "Select new keyframe by time duration: " 
               << time_duration << " vs " << options_.kfselect_min_dt;
@@ -330,6 +248,7 @@ void FeatureHandler::detectFeatures(const FramePtr& frame)
   detector_->detect(
         frame->img_pyr_, frame->getMask(), max_n_features, new_px, new_scores,
         new_levels, new_grads, new_types);
+
   frame_utils::computeNormalizedBearingVectors(new_px, *frame->cam(), &new_f);
 
   // Add features to frame.
@@ -342,6 +261,7 @@ void FeatureHandler::detectFeatures(const FramePtr& frame)
     frame->grad_vec_.col(j) = new_grads.col(i);
     frame->score_vec_(j) = new_scores(i);
     frame->level_vec_(j) = new_levels(i);
+    frame->type_vec_[j] = FeatureType::kCorner;
 
     frame->landmark_vec_[j] = std::make_shared<Point>(Eigen::Vector3d::Zero());
     frame->track_id_vec_(j) = frame->landmark_vec_[j]->id();
@@ -357,58 +277,54 @@ void FeatureHandler::trackFeatures()
   // Integrate attitude
   bool has_rotation_prior = false;
   Eigen::Quaterniond q_cur_ref;
-  if (curFrames()->imu_timestamps_ns_.cols() > 0) {
-    const Eigen::Matrix<int64_t, 1, Eigen::Dynamic>& imu_timestamps_ns =
-        curFrames()->imu_timestamps_ns_;
-    const Eigen::Matrix<double, 6, Eigen::Dynamic>& imu_measurements =
-        curFrames()->imu_measurements_;
-    Eigen::Vector3d gyro_bias = speed_and_bias_.segment<3>(3); 
-    const size_t num_measurements = imu_timestamps_ns.cols();
-    Quaternion delta_R;
-    for (size_t m_idx = 0u; m_idx < num_measurements - 1u; ++m_idx)
-    {
-      const double delta_t_seconds =
-          (imu_timestamps_ns(m_idx + 1) - imu_timestamps_ns(m_idx))
-          * 1.0e-9;
-      if (checkLessEqual(delta_t_seconds, 1e-12)) {
-        LOG(FATAL) << "IMU timestamps need to be strictly increasing.";
-      }
-
-      const Eigen::Vector3d w = imu_measurements.col(m_idx).tail<3>() - gyro_bias;
-      const Quaternion R_incr = Quaternion::exp(w * delta_t_seconds);
-      delta_R = delta_R * R_incr;
-    }
-    q_cur_ref = delta_R.toImplementation();
-    has_rotation_prior = true;
+  if (lastFrame()->has_transform_ && curFrame()->has_transform_) {
+    Transformation T_WC_ref = lastFrame()->T_world_cam();
+    Transformation T_WC_cur = curFrame()->T_world_cam();
+    q_cur_ref = (T_WC_cur.inverse() * T_WC_ref).getEigenQuaternion();
   }
 
   if (has_rotation_prior) {
-    tracker_->track(
-      lastFrame(), curFrame(), detector_->grid_, q_cur_ref);
+    tracker_->track(getLast(frame_bundles_)->at(0), 
+      getCurrent(frame_bundles_)->at(0), detector_->grid_, q_cur_ref);
   }
   else {
-    tracker_->track(
-      lastFrame(), curFrame(), detector_->grid_);
+    tracker_->track(getLast(frame_bundles_)->at(0), 
+      getCurrent(frame_bundles_)->at(0), detector_->grid_);
   }
 }
 
 // Optimize pose of new frame using tracked (and initialized) landmarks
 void FeatureHandler::optimizePose()
 {
+  mutex_.lock();
+
+  FrameBundlePtr frame_bundle = getCurrent(frame_bundles_);
+  FramePtr frame = getCurrent(frame_bundles_)->at(0);
+  Transformation T_WS;
+  
+  // Could get from outside
+  if (pose_request_ && pose_request_(frame->getTimestampSec(), T_WS)) {
+    frame->set_T_w_imu(T_WS);
+    mutex_.unlock();
+    return;
+  }
+
+  // Could not get from outside, we optimize by reprojection error
   std::unique_ptr<Graph> graph = std::make_unique<Graph>();
   std::shared_ptr<ceres::LossFunction> loss_function = 
     std::make_shared<ceres::CauchyLoss>(1);
-  FramePtr ref_frame = map_->getLastKeyframe();
-  FramePtr frame = curFrame();
 
   // Approximate pose
-  Transformation T_WS_aprox = ref_frame->T_world_imu();
-  // not the just initialized frame
-  if (!(map_->size() == 2 && lastFrame()->is_keyframe_)) {
-    T_WS_aprox = lastFrames()->get_T_W_B() * 
-      (frame_bundles_.at(frame_bundles_.size() - 3)->get_T_W_B().inverse() * 
-      lastFrames()->get_T_W_B());
-    T_WS_aprox.getRotation().normalize();
+  FramePtr last_frame = getLast(frame_bundles_)->at(0);
+  Transformation T_WS_aprox = last_frame->T_world_imu();
+  if (frame_bundles_.size() > 2) {
+    FramePtr last_last_frame = frame_bundles_.at(frame_bundles_.size() - 3)->at(0);
+    Eigen::Vector3d t_last_cur = last_frame->T_imu_world().getRotation().rotate(
+        last_frame->imuPos() - last_last_frame->imuPos());
+    double dt1 = last_frame->getTimestampSec() - last_last_frame->getTimestampSec();
+    double dt2 = frame->getTimestampSec() - last_frame->getTimestampSec();
+    Transformation T_last_cur = Transformation(Quaternion(), t_last_cur * (dt2 / dt1));
+    T_WS_aprox = last_frame->T_world_imu() * T_last_cur;
   }
 
   // Pose of current frame
@@ -418,7 +334,7 @@ void FeatureHandler::optimizePose()
   CHECK(graph->addParameterBlock(pose_parameter_block, Graph::Pose6d));
 
   // Extrinsics parameter (constant)
-  const Transformation T_SC = ref_frame->T_imu_cam();
+  const Transformation T_SC = frame->T_imu_cam();
   BackendId extrinsics_id = changeIdType(pose_id, IdType::cExtrinsics, size_t(0));
   std::shared_ptr<PoseParameterBlock> extrinsics_parameter_block = 
     std::make_shared<PoseParameterBlock>(T_SC, extrinsics_id.asInteger());
@@ -429,18 +345,12 @@ void FeatureHandler::optimizePose()
   int num_valid_features = 0;
   for (size_t kp_idx = 0; kp_idx < frame->numFeatures(); ++kp_idx)
   {
-    // make sure the landmark has been initialized, and can be observed by 
-    // both current frame and last keyframe
     const auto& landmark = frame->landmark_vec_[kp_idx];
-    if (!isSeed(frame->type_vec_[kp_idx])) continue;
-    int ref_obs_index = -1, obs_index = -1;
-    for (size_t i = 0; i < landmark->obs_.size(); i++) {
-      auto& obs = landmark->obs_[i];
-      if (obs.frame_id == ref_frame->id()) ref_obs_index = obs.keypoint_index_;
-      if (obs.frame_id == frame->id()) obs_index = obs.keypoint_index_;
+
+    // check if feature is associated to landmark
+    if (landmark == nullptr || !isSeed(frame->type_vec_[kp_idx])) {
+      continue;
     }
-    if (obs_index == -1 || ref_obs_index == -1) continue;
-    CHECK(kp_idx == obs_index);
 
     // Add landmark parameter block and set as constant. We do not optimize
     // landmark here to save time consumption. It will be optimized in the 
@@ -457,6 +367,8 @@ void FeatureHandler::optimizePose()
     Eigen::Matrix2d information = Eigen::Matrix2d::Identity();
     information *= 1.0 / 
       static_cast<double>(1 << frame->level_vec_(kp_idx));
+    // we do not believe not-in-graph landmarks, relatively.
+    if (global_scale_initialized_ && !landmark->in_ba_graph_) information /= 1.0e4;
 
     std::shared_ptr<ReprojectionError> reprojection_error =
         std::make_shared<ReprojectionError>(
@@ -475,23 +387,28 @@ void FeatureHandler::optimizePose()
   // If insufficient features are tracked, we set pose as the approximate one.
   if (num_valid_features < 10) {
     LOG(WARNING) << "Insufficient tracked features to estimate "
-    << "current pose! num_valid_features = " << num_valid_features;
+      << "current pose! num_valid_features = " << num_valid_features 
+      << " " << frame->numFeatures();
     frame->set_T_w_imu(T_WS_aprox);
+    mutex_.unlock();
     return;
   }
 
   // Optimize
-  graph->options.linear_solver_type = ceres::SPARSE_NORMAL_CHOLESKY;
+  graph->options.linear_solver_type = ceres::DENSE_SCHUR;
   graph->options.trust_region_strategy_type = ceres::DOGLEG;
-  graph->options.max_num_iterations = 2;
+  graph->options.max_num_iterations = 5;
+  graph->options.max_solver_time_in_seconds = 0.01;
   graph->solve();
 
   // Get solution
   std::shared_ptr<PoseParameterBlock> block_ptr =
       std::static_pointer_cast<PoseParameterBlock>(
         graph->parameterBlockPtr(pose_id.asInteger()));
-  Transformation T_WS = block_ptr->estimate();
+  T_WS = block_ptr->estimate();
   frame->set_T_w_imu(T_WS);
+
+  mutex_.unlock();
 }
 
 // Check disparity between two frames
@@ -516,7 +433,9 @@ double FeatureHandler::getDisparity(
 // Add observation to landmarks
 void FeatureHandler::addObservation(const FramePtr& frame)
 {
-  FramePtr ref_frame = lastFrame();
+  mutex_.lock();
+
+  FramePtr ref_frame = getLast(frame_bundles_)->at(0);
   std::vector<std::pair<size_t, size_t>> matches;
   getFeatureMatches(*ref_frame, *frame, &matches);
   for (size_t i = 0; i < matches.size(); i++) {
@@ -526,17 +445,31 @@ void FeatureHandler::addObservation(const FramePtr& frame)
     frame->landmark_vec_[matches[i].second] = landmark;
     landmark->addObservation(frame, matches[i].second);
   }
+
+  mutex_.unlock();
 }
 
 // Set the new frame as keyframe
-void FeatureHandler::setNewKeyFrame()
+void FeatureHandler::setKeyFrame(const FrameBundlePtr& frame_bundle)
 {
+  // check if this frame tracked enough landmarks
+  const FramePtr& frame = frame_bundle->at(0);
+  int num_landmarks = 0;
+  for (const auto& type : frame->type_vec_) {
+    if (isSeed(type)) num_landmarks++;
+  }
+  if (num_landmarks < options_.kfselect_min_numkfs) {
+    // LOG(INFO) << "Too few landmarks tracked: " << num_landmarks
+    //           << ". Cannot set this frame as keyframe.";
+    // return;
+  }
+
   // set as keyframe
-  curFrame()->setKeyframe();
-  curFrames()->setKeyframe();
+  frame_bundle->at(0)->setKeyframe();
+  frame_bundle->setKeyframe();
 
   // add keyframe to map
-  map_->addKeyframe(curFrame(), true);
+  map_->addKeyframe(frame_bundle->at(0), true);
 
   // if limited number of keyframes, remove the one furthest apart
   if(options_.max_n_kfs > 2)
@@ -549,9 +482,12 @@ void FeatureHandler::setNewKeyFrame()
 }
 
 // Initialize landmarks
-void FeatureHandler::initializeNewLandmarks()
+void FeatureHandler::initializeLandmarks(const FramePtr& keyframe)
 {
-  FramePtr frame = curFrame();
+  const FramePtr& frame = keyframe;
+  if (!frame->isKeyframe()) return;
+
+  mutex_.lock();
 
   // Initialize landmarks
   for (size_t i = 0; i < frame->numFeatures(); i++) {
@@ -564,17 +500,18 @@ void FeatureHandler::initializeNewLandmarks()
     // rejected by bundle adjuster
     if (frame->type_vec_[i] == FeatureType::kOutlier) continue;
 
-    // get the first observation in window
+    // get the last keyframe
     FramePtr ref_frame = nullptr;
     size_t index_ref = 0;
-    for (auto obs : landmark->obs_) {
-      if (FramePtr f = obs.frame.lock()) {
-        ref_frame = f; 
-        index_ref = obs.keypoint_index_;
-        break;
+    for (auto obs = landmark->obs_.rbegin(); obs != landmark->obs_.rend(); obs++) {
+      if (FramePtr f = obs->frame.lock()) {
+        if (f->isKeyframe() && f->id() < frame->id() && f->has_transform_) {
+          ref_frame = f; 
+          index_ref = obs->keypoint_index_;
+        }
       }
     }
-    CHECK_NOTNULL(ref_frame);
+    if (ref_frame == nullptr) continue;
     if (ref_frame->id() == frame->id()) continue;
 
     // check disparity
@@ -588,6 +525,7 @@ void FeatureHandler::initializeNewLandmarks()
     double depth;
     if (!(depthFromTriangulation(T_cur_ref, f_ref, f_cur, &depth) 
         == FeatureMatcher::MatchResult::kSuccess)) continue;
+    if (depth < 0.1) continue;
     // Note that the follow equation should not be T * f_ref * depth.
     // Because the operater "*" is applied in homogeneous coordinate
     landmark->pos_ = ref_frame->T_world_cam() * (f_ref * depth);
@@ -598,18 +536,24 @@ void FeatureHandler::initializeNewLandmarks()
         changeFeatureTypeToSeed(f->type_vec_[obs.keypoint_index_]);
       }
     }
-  }
+  } 
+
+  mutex_.unlock();
 }
 
 // Initialize scale and landmarks at first
-bool FeatureHandler::initialize()
+bool FeatureHandler::initializeScale()
 {
+  mutex_.lock();
+
   VisualInitResult ret = initializer_->addFrameBundle(curFrames());
   if (ret == VisualInitResult::kTracking) {
+    mutex_.unlock();
     return false;
   }
   if (ret == VisualInitResult::kFailure) {
     initializer_->reset();
+    mutex_.unlock();
     return false;
   }
 
@@ -620,6 +564,14 @@ bool FeatureHandler::initialize()
   curFrames()->setKeyframe();
   curFrames()->at(0)->setKeyframe();
   map_->addKeyframe(curFrames()->at(0), true);
+
+  // Clear frames to make sure it can be freed properly
+  initializer_->clearFrames();
+
+  // Set flag
+  local_scale_initialized_ = true;
+
+  mutex_.unlock();
 
   return true;
 }
@@ -634,37 +586,20 @@ bool FeatureHandler::processFrameBundle()
 // Processes frames
 bool FeatureHandler::processFrame()
 {
-  // Initialization
-  if (!initialized_) {
-    if (initialize()) {
-      LOG(INFO) << "Feature handler initialized.";
-      initialized_ = true; return true;
-    }
-    else return false;
-  }
-
   // Reset grid
   detector_->grid_.reset();
 
   // Track features
-  trackFeatures();
-
-  // Optimize pose using tracked (and initialized) landmarks
-  if (!curFrame()->has_transform_) {
-    optimizePose();
-  }
+  if (frame_bundles_.size() > 1) trackFeatures();
 
   // Detect features in new frame
-  detectFeatures(curFrame());
-
-  // initialize landmarks 
-  initializeNewLandmarks();
+  detectFeatures(getCurrent(frame_bundles_)->at(0));
 
   // Select keyframe
-  if(!needNewKeyFrame()) return true;
+  if(!needKeyFrame(map_->getLastKeyframe(), curFrame())) return true;
 
   // set as keyframe
-  setNewKeyFrame();
+  setKeyFrame(curFrames());
 
   return true;
 }

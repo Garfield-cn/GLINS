@@ -4,20 +4,14 @@ project(gici)
 # Set build flags. 
 set(CMAKE_CXX_FLAGS "-std=c++11" )
 set(CMAKE_CXX_FLAGS "-fpermissive")
-# Set IS_ARM on odroid board as environment variable
-# set(CMAKE_CXX_FLAGS "-Wall -D_LINUX -D_REENTRANT -march=native -Wno-unused-variable -Wno-unused-const-variable -Wno-unknown-pragmas")
-# IF(IS_ARM)
-#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon -march=armv7-a")
-#   message("#########################")
-# ELSE()
-#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmmx -msse -msse -msse2 -msse3 -mssse3")
-# ENDIF()
-# IF(CMAKE_COMPILER_IS_GNUCC)
-#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
-# ELSE()
-#   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
-# ENDIF()
-# set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops")
+if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
+  if (IS_ARM)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon -march=armv7-a")
+  else ()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mmmx -msse -msse -msse2 -msse3 -mssse3")
+  endif ()
+  set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -fsee -fomit-frame-pointer -fno-signed-zeros -fno-math-errno -funroll-loops")
+endif()
 
 # Add third-party libraries
 # Eigen
@@ -28,6 +22,8 @@ find_package(OpenCV 4 REQUIRED)
 find_package(yaml-cpp REQUIRED)
 # Glog
 find_package(glog REQUIRED)
+# Ceres-solver
+find_package(Ceres REQUIRED)
 # Fast feature detector
 add_subdirectory(third_party/fast)
 # SVO vikit tool-kits
@@ -35,7 +31,7 @@ add_subdirectory(third_party/rpg_vikit/vikit_common)
 # SVO libraries
 add_subdirectory(third_party/rpg_svo)
 # RTKLIb
-add_definitions(-DENAGLO -DENAQZS -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
+add_definitions(-DENAGLO -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 add_subdirectory(third_party/rtklib)
 
 include_directories(

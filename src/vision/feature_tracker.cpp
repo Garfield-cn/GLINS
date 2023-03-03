@@ -95,7 +95,6 @@ void FeatureTracker::track(const FramePtr& ref_frame,
 
   // Put valid features in current frame
   const cv::Mat& mask = cur_frame->cam()->getMask();
-  cur_frame->resizeFeatureStorage(num_tracked);
   for (int i = 0; i < num_tracked; i++) {
     if (!status[i]) continue;
 
@@ -110,6 +109,7 @@ void FeatureTracker::track(const FramePtr& ref_frame,
 
     size_t grid_index = grid.getCellIndex(cur_points[j].x,cur_points[j].y, 1);
     if (!grid.isOccupied(grid_index)) {
+      cur_frame->resizeFeatureStorage(cur_frame->num_features_ + 1);
       size_t& index = cur_frame->num_features_;
       cur_frame->px_vec_.col(index) = 
         Eigen::Vector2d(cur_points[j].x, cur_points[j].y);

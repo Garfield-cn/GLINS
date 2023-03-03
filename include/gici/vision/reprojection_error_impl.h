@@ -185,7 +185,7 @@ inline bool ReprojectionError::EvaluateWithMinimalJacobians(
   // assign:
   residuals[0] = weighted_error[0];
   residuals[1] = weighted_error[1];
-
+  
   // check validity:
   bool valid = true;
   if (fabs(hp_C[3]) > 1.0e-8)

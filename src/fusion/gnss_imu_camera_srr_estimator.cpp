@@ -1,533 +1,362 @@
 /**
-* @Function: Couples GNSS solution, camera feature, and IMU raw measuremnet
+* @Function: GNSS/IMU/Camera semi-tightly couple estimator (GNSS solution + IMU raw + camera raw)
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
-#include "gici/gnss/position_error.h"
-#include "gici/gnss/gnss_parameter_blocks.h"
-#include "gici/gnss/gnss_relative_errors.h"
-#include "gici/imu/imu_common.h"
-#include "gici/imu/imu_error.h"
-#include "gici/utility/common.h"
-#include "gici/estimate/pose_error.h"
-#include "gici/imu/speed_and_bias_error.h"
-#include "gici/imu/yaw_error.h"
-#include "gici/vision/reprojection_error.h"
 
 namespace gici {
 
 // The default constructor
 GnssImuCameraSrrEstimator::GnssImuCameraSrrEstimator(
-                     const GnssImuCameraSrrEstimatorOptions& options) :
-  options_(options), graph_(std::make_shared<Graph>()),
-  cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
-  huber_loss_function_ptr_(new ceres::HuberLoss(1)),
-  marginalization_residual_id_(0), initialized_(false), camera_extrinsics_id_(0),
-  gnss_extrinsics_id_(0)
+               const GnssImuCameraSrrEstimatorOptions& options, 
+               const GnssImuInitializerOptions& init_options, 
+               const GnssLooseEstimatorBaseOptions& gnss_loose_base_options, 
+               const VisualEstimatorBaseOptions& visual_base_options,
+               const ImuEstimatorBaseOptions& imu_base_options,
+               const EstimatorBaseOptions& base_options) :
+  srr_options_(options), 
+  GnssLooseEstimatorBase(gnss_loose_base_options, base_options),
+  VisualEstimatorBase(visual_base_options, base_options),
+  ImuEstimatorBase(imu_base_options, base_options),
+  EstimatorBase(base_options)
 {
-  marginalization_error_ptr_.reset(new MarginalizationError(*graph_.get()));
+  type_ = EstimatorType::GnssImuCameraSrr;
+  states_.push_back(State());
+  gnss_solution_measurements_.push_back(GnssSolution());
+  frame_bundles_.push_back(nullptr);
 
-  // For debug
-  debug_callback_.reset(new CeresDebugCallback());
-  graph_->options.callbacks.push_back(debug_callback_.get());
+  // Initialization control
+  gnss_imu_initializer_.reset(new GnssImuInitializer(
+    init_options, gnss_loose_base_options, imu_base_options, 
+    base_options, graph_));
 }
 
 // The default destructor
 GnssImuCameraSrrEstimator::~GnssImuCameraSrrEstimator()
 {}
 
-// Set initialization result 
-void GnssImuCameraSrrEstimator::setInitializationResult(
-  const std::shared_ptr<GnssImuCameraInitialization>& initializer)
+// Add measurement
+bool GnssImuCameraSrrEstimator::addMeasurement(const EstimatorDataCluster& measurement)
 {
-  CHECK(initializer->finished()) << "This function should be called after the "
-    << "initializer is finished!";
-  
-  // Margin the used measurements and states to the given window length
-  std::deque<GnssImuCameraInitialization::State> init_states;
-  initializer->marginalization(options_.max_keyframes, marginalization_error_ptr_, 
-    init_states, marginalization_residual_id_, gnss_extrinsics_id_, 
-    camera_extrinsics_id_, landmarks_map_, active_keyframes_);
-
-  // Convert state format
-  states_.clear();
-  for (auto init_state : init_states) {
-    State state;
-    state.id = init_state.id;
-    state.imu_residual_to_lhs = init_state.imu_residual_to_lhs;
-    state.timestamp = init_state.timestamp;
-    if (init_state.id.type() == IdType::cNFrame) {
-      state.is_keyframe = true;
+  // GNSS/IMU initialization
+  if (coordinate_ == nullptr || !gravity_setted_) return false;
+  if (!gnss_imu_initializer_->finished()) {
+    if (gnss_imu_initializer_->getCoordinate() == nullptr) {
+      gnss_imu_initializer_->setCoordinate(coordinate_);
+      gnss_imu_initializer_->setGravity(imu_base_options_.imu_parameters.g);
     }
-    states_.push_back(state);
+    if (gnss_imu_initializer_->addMeasurement(measurement)) {
+      gnss_imu_initializer_->estimate();
+      // set result to estimator
+      setInitializationResult(gnss_imu_initializer_);
+    }
+    return false;
   }
 
-  // pre-allocate memory of measurements 
-  gnss_solutions_.push_back(GnssSolution());
-  frame_bundles_.push_back(nullptr);
+  // Add IMU
+  if (measurement.imu && measurement.imu_role == ImuRole::Major) {
+    addImuMeasurement(*measurement.imu);
+  }
 
-  initialized_ = true;
+  // Add GNSS by solution measurement
+  if (measurement.solution && 
+      (measurement.solution_role == SolutionRole::Position || 
+       measurement.solution_role == SolutionRole::Velocity ||
+       measurement.solution_role == SolutionRole::PositionAndVelocity)) {
+    GnssSolution gnss_solution = convertSolutionToGnssSolution(
+      *measurement.solution, measurement.solution_role);
+    return addGnssSolutionMeasurementAndState(gnss_solution);
+  }
+
+  // Add images
+  if (measurement.frame_bundle) {
+    if (!visual_initialized_) return visualInitialization(measurement.frame_bundle);
+    return addImageMeasurementAndState(measurement.frame_bundle);
+  }
+
+  return false;
 }
 
 // Add GNSS measurements and state
-bool GnssImuCameraSrrEstimator::addGnssMeasurementAndState(const GnssSolution& gnss_solution)
+bool GnssImuCameraSrrEstimator::addGnssSolutionMeasurementAndState(
+  const GnssSolution& measurement)
 {
-  // Check initialization
-  if (!initialized_) return false;
+  // Set to local measurement handle
+  curGnssSolution() = measurement;
 
-  // Wait for IMU data
-  double timestamp = gnss_solution.timestamp;
-  if (!waitForImuData(timestamp)) return false;
+  // Add parameter blocks
+  double timestamp = curGnssSolution().timestamp;
+  // pose and speed and bias block
+  const int32_t bundle_id = curGnssSolution().id;
+  BackendId pose_id = createGnssPoseId(bundle_id);
+  size_t index = insertImuState(timestamp, pose_id);
+  states_[index].status = curGnssSolution().status;
+  latest_state_index_ = index;
+  // GNSS extrinsics, it should be added at initialization step
+  CHECK(gnss_extrinsics_id_.valid());
 
-  // Add measurement
-  curGnss() = gnss_solution;
-
-  // Add state in current timestamp
-  BackendId pose_id = createGnssPoseId(gnss_solution.id);
-  if (checkLessEqual(lastState().timestamp, timestamp)) {
-    if (!pushBackState(timestamp, pose_id)) {
-      LOG(ERROR) << "Failed to push a state back!";
-      return false;
-    }
+  // Add residual blocks
+  // GNSS position
+  addGnssPositionResidualBlock(curGnssSolution(), states_[index]);
+  // GNSS velocity
+  addGnssVelocityResidualBlock(curGnssSolution(), states_[index], 
+    getImuMeasurementNear(timestamp).angular_velocity);
+  // Car motion
+  if (imu_base_options_.car_motion) {
+    // heading measurement constraint
+    addHMCResidualBlock(states_[index]);
+    // non-holonomic constraint
+    addNHCResidualBlock(states_[index]);
   }
-  else {
-    if (!insertState(timestamp, pose_id)) {
-      LOG(ERROR) << "Failed to insert a state";
-      return false;
-    }
-  }
-
-  // GNSS extrinsics parameter block
-  if (!gnss_extrinsics_id_.valid()) {
-    gnss_extrinsics_id_ = changeIdType(pose_id, IdType::gExtrinsics);
-    std::shared_ptr<PositionParameterBlock> gnss_extrinsic_parameter_block = 
-      std::make_shared<PositionParameterBlock>(
-        options_.initialize.gnss_extrinsics, gnss_extrinsics_id_.asInteger());
-    if (!graph_->addParameterBlock(gnss_extrinsic_parameter_block)) {
-      return false;
-    }
-  }
-
-  // Add GNSS error
-  if (!isFirstEpoch()) {
-    std::shared_ptr<PositionError<7, 3>> position_error = 
-      std::make_shared<PositionError<7, 3>>(curGnss().position, 
-      curGnss().covariance.topLeftCorner(3, 3).inverse());
-    position_error->setCoordinate(coordinate_);
-    graph_->addResidualBlock(position_error, 
-      // huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      nullptr,   
-      graph_->parameterBlockPtr(curState().id.asInteger()),
-      graph_->parameterBlockPtr(gnss_extrinsics_id_.asInteger()));
-  }
-
-  new_state_type_ = IdType::gPose;
 
   return true;
 }
 
 // Add image measurements and state
 bool GnssImuCameraSrrEstimator::addImageMeasurementAndState(
-  const FrameBundlePtr& frame_bundle)
+  const FrameBundlePtr& frame_bundle, const SpeedAndBias& speed_and_bias)
 {
-  // Check if initialized
-  if (!initialized_) return false;
-
-  // The first frame after initialization should be keyframe
-  if (!lastFrameState().valid() && !frame_bundle->isKeyframe()) return false;
-
-  // Wait for IMU data
-  double timestamp = frame_bundle->getMinTimestampSeconds();
-  if (!waitForImuData(timestamp)) return false;
-
   // If initialized, we are supposed not at the first epoch
   CHECK(!isFirstEpoch());
 
-  frame_bundles_.back() = frame_bundle;
+  // Set to local measurement handle
+  curFrameBundle() = frame_bundle;
 
-  // Add state in current timestamp
-  BackendId pose_id = createNFrameId(frame_bundle->at(0)->bundleId());
-  if (checkLessEqual(lastState().timestamp, timestamp)) {
-    if (!pushBackState(timestamp, pose_id, frame_bundle->isKeyframe())) {
-      LOG(ERROR) << "Failed to push a state back!";
-      return false;
-    }
+  // Add parameter blocks
+  double timestamp = curFrame()->getTimestampSec();
+  // pose and speed and bias block
+  const int32_t bundle_id = curFrame()->bundleId();
+  BackendId pose_id = createNFrameId(bundle_id);
+  size_t index;
+  if (speed_and_bias != SpeedAndBias::Zero()) {
+    index = insertImuState(timestamp, pose_id, 
+      curFrame()->T_world_imu(), speed_and_bias, true);
   }
   else {
-    if (!insertState(timestamp, pose_id, frame_bundle->isKeyframe())) {
-      LOG(ERROR) << "Failed to insert a state";
-      return false;
-    }
+    index = insertImuState(timestamp, pose_id);
   }
-
-  // Extrinsics parameter block
-  const Transformation T_SC = curFrame()->T_imu_cam();
+  states_[index].status = latestGnssState().status;
+  states_[index].is_keyframe = curFrame()->isKeyframe();
+  latest_state_index_ = index;
+  // camera extrinsics
   if (!camera_extrinsics_id_.valid()) {
     camera_extrinsics_id_ = 
-      changeIdType(pose_id, IdType::cExtrinsics, size_t(0));
-    std::shared_ptr<PoseParameterBlock> extrinsics_parameter_block = 
-      std::make_shared<PoseParameterBlock>(T_SC, camera_extrinsics_id_.asInteger());
-    if (!graph_->addParameterBlock(extrinsics_parameter_block, Graph::Pose6d)) {
-      return false;
-    }
-    // we do not estimate extrinsics
-    graph_->setParameterBlockConstant(camera_extrinsics_id_.asInteger());
+      addCameraExtrinsicsParameterBlock(bundle_id, curFrame()->T_imu_cam());
   }
 
-  // Add Landmarks
-  for (size_t kp_idx = 0; kp_idx < curFrame()->numFeatures(); ++kp_idx)
-  {
-    const FramePtr& frame = curFrame();
-    const PointPtr& point = frame->landmark_vec_[kp_idx];
-    const FeatureType& type = frame->type_vec_[kp_idx];
-
-    // check if feature is associated to landmark
-    if (point == nullptr || !isSeed(frame->type_vec_[kp_idx])) {
-      continue;
-    }
-
-    // check if landmark was already in to backend, if yes just add observation.
-    if (isLandmarkInEstimator(createLandmarkId(point->id()))) {
-      if (!addLandmarkObservation(frame, kp_idx)) {
-        LOG(WARNING) << "Failed to add an observation!";
-        continue;
-      }
-    }
-    // add new landmarks at keyframe
-    else if (frame->isKeyframe()) {
-      // check if we have enough observations. Might not be the case if seed
-      // original frame was already dropped.
-      if (point->obs_.size() < options_.min_num_obs) {
-        continue;
-      }
-      // check if the first frame is current keyframe
-      if (point->obs_.front().frame_id == frame->id()) {
-        continue;
-      }
-
-      CHECK(!std::isnan(point->pos_[0])) << "Point is nan!";
-
-      // add the landmark
-      BackendId landmark_backend_id = createLandmarkId(point->id());
-      std::shared_ptr<HomogeneousPointParameterBlock>
-          point_parameter_block =
-          std::make_shared<HomogeneousPointParameterBlock>(
-            point->pos(), landmark_backend_id.asInteger());
-      if (!graph_->addParameterBlock(point_parameter_block,
-                                      Graph::HomogeneousPoint)) {
-        return false;
-      }
-
-      // add landmark to map
-      auto it_landmark = landmarks_map_.emplace_hint(
-            landmarks_map_.end(),
-            landmark_backend_id, MapPoint(point));
-      point->in_ba_graph_ = true;
-
-      // add observation
-      for (auto obs = point->obs_.begin(); obs != point->obs_.end(); obs++) {
-        // check if frames ahead
-        if (obs->frame_id > frame->id()) continue;
-        // check if margined out
-        if (obs->frame_id < active_keyframes_.front()->id()) {
-          continue;
-        }
-        if (FramePtr f = obs->frame.lock()) {
-          // add the first and the keyframe
-          if (!checkEqual(f->getTimestampSec(), timestamp)) {
-            continue;
-          }
-          if (!addLandmarkObservation(f, obs->keypoint_index_)) {
-            LOG(ERROR) << "Failed to add an observation!";
-            continue;
-          }
-        }
-        else {
-          LOG(ERROR) << "Unable to unlock frame.";
-        }
-      }
-    }
+  // Initialize landmarks
+  if (visual_initialized_ && curFrame()->isKeyframe()) {
+    curFrame()->set_T_w_imu(getPoseEstimate(states_[index]));
+    feature_handler_->initializeLandmarks(curFrame());
   }
 
-  // Store keyframes
-  if (frame_bundle->at(0)->isKeyframe()) {
-    active_keyframes_.push_back(frame_bundle->at(0));
+  // Add Landmark parameters and minimal resiudals at keyframe
+  if (curFrame()->isKeyframe()) {
+    addLandmarkParameterBlocksWithResiduals(curFrame());
   }
 
-  new_state_type_ = IdType::cNFrame;
+  // Add landmark observations
+  addReprojectionErrorResidualBlocks(states_[index], curFrame());
 
   return true;
 }
 
-// Add IMU measurement
-void GnssImuCameraSrrEstimator::addImuMeasurement(const ImuMeasurement& imu_measurement)
+// Visual initialization
+bool GnssImuCameraSrrEstimator::visualInitialization(const FrameBundlePtr& frame_bundle)
 {
-  if (imu_measurements_.size() != 0 && 
-      imu_measurements_.back().timestamp > imu_measurement.timestamp) {
-    LOG(WARNING) << "Received IMU with previous timestamp!";
+  // store poses
+  do_not_remove_imu_measurements_ = true;
+  Solution solution;
+  solution.timestamp = getTimestamp();
+  solution.pose = getPoseEstimate();
+  solution.speed_and_bias = getSpeedAndBiasEstimate();
+  init_solution_store_.push_back(solution);
+  // store keyframes
+  if (frame_bundle->isKeyframe()) {
+    init_keyframes_.push_back(frame_bundle);
+    while (init_keyframes_.size() > 2) init_keyframes_.pop_front();
+  } 
+  if (init_keyframes_.size() < 2) return false;
+  // check if GNSS/IMU estimator fully converged
+  double std_yaw = sqrt(computeAndGetCovariance(lastState())(5, 5));
+  if (std_yaw > srr_options_.min_yaw_std_init_visual * D2R) return false;
+  // set poses
+  std::vector<SpeedAndBias> speed_and_biases;
+  for (auto& frame_bundle : init_keyframes_) {
+    bool found = false;
+    double timestamp = frame_bundle->getMinTimestampSeconds();
+    for (size_t i = 1; i < init_solution_store_.size(); i++) {
+      double dt1 = init_solution_store_[i].timestamp - timestamp;
+      double dt2 = init_solution_store_[i - 1].timestamp - timestamp;
+      double dt3 = init_solution_store_[i].timestamp - 
+                  init_solution_store_[i - 1].timestamp;
+      if ((dt1 >= 0 && dt2 <= 0) || 
+          (i == init_solution_store_.size() - 1) && dt1 < 0 && fabs(dt1) < 2.0 * dt3) {
+        size_t idx = (dt1 >= 0 && dt2 <= 0) ? (i - 1) : i;
+        Transformation T_WS = init_solution_store_[idx].pose;
+        SpeedAndBias speed_and_bias = init_solution_store_[idx].speed_and_bias;
+        imuIntegration(init_solution_store_[idx].timestamp, 
+          timestamp, T_WS, speed_and_bias);
+        speed_and_biases.push_back(speed_and_bias);
+        frame_bundle->set_T_W_B(T_WS);
+        found = true;
+        break;
+      }
+    }
+    CHECK(found);
   }
-  else {
+  // initialize landmarks
+  feature_handler_->initializeLandmarks(init_keyframes_.back()->at(0));
+  // add two keyframes
+  CHECK(addImageMeasurementAndState(init_keyframes_.front(), speed_and_biases.front()));
+  CHECK(addImageMeasurementAndState(init_keyframes_.back(), speed_and_biases.back()));
+
+  // set flag
+  visual_initialized_ = true;
+  do_not_remove_imu_measurements_ = false;
+  can_compute_covariance_ = true;
+  return true;
+}
+
+// Solve current graph
+bool GnssImuCameraSrrEstimator::estimate()
+{
+  // Optimize
+  optimize();
+
+  // Log information
+  State& new_state = states_[latest_state_index_];
+  if (base_options_.verbose_output) {
+    LOG(INFO) << estimatorTypeToString(type_) << ": " 
+      << "Iterations: " << graph_->summary.iterations.size() << ", "
+      << std::scientific << std::setprecision(3) 
+      << "Initial cost: " << graph_->summary.initial_cost << ", "
+      << "Final cost: " << graph_->summary.final_cost
+      << ", Sensor type: " << std::setw(1) << 
+        static_cast<int>(BackendId::sensorType(new_state.id.type()))
+      << ", Fix status: " << std::setw(1) << static_cast<int>(new_state.status);
+  }
+
+  // Update parameters to frontend
+  IdType new_state_type = states_[latest_state_index_].id.type();
+  if (new_state_type == IdType::cPose) {
+    // update landmarks to frontend
+    updateLandmarks();
+    // update states to frontend
+    updateFrameStateToFrontend(states_[latest_state_index_], curFrame());
+    // reject landmark outliers
+    rejectReprojectionErrorOutlier(curFrame());
+  }
+
+  // Apply marginalization
+  marginalization(new_state_type);
+
+  // Shift memory for states and measurements
+  if (new_state_type == IdType::gPose) 
+    gnss_solution_measurements_.push_back(GnssSolution());
+  if (new_state_type == IdType::cPose) frame_bundles_.push_back(nullptr);
+  states_.push_back(State());
+  while (!visual_initialized_ && 
+         states_.size() > srr_options_.max_gnss_window_length_minor) {
+    states_.pop_front();
+  }
+  // only keep measurement data for two epochs
+  while (gnss_solution_measurements_.size() > 2) 
+    gnss_solution_measurements_.pop_front();
+  while (frame_bundles_.size() > 2) frame_bundles_.pop_front();
+
+  return true;
+}
+
+// Set initializatin result
+void GnssImuCameraSrrEstimator::setInitializationResult(
+  const std::shared_ptr<MultisensorInitializerBase>& initializer)
+{
+  CHECK(initializer->finished());
+
+  // Cast to desired initializer
+  std::shared_ptr<GnssImuInitializer> gnss_imu_initializer = 
+    std::static_pointer_cast<GnssImuInitializer>(initializer);
+  CHECK_NOTNULL(gnss_imu_initializer);
+  
+  // Arrange to window length
+  ImuMeasurements imu_measurements;
+  gnss_imu_initializer->arrangeToEstimator(
+    srr_options_.max_gnss_window_length_minor, marginalization_error_, states_, 
+    marginalization_residual_id_, gnss_extrinsics_id_, 
+    gnss_solution_measurements_, imu_measurements);
+  for (auto it = imu_measurements.rbegin(); it != imu_measurements.rend(); it++) {
     imu_mutex_.lock();
-    imu_measurements_.push_back(imu_measurement);
+    imu_measurements_.push_front(*it);
     imu_mutex_.unlock();
   }
 
-  // delete used IMU measurement
-  imu_mutex_.lock();
-  while (imu_measurements_.front().timestamp < oldestState().timestamp - 1.0) {
-    imu_measurements_.pop_front();
-  }
-  imu_mutex_.unlock();
-}
-
-// Apply ceres optimization
-void GnssImuCameraSrrEstimator::optimize()
-{
-  graph_->options.linear_solver_type = ceres::DENSE_SCHUR;
-  graph_->options.trust_region_strategy_type = ceres::DOGLEG;
-  graph_->options.num_threads = options_.num_threads;
-  graph_->options.max_num_iterations = options_.max_iteration;
-  graph_->options.max_solver_time_in_seconds = 0.04;
-
-  // if (options_.verbose) {
-  //   graph_->options.minimizer_progress_to_stdout = true;
-  // }
-  // else {
-  //   graph_->options.logging_type = ceres::LoggingType::SILENT;
-  //   graph_->options.minimizer_progress_to_stdout = false;
-  // }
-    graph_->options.logging_type = ceres::LoggingType::SILENT;
-    graph_->options.minimizer_progress_to_stdout = false;
-
-  // call solver
-  graph_->solve();
-
-  // {
-  //   std::ofstream outfile;
-  //   outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
-  //   outfile << graph_->summary.BriefReport() << std::endl;
-    
-  //   for (auto residual_map : graph_->residual_block_id_to_parameter_block_collection_map_) {
-  //     auto residual = residual_map.first; ;
-  //     auto error_interface_ptr = graph_->residual_block_id_to_residual_block_spec_map_.at(residual_map.first).error_interface_ptr;
-  //     size_t size = error_interface_ptr->residualDim();
-  //     size_t para_size = residual_map.second.size();
-
-  //     Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(size);
-  //     graph_->problem_->EvaluateResidualBlock(
-  //         residual, false, nullptr, Residuals.data(), nullptr);
-  //     double norm_residual = Residuals.norm();
-  //     if (norm_residual < 10.0)
-  //       outfile << "Residual " << static_cast<int>(error_interface_ptr->typeInfo()) << ": " 
-  //               << residual << ": " << Residuals.transpose() << std::endl;
-  //     else 
-  //       outfile << "*Residual " << static_cast<int>(error_interface_ptr->typeInfo()) << ": " 
-  //               << residual << ": " << Residuals.transpose() << std::endl;
-  //   }
-  //   outfile.close();
-  // }
-
-  if (graph_->summary.initial_cost > 1e4) {
-    LOG(FATAL) << "NOT GOOD";
-  }
-
-  // update landmarks
-  for(auto &id_and_map_point : landmarks_map_) {
-    // update coordinates
-    id_and_map_point.second.hom_coordinates =
-        std::static_pointer_cast<HomogeneousPointParameterBlock>(
-          graph_->parameterBlockPtr(
-            id_and_map_point.first.asInteger()))->estimate();
-  }
-
-  if (options_.verbose) {
-    LOG(INFO) << graph_->summary.BriefReport();
-  }
-
-  // Update frontend variables
-  feature_handler_->lock();
-  // state
-  if (new_state_type_ == IdType::cNFrame) {
-    State& cur_state = curState();
-    feature_handler_->addCameraPose(
-      cur_state.timestamp, getPoseEstimate(cur_state));
-    feature_handler_->setSpeedAndBias(
-      cur_state.timestamp, getSpeedAndBias(cur_state));
-  }
-  // Update map points
-  for(auto &id_and_map_point : landmarks_map_) {
-    id_and_map_point.second.point->pos_=
-        id_and_map_point.second.hom_coordinates.head<3>();
-  }
-  feature_handler_->unlock();
-
-  // Reject landmark outliers
-  if (new_state_type_ == IdType::cNFrame) {
-    feature_handler_->lock();
-    rejectLandmarkOutliers();
-    feature_handler_->unlock();
-  }
-  
-  // Marginalization
-  if (new_state_type_ == IdType::cNFrame) {
-    marginalization();
-  }
-
-  // LOG(INFO) << "### State size = " << states_.size() << ", Para size = " << graph_->parameters().size()
-  //   << " " << ", Res size = " << graph_->residuals().size() << ", per " 
-  //   << (double)graph_->residuals().size() / (double)graph_->parameters().size()
-  //   << ", num_keyframes = " << sizeOfKeyframeStates();
-    
-  // Shift state and measurement
-  if (new_state_type_ == IdType::gPose) gnss_solutions_.push_back(GnssSolution());
-  if (new_state_type_ == IdType::cNFrame) frame_bundles_.push_back(nullptr);
+  // Shift memory for states and measurements
   states_.push_back(State());
-  // only keep measurement data for two epochs
-  if (gnss_solutions_.size() > 2) gnss_solutions_.pop_front();
-  if (frame_bundles_.size() > 2) frame_bundles_.pop_front();
-}
-
-// Get latest pose
-Transformation GnssImuCameraSrrEstimator::getPoseEstimate()
-{
-  State& state = lastState();
-  if (!graph_->parameterBlockExists(state.id.asInteger())) {
-    return Transformation();
-  }
-  return getPoseEstimate(state);
-}
-
-// Get latest speed and bias
-SpeedAndBias GnssImuCameraSrrEstimator::getSpeedAndBias()
-{
-  State& state = lastState();
-  BackendId speed_and_bias_id = changeIdType(state.id, IdType::ImuStates);
-  if (!graph_->parameterBlockExists(speed_and_bias_id.asInteger())) {
-    return SpeedAndBias::Zero();
-  }
-  return getSpeedAndBias(state);
-}
-
-// Get latest GNSS extrinsics
-Eigen::Vector3d GnssImuCameraSrrEstimator::getGnssExtrinsic()
-{
-  State& state = lastGnssState();
-  CHECK(state.valid());
-  BackendId gnss_extrinsics_id = changeIdType(state.id, IdType::gExtrinsics);
-  if (!graph_->parameterBlockExists(gnss_extrinsics_id.asInteger())) {
-    return Eigen::Vector3d::Zero();
-  }
-
-  std::shared_ptr<PositionParameterBlock> block_ptr =
-      std::static_pointer_cast<PositionParameterBlock>(
-        graph_->parameterBlockPtr(gnss_extrinsics_id.asInteger()));
-  CHECK(block_ptr != nullptr);
-  return block_ptr->estimate();
+  gnss_solution_measurements_.push_back(GnssSolution());
 }
 
 // Marginalization
-bool GnssImuCameraSrrEstimator::marginalization()
+bool GnssImuCameraSrrEstimator::marginalization(const IdType& type)
 {
+  if (type == IdType::cPose) return frameMarginalization();
+  else if (type == IdType::gPose) return gnssMarginalization();
+  else return false;
+}
+
+// Marginalization when the new state is a frame state
+bool GnssImuCameraSrrEstimator::frameMarginalization()
+{
+  // Check if we need marginalization
   if (isFirstEpoch()) return true;
-  State& last_frame_state = lastFrameState();
-  if (!last_frame_state.valid()) return true;
 
-  // remove linear marginalizationError, if existing
-  if (marginalization_error_ptr_ && marginalization_residual_id_)
-  {
-    bool success = graph_->removeResidualBlock(marginalization_residual_id_);
-    CHECK(success) << "could not remove marginalization error";
-    marginalization_residual_id_ = 0;
-    if (!success) return false;
-  }
-
-  // these will keep track of what we want to marginalize out.
-  std::vector<uint64_t> parameter_blocks_to_be_marginalized;
-  std::vector<bool> keep_parameter_blocks;
-
-  // Case 1: Last frame is not a keyframe. Through last frame away.
-  if (!last_frame_state.is_keyframe)
-  {
-    // remove feature measurements
-    Graph::ResidualBlockCollection residuals = 
-      graph_->residuals(last_frame_state.id.asInteger());
-    for (size_t r = 0; r < residuals.size(); ++r) {
-      if (residuals[r].error_interface_ptr->typeInfo() 
-          != ErrorType::kReprojectionError) continue;
-
-      removeLandmarkObservation(residuals[r].residual_block_id);
+  // Make sure that only current state can be non-keyframe
+  for (int i = 0; i < states_.size() - 1; i++) {
+    if (states_[i].id.type() != IdType::cPose) continue;
+    if (!states_[i].is_keyframe) {
+      eraseReprojectionErrorResidualBlocks(states_[i]);
+      eraseImuState(states_[i]);
+      i--;
     }
-
-    // remove state
-    eraseState(last_frame_state.timestamp, last_frame_state.id);
   }
-  // Case 2: Last frame is a keyframe. Marginalize the oldest keyframe and corresponding 
-  // IMU and GNSS states out. 
-  else if (sizeOfKeyframeStates() > options_.max_keyframes)
-  {
+
+  // If current frame is a keyframe. Marginalize the oldest keyframe and corresponding 
+  // IMU and GNSS states out. And sparsify GNSS states.
+  if (curState().is_keyframe &&
+      sizeOfKeyframeStates() > srr_options_.max_keyframes) {
+    // Erase old marginalization item
+    if (!eraseOldMarginalization()) return false;
+
+    // Add marginalization items
     // marginalize oldest keyframe state, which actually, all the states before the 
     // second keyframe state
     bool passed_first_keyframe = false;
-    BackendId margin_keyframe_id;
+    State margin_keyframe_state;
     for (auto it = states_.begin(); it != states_.end();) {
       State& state = *it;
       // reached the second keyframe
       if (passed_first_keyframe && state.is_keyframe) break;
       // passed the first keyframe
       if (state.is_keyframe) passed_first_keyframe = true;
+      
+      // mark marginalized keyframe state
+      if (state.is_keyframe) margin_keyframe_state = state;
 
-      BackendId pose_id = state.id;
-      if (state.is_keyframe) margin_keyframe_id = pose_id;
-
-      // Pose parameter
-      if (graph_->parameterBlockExists(pose_id.asInteger())) {
-        parameter_blocks_to_be_marginalized.push_back(pose_id.asInteger());
-        keep_parameter_blocks.push_back(false);
-
-        // Get all residuals connected to this state.
-        Graph::ResidualBlockCollection residuals = 
-          graph_->residuals(pose_id.asInteger());
-        for (size_t r = 0; r < residuals.size(); ++r) {
-          // Not now for keyframe, we add the reprojection errors latter.
-          // For non-keyframe reprojection errors, we have already erased most of them
-          // at Case 1. The rest were added when a new landmark parameter was registered.
-          // Whether they can be or cannot be observed by other keyframes, we do not need
-          // them any more. So we can margin them now.
-          if (state.is_keyframe && residuals[r].error_interface_ptr->typeInfo() 
-              == ErrorType::kReprojectionError) continue;
-
-          marginalization_error_ptr_->addResidualBlock(
-                residuals[r].residual_block_id);
-        }
+      // add margin blocks
+      // IMU parameters
+      // Keyframe, we add the reprojection errors latter.
+      if (state.is_keyframe) {
+        addImuStateMarginBlock(state);
+        addImuResidualMarginBlocks(state);
       }
-
-      // Speed and bias parameter
-      BackendId speed_and_bias_id = changeIdType(pose_id, IdType::ImuStates);
-      if (graph_->parameterBlockExists(speed_and_bias_id.asInteger())) {
-        parameter_blocks_to_be_marginalized.push_back(speed_and_bias_id.asInteger());
-        keep_parameter_blocks.push_back(false);
-
-        // Get all residuals connected to this state.
-        Graph::ResidualBlockCollection residuals = 
-          graph_->residuals(speed_and_bias_id.asInteger());
-        for (size_t r = 0; r < residuals.size(); ++r) {
-          marginalization_error_ptr_->addResidualBlock(
-                residuals[r].residual_block_id);
-        }
-      }
-
-      // Camera extrinsics parameter
-      // we do not need to marginalize camera extrinsics because we setted it as constant
-      if (pose_id.type() == IdType::cNFrame && false) {
-        
-      }
-
-      // GNSS extrinsics parameter
-      // we do not need to marginalize GNSS extrinsics because we setted it as global
-      if (pose_id.type() == IdType::gPose) {
-
+      // GNSS states
+      else {
+        CHECK(state.id.type() == IdType::gPose) << (int)state.id.asInteger();
+        addImuStateMarginBlock(state);
+        addImuResidualMarginBlocks(state);
+        addGnssLooseResidualMarginBlocks(state);
       }
 
       // Erase state
@@ -535,536 +364,101 @@ bool GnssImuCameraSrrEstimator::marginalization()
     }
 
     // landmarks
-    for(PointMap::iterator pit = landmarks_map_.begin();
-        pit != landmarks_map_.end();)
-    {
-      Graph::ResidualBlockCollection residuals =
-          graph_->residuals(pit->first.asInteger());
-      // TODO: error here when replay with high frequency
-      CHECK(residuals.size() != 0);
+    eraseEmptyLandmarks();
+    addLandmarkParameterMarginBlocksWithResiduals(margin_keyframe_state);
 
-      // First loop: check if we can skip
-      bool at_pose_to_margin = false;
-      size_t num_at_other_poses = 0;
-      for (size_t r = 0; r < residuals.size(); ++r)
-      {
-        if (residuals[r].error_interface_ptr->typeInfo() 
-            != ErrorType::kReprojectionError) continue;
+    // Apply marginalization and add the item into graph
+    bool ret = applyMarginalization();
 
-        BackendId pose_id(graph_->parameters(
-            residuals[r].residual_block_id).at(0).first);
-        bool is_keyframe = false;
-        for (auto state : states_) {
-          if (state.is_keyframe && (state.id == pose_id)) {
-            is_keyframe = true; break;
-          }
-        }
+    return ret;
+  }
 
-        // if the landmark is visible in the frames to marginalize
-        if(pose_id == margin_keyframe_id) at_pose_to_margin = true;
+  return true;
+}
 
-        // the landmark is still visible in keyframes of the sliding window
-        if(is_keyframe && (pose_id.bundleId() != margin_keyframe_id.bundleId())) {
-          num_at_other_poses++;
-        }
-      }
+// Marginalization when the new state is a GNSS state
+bool GnssImuCameraSrrEstimator::gnssMarginalization()
+{
+  // Check if we need marginalization
+  if (isFirstEpoch()) return true;
 
-      // the landmark is not affected by the marginalization
-      if(!at_pose_to_margin) {
-        pit++;
-        continue;
-      }
+  // Visual not initialzed, only handle GNSS and INS
+  if (!visual_initialized_) {
+    // check if we need marginalization
+    if (states_.size() < srr_options_.max_gnss_window_length_minor) {
+      return true;
+    }
 
-      // Second loop: actually collect residuals to marginalize
-      bool do_margin = false;
-      for (size_t r = 0; r < residuals.size(); ++r)
-      {
-        if (residuals[r].error_interface_ptr->typeInfo() 
-            != ErrorType::kReprojectionError) continue;
-        
-        BackendId pose_id(graph_->parameters(
-          residuals[r].residual_block_id).at(0).first);
-        
-        // can be observed by at least two keyframes, margin the observation 
-        // at current keyframe
-        if (at_pose_to_margin && num_at_other_poses >= 2)
-        {
-          if (pose_id == margin_keyframe_id) {
-            marginalization_error_ptr_->addResidualBlock(
-                  residuals[r].residual_block_id);
-          }
-        }
-        // cannot be observed by at least two other keyframes, marginalize 
-        // the landmark and its observations
-        else if(at_pose_to_margin && num_at_other_poses < 2)
-        {
-          // add information to be considered in marginalization later.
-          do_margin = true;
-          // the residual term is deleted from the map as well
-          marginalization_error_ptr_->addResidualBlock(
-                residuals[r].residual_block_id);
-        }
-      }
+    // Erase old marginalization item
+    if (!eraseOldMarginalization()) return false;
 
-      // deal with parameter blocks
-      if (do_margin) {
-        parameter_blocks_to_be_marginalized.push_back(pit->first.asInteger());
-        keep_parameter_blocks.push_back(false);
-        pit->second.point->in_ba_graph_ = false;
-        pit = landmarks_map_.erase(pit);
-        continue;
-      }
+    // Add marginalization items
+    // IMU states and residuals
+    addImuStateMarginBlockWithResiduals(oldestState());
 
-      pit++;
+    // Apply marginalization and add the item into graph
+    bool ret = applyMarginalization();
+
+    return ret;
+  }
+  // Visual initialized, handle all the sensors
+  else {
+    sparsifyGnssStates();
+  }
+
+  return true;
+}
+
+// Sparsify GNSS states to bound computational load
+void GnssImuCameraSrrEstimator::sparsifyGnssStates()
+{
+  // Check if we need to sparsify
+  std::vector<BackendId> gnss_ids;
+  std::vector<int> num_neighbors;
+  int max_num_neighbors = 0;
+  for (int i = 0; i < states_.size(); i++) {
+    if (states_[i].id.type() != IdType::gPose) continue;
+    gnss_ids.push_back(states_[i].id);
+    // find neighbors
+    num_neighbors.push_back(0);
+    int idx = num_neighbors.size() - 1;
+    if (i - 1 >= 0) for (int j = i - 1; j >= 0; j--) {
+      if (states_[j].id.type() != IdType::gPose) break;
+      num_neighbors[idx]++;
     } 
-
-    // Delete active keyframe
-    active_keyframes_.pop_front();
-  }
-
-  // remove redundant GNSS
-  eraseRedundantGnssMeasurements();
-
-  // Apply marginalization
-  marginalization_error_ptr_->marginalizeOut(parameter_blocks_to_be_marginalized,
-                                             keep_parameter_blocks);
-
-  // update error computation
-  if(parameter_blocks_to_be_marginalized.size() > 0) {
-    marginalization_error_ptr_->updateErrorComputation();
-  }                              
-
-  // add the marginalization term again
-  if(marginalization_error_ptr_->num_residuals()==0)
-  {
-    marginalization_error_ptr_.reset();
-  }
-  if (marginalization_error_ptr_)
-  {
-    std::vector<std::shared_ptr<ParameterBlock> > parameter_block_ptrs;
-    marginalization_error_ptr_->getParameterBlockPtrs(parameter_block_ptrs);
-    marginalization_residual_id_ = graph_->addResidualBlock(
-          marginalization_error_ptr_, nullptr, parameter_block_ptrs);
-    CHECK(marginalization_residual_id_)
-        << "could not add marginalization error";
-    if (!marginalization_residual_id_)
-    {
-      return false;
+    if (i + 1 < states_.size()) for (int j = i; j < states_.size(); j++) {
+      if (states_[j].id.type() != IdType::gPose) break;
+      num_neighbors[idx]++;
+    } 
+    if (max_num_neighbors < num_neighbors[idx]) {
+      max_num_neighbors = num_neighbors[idx];
     }
   }
+  if (gnss_ids.size() <= srr_options_.max_keyframes) return;
 
-  return true;
-}
-
-// Wait for IMU data
-bool GnssImuCameraSrrEstimator::waitForImuData(double timestamp)
-{
-  int num_wait = 0, max_wait = 10;
-  imu_mutex_.lock();
-  double imu_timestamp = imu_measurements_.back().timestamp;
-  imu_mutex_.unlock();
-  while (timestamp - options_.imu_parameters.delay_imu_cam > 
-          imu_timestamp) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    if (++num_wait > max_wait) {
-      LOG(ERROR) << "Waiting time for IMU exceeded! Timestamp needed = "
-                  << std::fixed << timestamp - options_.imu_parameters.delay_imu_cam 
-                  << ". Latest IMU timestamp = " 
-                  << std::fixed << imu_timestamp;
-      return false;
+  // Erase some GNSS states
+  // The states with most neighbors will be erased first
+  int num_to_erase = gnss_ids.size() - srr_options_.max_keyframes;
+  std::vector<BackendId> ids_to_erase;
+  for (int m = max_num_neighbors; m >= 0; m--) {
+    for (size_t i = 0; i < num_neighbors.size(); i++) {
+      if (num_neighbors[i] != m) continue;
+      if (i == 0) continue;  // in case the first one connects to margin block
+      ids_to_erase.push_back(gnss_ids[i]);
+      if (ids_to_erase.size() >= num_to_erase) break;
     }
+    if (ids_to_erase.size() >= num_to_erase) break;
   }
-  return true;
-}
-
-// Add landmark observation
-ceres::ResidualBlockId GnssImuCameraSrrEstimator::addLandmarkObservation(
-  const FramePtr& frame, const size_t keypoint_idx)
-{
-  const BackendId pose_id = createNFrameId(frame->bundleId());
-  CHECK_GE(frame->level_vec_(keypoint_idx), 0);
-  const int cam_idx = frame->getNFrameIndex();
-  // get Landmark ID.
-  const BackendId landmark_backend_id = createLandmarkId(
-        frame->track_id_vec_[keypoint_idx]);
-  CHECK(isLandmarkInEstimator(landmark_backend_id)) << "landmark not added";
-
-  KeypointIdentifier kid(frame, keypoint_idx);
-  // check for double observations
-  CHECK(landmarks_map_.at(landmark_backend_id).observations.find(kid)
-              == landmarks_map_.at(landmark_backend_id).observations.end())
-      << "Trying to add the same landmark for the second time";
-
-  // get the keypoint measurement
-  if (std::find_if(states_.begin(), states_.end(), [pose_id](State& state) 
-      { return (pose_id == state.id); }) == states_.end()) {
-    LOG(ERROR) << "Tried to add observation for frame that is either already "
-               << "marginalized out or not yet added to the state. ID = "
-               << pose_id.bundleId();
-    return nullptr;
-  }
-
-  Eigen::Matrix2d information = Eigen::Matrix2d::Identity();
-  information *= options_.feature_error_std / 
-    static_cast<double>(1 << frame->level_vec_(keypoint_idx));
-
-  // create error term
-  std::shared_ptr<ReprojectionError> reprojection_error =
-      std::make_shared<ReprojectionError>(
-        frame->cam(),
-        frame->px_vec_.col(keypoint_idx), information);
-  ceres::ResidualBlockId ret_val = graph_->addResidualBlock(
-        reprojection_error,
-        cauchy_loss_function_ptr_ ? cauchy_loss_function_ptr_.get() : nullptr,
-        graph_->parameterBlockPtr(pose_id.asInteger()),
-        graph_->parameterBlockPtr(landmark_backend_id.asInteger()),
-        graph_->parameterBlockPtr(camera_extrinsics_id_.asInteger()));
-
-  // remember
-  landmarks_map_.at(landmark_backend_id).observations.insert(
-        std::pair<KeypointIdentifier, uint64_t>(
-          kid, reinterpret_cast<uint64_t>(ret_val)));
-
-  return ret_val;
-}
-
-// Remove landmark observation
-bool GnssImuCameraSrrEstimator::removeLandmarkObservation(
-    ceres::ResidualBlockId residual_block_id)
-{
-  const Graph::ParameterBlockCollection parameters =
-      graph_->parameters(residual_block_id);
-  const BackendId landmarkId(parameters.at(1).first);
-  CHECK(landmarkId.type() == IdType::cLandmark);
-  // remove in landmarksMap
-  MapPoint& map_point = landmarks_map_.at(landmarkId);
-  for(auto it = map_point.observations.begin();
-      it!= map_point.observations.end();)
-  {
-    if(it->second == uint64_t(residual_block_id))
-    {
-      it = map_point.observations.erase(it);
+  CHECK(ids_to_erase.size() >= num_to_erase);
+  for (int i = 0; i < states_.size(); i++) {
+    if (std::find(ids_to_erase.begin(), ids_to_erase.end(), states_[i].id) 
+        == ids_to_erase.end()) {
+      continue;
     }
-    else
-    {
-      ++it;
-    }
-  }
-  // remove residual block
-  graph_->removeResidualBlock(residual_block_id);
-  return true;
-}
-
-// Erase redundant GNSS measurements
-int GnssImuCameraSrrEstimator::eraseRedundantGnssMeasurements()
-{
-  int num_left = 0;
-  bool has_space = true;
-  // TODO: 反向迭代
-  for (int i = states_.size() - 1; i >= 0; i--) {
-    State& state = states_[i];
-    if (state.id.type() == IdType::gPose) {
-      if (has_space) {
-        has_space = false;
-        num_left++; continue;
-      }
-      // erase redundant
-      Graph::ResidualBlockCollection residuals = 
-        graph_->residuals(state.id.asInteger());
-      for (size_t r = 0; r < residuals.size(); ++r) {
-        if (residuals[r].error_interface_ptr->typeInfo() 
-            == ErrorType::kPositionError) {
-          graph_->removeResidualBlock(residuals[r].residual_block_id);
-        }
-      }
-      eraseState(state.timestamp, state.id);
-    }
-
-    if (state.is_keyframe) has_space = true;
-  }
-
-  return num_left;
-}
-
-// Get pose estimate at a given ID
-Transformation GnssImuCameraSrrEstimator::getPoseEstimate(const State& state)
-{
-  BackendId id = state.id;
-  std::shared_ptr<PoseParameterBlock> block_ptr =
-      std::static_pointer_cast<PoseParameterBlock>(
-        graph_->parameterBlockPtr(id.asInteger()));
-  CHECK(block_ptr != nullptr);
-  return block_ptr->estimate();
-}
-
-// Get speed and bias estimate at a given state
-SpeedAndBias GnssImuCameraSrrEstimator::getSpeedAndBias(const State& state)
-{
-  BackendId id = changeIdType(state.id, IdType::ImuStates);
-  std::shared_ptr<SpeedAndBiasParameterBlock> block_ptr =
-      std::static_pointer_cast<SpeedAndBiasParameterBlock>(
-        graph_->parameterBlockPtr(id.asInteger()));
-  CHECK(block_ptr != nullptr);
-  return block_ptr->estimate();
-}
-
-// Add a state at end of window
-bool GnssImuCameraSrrEstimator::pushBackState(
-  double timestamp, BackendId id, bool is_keyframe)
-{
-  // Get last state
-  State& last_state = lastState();
-  CHECK(last_state.valid() && checkLessEqual(last_state.timestamp, timestamp));
-
-  // Add new state and IMU connection
-  // propagate state
-  Transformation T_WS = getPoseEstimate(last_state);
-  SpeedAndBias speed_and_bias = getSpeedAndBias(last_state);
-  double last_timestamp = last_state.timestamp;
-  imu_mutex_.lock();
-  ImuError::propagation(
-    imu_measurements_, options_.imu_parameters, T_WS, speed_and_bias,
-    last_timestamp, timestamp, nullptr, nullptr);
-  imu_mutex_.unlock();
-  T_WS.getRotation().normalize();
-
-  // add pose block
-  std::shared_ptr<PoseParameterBlock> pose_parameter_block = 
-    std::make_shared<PoseParameterBlock>(T_WS, id.asInteger());
-  CHECK(graph_->addParameterBlock(pose_parameter_block, Graph::Pose6d));
-  curState().timestamp = timestamp;
-  curState().id = id;
-  curState().is_keyframe = is_keyframe;
-
-  // add speed and bias block
-  BackendId speed_and_bias_id = changeIdType(id, IdType::ImuStates);
-  std::shared_ptr<SpeedAndBiasParameterBlock> speed_and_bias_parameter_block = 
-    std::make_shared<SpeedAndBiasParameterBlock>( 
-    speed_and_bias, speed_and_bias_id.asInteger());
-  CHECK(graph_->addParameterBlock(speed_and_bias_parameter_block));
-
-  // add IMU connection
-  BackendId last_speed_and_bias_id = changeIdType(last_state.id, IdType::ImuStates);
-  imu_mutex_.lock();
-  std::shared_ptr<ImuError> imu_error =
-    std::make_shared<ImuError>(imu_measurements_, options_.imu_parameters,
-                              last_timestamp, timestamp);
-  imu_mutex_.unlock();
-  curState().imu_residual_to_lhs = 
-    graph_->addResidualBlock(imu_error, nullptr, 
-      graph_->parameterBlockPtr(last_state.id.asInteger()), 
-      graph_->parameterBlockPtr(last_speed_and_bias_id.asInteger()), 
-      graph_->parameterBlockPtr(curState().id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id.asInteger()));
-
-  // LOG(INFO) << "Added a state at back! " << curState().imu_residual_to_lhs << " "
-  //   << std::fixed << timestamp;
-
-  return true;
-} 
-
-// Insert a state inside the window
-bool GnssImuCameraSrrEstimator::insertState(
-  double timestamp, BackendId id, bool is_keyframe)
-{
-  // Find two states around the timestamp
-  State state_lhs, state_rhs;
-  size_t index_lhs, index_rhs;
-  for (size_t i = states_.size() - 1; i >= 0; i--) {
-    State& state = states_[i];
-    if (state.valid() && state.timestamp > timestamp) {
-      state_rhs = state;
-      index_rhs = i;
-    }
-    if (state.valid() && state.timestamp <= timestamp) {
-      state_lhs = state;
-      index_lhs = i;
-      break;
-    }
-  }
-  CHECK(state_lhs.valid() && state_rhs.valid()) << "Timestamp " << std::fixed
-    << timestamp << " is not in current sliding window!";
-
-  // Delete IMU connection
-  bool ret = graph_->removeResidualBlock(state_rhs.imu_residual_to_lhs);
-  CHECK(ret) << "Cannot remove IMU residual block!";
-
-  // Add new state and IMU connection
-  // propagate state
-  Transformation T_WS = getPoseEstimate(state_lhs);
-  SpeedAndBias speed_and_bias = getSpeedAndBias(state_lhs);
-  double timestamp_lhs = state_lhs.timestamp;
-  imu_mutex_.lock();
-  ImuError::propagation(
-    imu_measurements_, options_.imu_parameters, T_WS, speed_and_bias,
-    timestamp_lhs, timestamp, nullptr, nullptr);
-  imu_mutex_.unlock();
-  T_WS.getRotation().normalize();
-
-  // add pose block
-  std::shared_ptr<PoseParameterBlock> pose_parameter_block = 
-    std::make_shared<PoseParameterBlock>(T_WS, id.asInteger());
-  CHECK(graph_->addParameterBlock(pose_parameter_block, Graph::Pose6d));
-  auto it_lhs = states_.begin(); std::advance(it_lhs, index_lhs + 1);
-  State state;
-  state.timestamp = timestamp;
-  state.id = id;
-  state.is_keyframe = is_keyframe;
-  auto it_cur = states_.insert(it_lhs, state);
-  State& cur_state = *it_cur;
-  // free the pre-occupied state memory
-  states_.pop_back();
-
-  // add speed and bias block
-  BackendId speed_and_bias_id = changeIdType(id, IdType::ImuStates);
-  std::shared_ptr<SpeedAndBiasParameterBlock> speed_and_bias_parameter_block = 
-    std::make_shared<SpeedAndBiasParameterBlock>(
-    speed_and_bias, speed_and_bias_id.asInteger());
-  CHECK(graph_->addParameterBlock(speed_and_bias_parameter_block));
-
-  // add LHS IMU connection
-  BackendId speed_and_bias_id_lhs = changeIdType(state_lhs.id, IdType::ImuStates);
-  imu_mutex_.lock();
-  std::shared_ptr<ImuError> imu_error_lhs =
-    std::make_shared<ImuError>(imu_measurements_, options_.imu_parameters,
-                              timestamp_lhs, timestamp);
-  imu_mutex_.unlock();
-  cur_state.imu_residual_to_lhs = 
-    graph_->addResidualBlock(imu_error_lhs, nullptr, 
-      graph_->parameterBlockPtr(state_lhs.id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id_lhs.asInteger()), 
-      graph_->parameterBlockPtr(cur_state.id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id.asInteger()));
-
-  // add RHS IMU connection
-  BackendId speed_and_bias_id_rhs = changeIdType(state_rhs.id, IdType::ImuStates);
-  double timestamp_rhs = state_rhs.timestamp;
-  imu_mutex_.lock();
-  std::shared_ptr<ImuError> imu_error_rhs =
-    std::make_shared<ImuError>(imu_measurements_, options_.imu_parameters,
-                              timestamp, timestamp_rhs);
-  imu_mutex_.unlock();
-  auto it_rhs = states_.begin(); std::advance(it_rhs, index_rhs + 1);
-  it_rhs->imu_residual_to_lhs = 
-    graph_->addResidualBlock(imu_error_rhs, nullptr, 
-      graph_->parameterBlockPtr(cur_state.id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id.asInteger()), 
-      graph_->parameterBlockPtr(it_rhs->id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id_rhs.asInteger()));
-
-  // LOG(INFO) << "Added a state at middle! " << cur_state.imu_residual_to_lhs << " " << it_rhs->imu_residual_to_lhs;
-
-  return true;
-}
-
-// Erase a state inside the window
-bool GnssImuCameraSrrEstimator::eraseState(
-  double timestamp, BackendId id)
-{
-  // Find two states around the timestamp
-  State state_lhs, state_rhs, state_cur;
-  for (size_t i = states_.size() - 1; i >= 0; i--) {
-    State& state = states_[i];
-    if (checkEqual(timestamp, state.timestamp) && id == state.id) {
-      state_cur = state; 
-      CHECK((i + 1 < states_.size()) && (i - 1 >= 0));
-      state_rhs = states_[i + 1];
-      state_lhs = states_[i - 1];
-      break;
-    }
-  }
-  CHECK(state_lhs.valid() && state_rhs.valid()) << "Timestamp " << std::fixed
-    << timestamp << " is not in current sliding window!";
-
-  // Erase state
-  Graph::ResidualBlockCollection residuals = 
-    graph_->residuals(id.asInteger());
-  for (size_t r = 0; r < residuals.size(); ++r) {
-    graph_->removeResidualBlock(residuals[r].residual_block_id);
-  }
-  graph_->removeParameterBlock(id.asInteger());
-  graph_->removeParameterBlock(changeIdType(id, IdType::ImuStates).asInteger());
-
-  // Connect lhs and rhs state
-  BackendId speed_and_bias_id_lhs = changeIdType(state_lhs.id, IdType::ImuStates);
-  BackendId speed_and_bias_id_rhs = changeIdType(state_rhs.id, IdType::ImuStates);
-  imu_mutex_.lock();
-  std::shared_ptr<ImuError> imu_error_lhs =
-    std::make_shared<ImuError>(imu_measurements_, options_.imu_parameters,
-                              state_lhs.timestamp, state_rhs.timestamp);
-  imu_mutex_.unlock();
-  state_lhs.imu_residual_to_lhs = 
-    graph_->addResidualBlock(imu_error_lhs, nullptr, 
-      graph_->parameterBlockPtr(state_lhs.id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id_lhs.asInteger()), 
-      graph_->parameterBlockPtr(state_rhs.id.asInteger()), 
-      graph_->parameterBlockPtr(speed_and_bias_id_rhs.asInteger()));
-
-  // Erase state handle
-  for (auto it = states_.begin(); it != states_.end(); it++) {
-    if (it->id == id) {
-      states_.erase(it); break;
-    }
-  }
-
-  // LOG(INFO) << "Erase a state at middle! " << state_lhs.imu_residual_to_lhs << 
-  //   " delete " << std::fixed << timestamp << " add " << state_lhs.timestamp << 
-  //   " and " << state_rhs.timestamp;
-
-  return true;
-}
-
-// Reject landmark outliers at current frame
-void GnssImuCameraSrrEstimator::rejectLandmarkOutliers()
-{
-  const double outlier_threshold = options_.landmark_outlier_rejection_threshold;
-  int num_rejected = 0;
-  for(auto it = landmarks_map_.begin(); it != landmarks_map_.end(); )
-  {
-    const BackendId& landmark_id = it->first;
-    MapPoint& map_point = it->second;
-
-    // calculate residual
-    bool need_add_it = true;
-    for (auto obs : map_point.observations) {
-      if (obs.first.frame_id != curFrame()->id()) continue;
-
-      ceres::ResidualBlockId residual_block_id = ceres::ResidualBlockId(obs.second);
-      Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(2);
-      graph_->problem()->EvaluateResidualBlock(
-          residual_block_id, false, nullptr, Residuals.data(), nullptr);
-      // outlier detected
-      if (Residuals.norm() > outlier_threshold) {
-        // erase in backend
-        removeLandmarkObservation(residual_block_id);
-
-        // notify to frontend
-        for (auto front_obs : map_point.point->obs_) {
-          if (FramePtr f = front_obs.frame.lock()) {
-            f->type_vec_[front_obs.keypoint_index_] = FeatureType::kOutlier;
-          }
-        }
-
-        // check if no observation left
-        if (map_point.observations.size() == 0) {
-          graph_->removeParameterBlock(landmark_id.asInteger());
-          map_point.point->in_ba_graph_ = false;
-          it = landmarks_map_.erase(it);
-          need_add_it = false;
-        }
-
-        num_rejected++;
-        break;
-      }
-    }
-
-    if (need_add_it) it++;
-  }
-
-  if (num_rejected > 0) {
-    LOG(INFO) << "Rejected " << num_rejected << " landmark outliers. Remaining " 
-              << landmarks_map_.size() << " landmarks.";
+    eraseGnssLooseResidualBlocks(states_[i]);
+    eraseImuState(states_[i]);
+    i--;
   }
 }
 
-}
+};

@@ -1,0 +1,108 @@
+# Gici board configurations
+stream:
+  streamers:
+  - streamer:
+      tag: str_ros_gnss_rov
+      type: ros
+      topic_name: gnss_rover
+      queue_size: 3
+      io: input
+      format: gnss_raw
+      enable_observation: true
+  - streamer:
+      tag: str_ros_gnss_eph
+      type: ros
+      topic_name: gnss_ephemeris
+      queue_size: 3
+      io: input
+      format: gnss_raw
+      enable_ephemeris: true
+  - streamer:
+      tag: str_ros_gnss_ssr
+      type: ros
+      topic_name: gnss_ssr
+      queue_size: 3
+      io: input
+      format: gnss_raw
+      enable_ssr_code_bias: true
+      enable_ssr_ephemeris: true
+  - streamer:
+      tag: str_solution_gnss
+      input_tags: [fmt_solution_gnss]
+      type: file
+      path: /home/cc/datasets/tmp/solution_gnss_replay.txt
+      enable_time_tag: false
+
+  formators:
+  - formator:
+      io: output
+      tag: fmt_solution_gnss
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: false
+
+  replay:
+    enable: false
+
+estimate:
+- estimator:
+    tag: est_ppp
+    type: ppp
+    input_tags: [str_ros_gnss_rov, str_ros_gnss_eph, str_ros_gnss_ssr]
+    str_ros_gnss_rov_roles: [rover]
+    str_ros_gnss_eph_roles: [ephemeris]
+    str_ros_gnss_ssr_roles: [ssr_ephemeris, code_bias]
+    output_tags: [fmt_solution_gnss]
+    loop_duration: 0  
+    output_align_tag: str_ros_gnss_rov
+    compute_covariance: false
+    estimator_base_options:
+      max_iteration: 10
+      num_threads: 2
+      max_solver_time: 0.05
+      verbose_output: true
+      solver_type: dense_schur
+      trust_region_strategy_type: dogleg
+      log_intermediate_data: true
+      log_intermediate_data_directory: /home/cc/datasets/log_estimator
+    gnss_estimator_base_options:
+      use_outlier_rejection: true
+      max_pesudorange_norm_error: 4.0
+      max_phaserange_norm_error: 4.0
+      gnss_common:
+        min_elevation: 7.0
+        max_gdop: 10.0
+        code_exclude: [G|5Q]
+        mw_slip_thres: 3.0
+        gf_slip_thres: 0.05
+        receiver_pco: [0.0, 0.001, 0.4689]
+      gnss_error_parameter:
+        code_to_phase_ratio: 100
+        phase_error_factor: [0.003, 0.003, 0.0]
+        system_error_ratio: [1.0, 5.0, 1.0, 1.5]  # G, R, E, C 
+        relative_position: [0.001, 0.001, 0.001]
+        relative_velocity: [1.0e1, 1.0e1, 1.0e1]
+        relative_ionosphere: 3.0e-2
+        relative_troposphere: 3.0e-4
+        relative_ambiguity: 1.0e-4
+        relative_frequency: 1.0e-2
+        relative_gps_ifcb: 5.0e-4
+        residual_gps_ifcb: 1.0e-2
+    ppp_options:
+      max_window_length: 2
+      use_ambiguity_resolution: false
+      estimate_velocity: false
+    ambiguity_resolution_options:
+      min_elevation: 10.0
+      ratio: 2.0
+      min_percentage_fixation_uwl: 0.8
+      min_percentage_fixation_wl: 0.8
+      min_percentage_fixation_nl: 0.7
+
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: /home/cc/datasets/log

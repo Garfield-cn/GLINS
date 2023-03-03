@@ -69,7 +69,7 @@ bool AbstractVisualInitialization::trackFeaturesAndCheckDisparity(const FrameBun
       std::accumulate(disparity.begin(), disparity.end(), 0.0) / disparity.size();
   if(num_tracked_tot < options_.init_min_features)
   {
-    LOG(WARNING) << "Reseting reference frame!";
+    LOG(INFO) << "Reseting reference frame because there are too few tracked features!";
     // set current frame as reference
     newRefFrames(frames);
     return false;
@@ -135,9 +135,9 @@ bool AbstractVisualInitialization::triangulateAndInitializePoints(
     const FramePtr& frame_ref,
     const Transformation& T_cur_ref,
     const double reprojection_threshold,
-    const double depth_at_current_frame,
     const size_t min_inliers_threshold,
-    std::vector<std::pair<size_t, size_t>>& matches_cur_ref)
+    std::vector<std::pair<size_t, size_t>>& matches_cur_ref, 
+    const double depth_at_current_frame)
 {
   Positions points_in_cur;
   triangulatePoints(
@@ -216,8 +216,11 @@ void AbstractVisualInitialization::rescaleAndInitializePoints(
     depth_vec.push_back(points_in_cur.col(i).norm());
   }
   CHECK_GT(depth_vec.size(), 1u);
-  const double scene_depth_median = vk::getMedian(depth_vec);
-  const double scale = depth_at_current_frame / scene_depth_median;
+  double scale = 1.0;
+  if (depth_at_current_frame != 0.0) {
+    const double scene_depth_median = vk::getMedian(depth_vec);
+    depth_at_current_frame / scene_depth_median;
+  }
 
   // reset pose of current frame to have right scale
   frame_cur->T_f_w_ = T_cur_ref * frame_ref->T_f_w_;
@@ -321,7 +324,7 @@ VisualInitResult HomographyVisualInit::addFrameBundle(
   // Triangulate
   if(triangulateAndInitializePoints(
         frames_cur->at(0), ref_frames_->at(0), T_cur_ref, options_.reproj_error_thresh,
-        options_.init_map_scale, options_.init_min_inliers, matches_cur_ref))
+        options_.init_min_inliers, matches_cur_ref, options_.init_map_scale))
   {
     return VisualInitResult::kSuccess;
   }
@@ -360,7 +363,7 @@ VisualInitResult FundamentalVisualInit::addFrameBundle(
     options_.reproj_error_thresh, T_cur_ref);
   if(num_valid < options_.init_min_inliers)
   {
-    LOG(WARNING) << "Init Fundamental: Have " << num_valid << "inliers. "
+    LOG(WARNING) << "Init Fundamental: Have " << num_valid << " inliers. "
                     << options_.init_min_inliers << " inliers minimum required.";
     return VisualInitResult::kFailure;
   }
@@ -368,7 +371,7 @@ VisualInitResult FundamentalVisualInit::addFrameBundle(
   // Triangulate
   if(triangulateAndInitializePoints(
         frames_cur->at(0), ref_frames_->at(0), T_cur_ref, options_.reproj_error_thresh,
-        options_.init_map_scale, options_.init_min_inliers, matches_cur_ref))
+        options_.init_min_inliers, matches_cur_ref))
   {
     return VisualInitResult::kSuccess;
   }

@@ -4,7 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/stream/stream_handle.h"
+#include "gici/stream/node_handle.h"
 #include "gici/utility/signal_handle.h"
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
@@ -67,9 +67,9 @@ int main(void)
   RtkEstimator estimator(estimator_options);
 
   YAML::Node stream_config = config["stream"];
-  StreamHandle stream_handle(stream_config);
+  NodeHandle stream_handle(stream_config);
 
-  StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
+  NodeHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
   std::vector<std::string> tags{"str-ref", "str-head"};
   stream_handle.setGnssCallback(gnss_callback, tags);
 

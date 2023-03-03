@@ -4,7 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/stream/stream_handle.h"
+#include "gici/stream/node_handle.h"
 #include "gici/utility/signal_handle.h"
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
@@ -53,13 +53,13 @@ int main(void)
   gici::initializeSignalHandles();
 
   YAML::Node stream_config = config["stream"];
-  gici::StreamHandle stream_handle(stream_config);
+  gici::NodeHandle stream_handle(stream_config);
 
-  gici::StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
+  gici::NodeHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
   stream_handle.setGnssCallback(gnss_callback);
-  gici::StreamHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
+  gici::NodeHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
   stream_handle.setImuCallback(imu_callback);
-  gici::StreamHandle::ImageCallback image_callback = std::bind(imageCallback, std::placeholders::_1, std::placeholders::_2);
+  gici::NodeHandle::ImageCallback image_callback = std::bind(imageCallback, std::placeholders::_1, std::placeholders::_2);
   stream_handle.setImageCallback(image_callback);
 
   gici::SpinControl spin(1e-3);

@@ -14,6 +14,7 @@ enum class CommonParameterBlockType {
   Position,
   Velocity,
   Clock,
+  Ifb,
   Frequency,
   Ambiguity,
   Ionosphere,
@@ -133,6 +134,7 @@ public:
     PRINT_MAP(Position);
     PRINT_MAP(Velocity);
     PRINT_MAP(Clock);
+    PRINT_MAP(Ifb);
     PRINT_MAP(Frequency);
     PRINT_MAP(Ambiguity);
     PRINT_MAP(Ionosphere);

@@ -33,6 +33,10 @@ SensorType sensorType(std::string in);
 template <typename OptionType>
 void loadOptions(YAML::Node& node, OptionType& options);
 
+// Copy options for similar estimators
+template <typename OptionTypeIn, typename OptionTypeOut>
+void copyOptions(const OptionTypeIn& in, OptionTypeOut& out);
+
 /// \brief A function to get a value from a YAML node with non-exception error handling.
 /// \param[in] node The YAML node.
 /// \param[in] key The key used to dereference the node (node[key]).

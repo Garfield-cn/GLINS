@@ -14,6 +14,7 @@ namespace gici {
 using PositionParameterBlock = CommonParameterBlock<3, CommonParameterBlockType::Position>;
 using VelocityParameterBlock = CommonParameterBlock<3, CommonParameterBlockType::Velocity>;
 using ClockParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Clock>;
+using IfbParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Ifb>;
 using FrequencyParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Frequency>;
 using AmbiguityParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Ambiguity>;
 using IonosphereParameterBlock = CommonParameterBlock<1, CommonParameterBlockType::Ionosphere>;

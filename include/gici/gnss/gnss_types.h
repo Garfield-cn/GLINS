@@ -14,6 +14,11 @@
 #include <Eigen/Core>
 #include <glog/logging.h>
 
+#include "gici/gnss/code_bias.h"
+#include "gici/gnss/phase_bias.h"
+#include "gici/gnss/phase_windup.h"
+#include "gici/gnss/phase_center.h"
+
 namespace gici {
 
 // Role of formator
@@ -22,8 +27,11 @@ enum class GnssRole {
   Rover,
   Reference,
   Ephemeris,
-  Correction,
+  SsrEphemeris,
+  CodeBias,
+  PhaseBias,
   Heading,
+  PhaseCenter
 };
 
 // Satellite ephemeris types
@@ -35,13 +43,19 @@ enum class SatEphType {
 
 // Ionosphere delay type
 enum class IonoType {
+  None,
   Broadcast,
   DualFrequency,
   Augmentation
 };
 
 // GNSS systems
-extern std::vector<char> GnssSystems;
+extern std::vector<char> gnss_systems;
+
+// Get GNSS system list
+inline std::vector<char>& getGnssSystemList() {
+  return gnss_systems;
+}
 
 // One code type measurement
 struct Observation {
@@ -65,10 +79,6 @@ struct Satellite {
   double sat_clock;
   double sat_frequency;
 
-  // Biases in meter: dbias = bias(pair.second) - bias(pair.first)
-  std::map<std::pair<int, int>, double> DCBs;
-  std::map<std::pair<int, int>, double> DPBs;
-
   double ionosphere;  // In 1575.42 MHz frequency
   IonoType ionosphere_type;
   
@@ -90,6 +100,12 @@ struct GnssMeasurementIndex {
     prn(prn), code_type(code_type) {}
   std::string prn;
   int code_type;
+
+  inline bool operator==(const GnssMeasurementIndex index) {
+    if (index.code_type != code_type) return false;
+    if (index.prn != prn) return false;
+    return true;
+  }
 };
 
 // Pairs
@@ -130,6 +146,18 @@ struct GnssMeasurement {
   Eigen::VectorXd ionosphere_parameters;  // GPS broadcast ionosphere parameters
   double troposphere_wet;  // Wet ZTD from augmentation
 
+  // Code bias handle
+  CodeBiasPtr code_bias;
+
+  // Phase bias handle
+  PhaseBiasPtr phase_bias;
+
+  // Phase center handle (PCVs and PCOs)
+  PhaseCenterPtr phase_center;
+
+  // Phase wind-up handle
+  PhaseWindupPtr phase_windup;
+
   inline Satellite& getSat(std::string prn) { 
     auto it = satellites.find(prn);
     CHECK(it != satellites.end());
@@ -167,9 +195,6 @@ struct GnssMeasurement {
   static int32_t epoch_cnt_;
 };
 
-using GnssMeasurements = std::vector<GnssMeasurement, 
-  Eigen::aligned_allocator<GnssMeasurement>>;
-
 // Observation type
 enum class ObservationType {
   Pseudorange,
@@ -199,6 +224,8 @@ struct GnssSolution {
   GnssSolutionStatus status;
   int num_satellites;
   int differential_age;
+  bool has_velocity = false;
+  bool has_position = false;
 };
 
 // GNSS common options
@@ -218,6 +245,13 @@ struct GnssCommonOptions {
   // Minimum elevation angle (deg)
   double min_elevation = 7.0;
 
+  // Minimum SNR for frequencies 1575.42 MHz (L1) and 1176.45 MHz (L5).
+  // SNR masks for other frequencies will be interpolated by a linear model.
+  Eigen::Vector2d min_SNR = Eigen::Vector2d(35.0, 30.0);
+
+  // Maximum GDOP as valid solution
+  double max_gdop = 20.0;
+
   // Threshold for Melbourne-Wubbena (MW) cycle-slip detection (m)
   double mw_slip_thres = 0.5;
 
@@ -226,6 +260,9 @@ struct GnssCommonOptions {
 
   // Threshold for single differenced GF cycle-slip detection (m)
   double gf_sd_slip_thres = 0.05;
+
+  // Receiver Phaes-Center-Offset (PCO)
+  Eigen::Vector3d receiver_pco = Eigen::Vector3d(0.0, 0.0, 0.0);
 
   // Data period
   double period = 1.0;
@@ -236,8 +273,11 @@ struct GnssErrorParameter {
   // code noise = phase noise * ratio
   double code_to_phase_ratio = 100.0;
 
-  // Error factor according to RTKLIB
-  std::vector<double> phase_error_factor{0.005, 0.005, 0.0};
+  // Error factor a/b/c according to RTKLIB
+  std::vector<double> phase_error_factor{0.003, 0.003, 0.0};
+
+  // Doppler error factor (m/s)
+  double doppler_error_factor = 0.2;
 
   // System error ratio
   std::map<char, double> system_error_ratio = 
@@ -266,6 +306,55 @@ struct GnssErrorParameter {
 
   // Precise ephemeris error
   double ephemeris_precise = 0.1;
+
+  // Initial troposphere error
+  double initial_troposphere = 0.1;
+
+  // Initial ionosphere error
+  double initial_ionosphere = 10.0;
+  
+  // Initial ambiguity error
+  double initial_ambiguity = 10.0;
+
+  // Relative position error in m/sqrt(Hz) in ENU used in GNSS-only positioning
+  Eigen::Vector3d relative_position = Eigen::Vector3d(100.0, 100.0, 100.0);
+
+  // Relative velocity error in m/sqrt(Hz) in ENU used in GNSS-only positioning 
+  // if we estimate receiver velocity, specify this parameter, or, specify the above parameter.
+  Eigen::Vector3d relative_velocity = Eigen::Vector3d(10.0, 10.0, 1.0);
+
+  // Relative troposphere delay error in m/sqrt(Hz)
+  double relative_troposphere = 3.0e-4;
+
+  // Relative ionosphere delay error in m/sqrt(Hz)
+  double relative_ionosphere = 3.0e-2;
+
+  // Relative ambiguity error in m/sqrt(Hz)
+  double relative_ambiguity = 1.0e-4;
+
+  // Relative receiver frequency error
+  double relative_frequency = 1.0e-2;
+
+  // Relative GPS Inter-Frequency Clock Bias (IFCB) error
+  double relative_gps_ifcb = 5.0e-4;
+
+  // Residual amplitude for GPS L5 (influenced by un-calibrated IFCB)
+  double residual_gps_ifcb = 0.02;
 };
+
+// Ambiguity states
+class BackendId;
+class AmbiguityState {
+public:
+  double timestamp = 0.0;
+  std::vector<BackendId> ids;
+
+  inline void clear() {
+    ids.clear(); timestamp = 0.0;
+  }
+};
+
+// Ionosphere states
+using IonosphereState = AmbiguityState;
 
 }

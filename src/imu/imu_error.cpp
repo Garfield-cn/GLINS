@@ -62,9 +62,11 @@ ImuError::ImuError(const ImuMeasurements &imu_measurements,
   setImuMeasurements(imu_measurements);
 
   CHECK(t0_ >= imu_measurements_.front().timestamp)
-      << "First IMU measurement included in ImuError is not old enough!";
+      << "First IMU measurement included in ImuError is not old enough: "
+      << std::fixed << t0_ << " vs " << imu_measurements_.front().timestamp;
   CHECK(t1_ <= imu_measurements_.back().timestamp)
-      << "Last IMU measurement included in ImuError is not new enough!";
+      << "Last IMU measurement included in ImuError is not new enough!"
+      << std::fixed << t1_ << " vs " << imu_measurements_.back().timestamp;
 }
 
 // Propagates pose, speeds and biases with given IMU measurements.
@@ -276,12 +278,6 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   // get the weighting:
   // enforce symmetric
   P_delta_ = 0.5 * P_delta_ + 0.5 * P_delta_.transpose().eval();
-
-  // check if we did not propagate, this is the case when two different sensors
-  // samples at the same time point.
-  if (n_integrated == 0) {
-    P_delta_.setIdentity(); P_delta_ *= 1.0e-12;
-  }
 
   // calculate inverse
   information_ = P_delta_.inverse();

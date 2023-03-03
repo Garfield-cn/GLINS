@@ -81,19 +81,19 @@ bool Graph::parameterBlockExists(uint64_t parameter_block_id) const
 // Log information on a parameter block.
 void Graph::printParameterBlockInfo(uint64_t parameter_block_id) const
 {
-  ResidualBlockCollection residualCollection = residuals(parameter_block_id);
+  ResidualBlockCollection residual_collection = residuals(parameter_block_id);
   LOG(INFO) << "parameter info" << std::endl << "----------------------------"
             << std::endl << " - block Id: " << parameter_block_id << std::endl
             << " - type: " << parameterBlockPtr(parameter_block_id)->typeInfo()
-            << std::endl << " - residuals (" << residualCollection.size()
+            << std::endl << " - residuals (" << residual_collection.size()
             << "):";
-  for (size_t i = 0; i < residualCollection.size(); ++i) {
+  for (size_t i = 0; i < residual_collection.size(); ++i) {
     LOG(INFO)
         << "   - id: "
-        << residualCollection.at(i).residual_block_id
+        << residual_collection.at(i).residual_block_id
         << std::endl
         << "   - type: "
-        << kErrorToStr.at(errorInterfacePtr(residualCollection.at(i).residual_block_id)->typeInfo());
+        << kErrorToStr.at(errorInterfacePtr(residual_collection.at(i).residual_block_id)->typeInfo());
   }
   LOG(INFO) << "============================";
 }
@@ -821,7 +821,8 @@ Graph::ParameterBlockCollection Graph::parameters() const
 // Get covariance estimation of given parameter blocks
 bool Graph::computeCovariance(
     const std::vector<uint64_t>& parameter_block_ids,
-    Eigen::MatrixXd& covariance)
+    Eigen::MatrixXd& covariance,
+    bool use_dense_svd)
 {
   // Get parameters
   std::vector<const double*> parameters;
@@ -851,6 +852,11 @@ bool Graph::computeCovariance(
 
   // Compute covariance
   ceres::Covariance::Options options;
+  // it can deal with rank deficient problem but very slow
+  if (use_dense_svd) {
+    options.algorithm_type = ceres::DENSE_SVD;
+    options.null_space_rank = -1; 
+  }
   ceres::Covariance covariance_handle(options);
   if (!covariance_handle.Compute(covariance_blocks, problem_.get())) {
     LOG(ERROR) << "Failed to compute covariance!";
@@ -877,6 +883,22 @@ bool Graph::computeCovariance(
   return true;
 }
 
+// Evaluate all residual blocks and get total cost
+double Graph::computeTotalCost(bool apply_loss_function)
+{
+  ResidualBlockCollection residual_collection = residuals();
+  double total_cost_squared = 0.0;
+  for (auto& residual : residual_collection)
+  {
+    Eigen::VectorXd cost = 
+      Eigen::VectorXd::Zero(residual.error_interface_ptr->residualDim());
+    problem_->EvaluateResidualBlock(residual.residual_block_id, 
+      apply_loss_function, cost.data(), nullptr, nullptr);
+    const double cost_norm = cost.norm();
+    total_cost_squared += cost_norm * cost_norm;
+  }
+  return sqrt(total_cost_squared);
+}
 
 }  //namespace gici
 

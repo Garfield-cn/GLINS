@@ -410,8 +410,14 @@ public:
   }
 
   // Get covariance estimation of given parameter blocks
+  // Enabling dense_svd can make this function handle rank deficient problem, 
+  // but the computational load will be comparably high.
   bool computeCovariance(const std::vector<uint64_t>& parameter_block_ids,
-                         Eigen::MatrixXd& covariance);
+                         Eigen::MatrixXd& covariance,
+                         bool use_dense_svd = false);
+
+  // Evaluate all residual blocks and get total cost
+  double computeTotalCost(bool apply_loss_function = true);
 
 public:
 

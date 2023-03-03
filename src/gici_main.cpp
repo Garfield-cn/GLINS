@@ -4,30 +4,30 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/stream/stream_handle.h"
-#include "gici/estimate/estimate_handle.h"
+#include "gici/stream/node_handle.h"
 #include "gici/utility/signal_handle.h"
 #include "gici/utility/spin_control.h"
+#include "gici/utility/node_option_handle.h"
 
 using namespace gici;
 
-// Process streamers and estimators which defined in config.yaml file.
-// Usage: <path>/gici_main <path-to-config>. 
-// For more details on how to configure your config.yaml file, see example.yaml.
+// Process streamers and estimators which defined in option.yaml file.
+// Usage: <path>/gici_main <path-to-option>. 
+// For more details on how to configure your option.yaml file, see doc/configuration_instructions.md
 int main(int argc, char** argv)
 {
-  // Get config file
+  // Get option file
   if (argc != 2) {
     std::cerr << "Invalid input variables! Supported variables are: "
-              << "<path-to-executable> <path-to-config>" << std::endl;
+              << "<path-to-executable> <path-to-option>" << std::endl;
     return -1;
   }
   std::string config_file_path = argv[1];
   YAML::Node yaml_node;
   try {
      yaml_node = YAML::LoadFile(config_file_path);
-  } catch(YAML::BadFile &e) {
-    std::cerr << "Unable to load config file!" << std::endl;
+  } catch (YAML::BadFile &e) {
+    std::cerr << "Unable to load option file!" << std::endl;
     return -1;
   }
 
@@ -42,36 +42,42 @@ int main(int argc, char** argv)
     if (option_tools::safeGet(
         logging_node, "min_log_level", &min_log_level)) {
       FLAGS_minloglevel = min_log_level;
-      FLAGS_stderrthreshold = min_log_level;
     }
     option_tools::safeGet(logging_node, "log_to_stderr", &FLAGS_logtostderr);
     option_tools::safeGet(logging_node, "file_directory", &FLAGS_log_dir);
+    if (FLAGS_logtostderr) FLAGS_stderrthreshold = min_log_level;
+    else FLAGS_stderrthreshold = 5;
   }
 
   // Initialize signal handles to catch faults
   initializeSignalHandles();
 
-  // Initialize streamer threads
-  if (!yaml_node["stream"].IsDefined()) {
-    std::cerr << "Unable to load stream options!" << std::endl;
+  // Organize nodes
+  NodeOptionHandlePtr node_option_handle = 
+    std::make_shared<NodeOptionHandle>(yaml_node);
+  if (!node_option_handle->valid) {
+    std::cerr << "Invalid configurations!" << std::endl;
     return -1;
   }
-  YAML::Node stream_node = yaml_node["stream"];
-  std::shared_ptr<StreamHandle> stream_handle = std::make_shared<StreamHandle>(stream_node);
 
-  // Initialize estimator threads
-  std::shared_ptr<EstimateHandle> estimate_handle;
-  if (!yaml_node["estimate"].IsDefined()) {
-    std::cerr << "Unable to load estimator options. Run in stream-only mode." << std::endl;
-  }
-  else {
-    estimate_handle = std::make_shared<EstimateHandle>(yaml_node);
-    // bind with streamers
-    estimate_handle->bindWithStreams(stream_handle);
-    // bind with estimators
-    estimate_handle->bindWithEstimators();
-  }
-  
+  // Initialize nodes
+  std::unique_ptr<NodeHandle> node_handle = 
+    std::make_unique<NodeHandle>(node_option_handle);
+
+  // Show information
+  const std::vector<size_t> sizes = {
+    node_option_handle->streamers.size(),
+    node_option_handle->formators.size(), 
+    node_option_handle->estimators.size()};
+  std::cout << "Initialized " 
+    << sizes[0] << " streamer" << (sizes[0] > 1 ? "s" : "") << ", "
+    << sizes[1] << " formater" << (sizes[1] > 1 ? "s" : "") << ", and "
+    << sizes[2] << " estimator" << (sizes[2] > 1 ? "s" : "") << ". "
+    << "Running..." << std::endl;
+
+  // Start running all threads
+  SpinControl::run();
+
   // Loop
   SpinControl spin(1e-1);
   while (SpinControl::ok()) {

@@ -1,37 +1,9 @@
-/*********************************************************************************
- *  OKVIS - Open Keyframe-based Visual-Inertial SLAM
- *  Copyright (c) 2015, Autonomous Systems Lab / ETH Zurich
- *  Copyright (c) 2016, ETH Zurich, Wyss Zurich, Zurich Eye
- *
- *  Redistribution and use in source and binary forms, with or without
- *  modification, are permitted provided that the following conditions are met:
- *
- *   * Redistributions of source code must retain the above copyright notice,
- *     this list of conditions and the following disclaimer.
- *   * Redistributions in binary form must reproduce the above copyright notice,
- *     this list of conditions and the following disclaimer in the documentation
- *     and/or other materials provided with the distribution.
- *   * Neither the name of Autonomous Systems Lab / ETH Zurich nor the names of
- *     its contributors may be used to endorse or promote products derived from
- *     this software without specific prior written permission.
- *
- *  THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- *  AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- *  IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
- *  ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
- *  LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
- *  CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
- *  SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
- *  INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
- *  CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
- *  ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- *  POSSIBILITY OF SUCH DAMAGE.
- *
- *  Created on: Jul 6, 2016
- *      Author: Zurich Eye
- *      Modified: Cheng Chi
- *********************************************************************************/
-
+/**
+* @Function: Estimator types
+*
+* @Author  : Cheng Chi
+* @Email   : chichengcn@sjtu.edu.cn
+**/
 #pragma once
 
 #include <map>
@@ -41,7 +13,7 @@
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 // Eigen 3.2.7 uses std::binder1st and std::binder2nd which are deprecated since c++11
 // Fix is in 3.3 devel (http://eigen.tuxfamily.org/bz/show_bug.cgi?id=872).
-#include <Eigen/Core>
+#include <ceres/ceres.h>
 #pragma diagnostic pop
 
 #include <glog/logging.h>
@@ -51,7 +23,9 @@
 #include "gici/imu/imu_types.h"
 #include "gici/gnss/geodetic_coordinate.h"
 #include "gici/gnss/gnss_types.h"
+#include "gici/vision/image_types.h"
 #include "gici/utility/option.h"
+#include "gici/estimate/graph.h"
 
 namespace gici {
 
@@ -59,7 +33,7 @@ namespace gici {
 // IDs
 enum class IdType : uint8_t
 {
-  cNFrame = 0,
+  cPose = 0,
   cLandmark = 1,
   ImuStates = 2,
   cExtrinsics = 3,
@@ -71,7 +45,8 @@ enum class IdType : uint8_t
   gTroposphere = 9,
   gExtrinsics = 10,
   gAmbiguity = 11,
-  gIonosphere = 12
+  gIonosphere = 12,
+  gIfb = 13
 };
 
 using SensorType = option_tools::SensorType;
@@ -80,9 +55,9 @@ using SensorType = option_tools::SensorType;
 // bit 0-5:   IdType
 // bit 6-13:  CameraIdx, GNSS system
 // bit 14-21: GNSS PRN number
-// bit 22-49: BundleID
-// 0 ~ 2^25-1 for Image, 2^25 ~ 2^26-1 for GNSS
+// bit 22-49: BundleID (0 ~ 2^25-1 for Image, 2^25 ~ 2^26-1 for GNSS)
 // bit 50-55: GNSS PhaseID
+// bit 50-56: GNSS CodeID
 // bit 32-63: Landmark ID
 #define BITS_IDTYPE 0, 5
 #define BITS_CAMERA_IDX 6, 13
@@ -90,6 +65,7 @@ using SensorType = option_tools::SensorType;
 #define BITS_GNSS_PRN 14, 21
 #define BITS_BUNDLEID 22, 49
 #define BITS_GNSS_PHASEID 50, 55
+#define BITS_GNSS_CODEID 50, 56
 #define BITS_LANDMARKID 32, 63
 #define RANGE_IMAGE_MIN 0
 #define RANGE_IMAGE_MAX 33554431
@@ -148,14 +124,15 @@ public:
 
   // Check sensor type
   inline static SensorType sensorType(IdType type) {
-    if (type == IdType::cNFrame || type == IdType::cExtrinsics || 
+    if (type == IdType::cPose || type == IdType::cExtrinsics || 
         type == IdType::cLandmark) return SensorType::Camera;
     if (type == IdType::ImuStates) return SensorType::IMU;
     if (type == IdType::gAmbiguity || type == IdType::gClock || 
         type == IdType::gExtrinsics || type == IdType::gFrequency ||
         type == IdType::gIonosphere || type == IdType::gPose || 
         type == IdType::gPosition || type == IdType::gTroposphere ||
-        type == IdType::gVelocity) return SensorType::GNSS;
+        type == IdType::gVelocity || type == IdType::gIfb) 
+      return SensorType::GNSS;
     return SensorType::None;
   }
 
@@ -219,6 +196,10 @@ public:
     return static_cast<int>(getBits(id_, BITS_GNSS_PHASEID));
   }
 
+  inline int gCodeId() const {
+    return static_cast<int>(getBits(id_, BITS_GNSS_CODEID));
+  }
+
   inline bool valid() const {
     return id_ != 0;
   }
@@ -240,8 +221,8 @@ inline BackendId createNFrameId(int32_t bundle_id)
   CHECK_GE(bundle_id, 0);
   return BackendId(
     BackendId::setBits(BackendId::adjustBundleId(
-      bundle_id, IdType::cNFrame), BITS_BUNDLEID) |
-    BackendId::setBits(IdType::cNFrame, BITS_IDTYPE));
+      bundle_id, IdType::cPose), BITS_BUNDLEID) |
+    BackendId::setBits(IdType::cPose, BITS_IDTYPE));
 }
 
 inline BackendId createGnssPositionId(int32_t bundle_id)
@@ -282,6 +263,17 @@ inline BackendId createGnssClockId(char system,
     BackendId::setBits(IdType::gClock, BITS_IDTYPE));
 }
 
+inline BackendId createGnssFrequencyId(char system,
+                                   int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  return BackendId(
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gFrequency), BITS_BUNDLEID) |
+    BackendId::setBits(system, BITS_GNSS_SYSTEM) |
+    BackendId::setBits(IdType::gFrequency, BITS_IDTYPE));
+}
+
 inline BackendId createGnssAmbiguityId(std::string prn,
                   int phase_id, int32_t bundle_id)
 {
@@ -298,12 +290,51 @@ inline BackendId createGnssAmbiguityId(std::string prn,
     BackendId::setBits(IdType::gAmbiguity, BITS_IDTYPE));
 }
 
+inline BackendId createGnssTroposphereId(int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  return BackendId(
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gTroposphere), BITS_BUNDLEID) |
+    BackendId::setBits(IdType::gTroposphere, BITS_IDTYPE));
+}
+
+inline BackendId createGnssIonosphereId(std::string prn, int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  char system = prn[0];
+  int prn_number = atoi(prn.substr(1, 2).data());
+  return BackendId(
+    BackendId::setBits(BackendId::adjustBundleId(
+      bundle_id, IdType::gIonosphere), BITS_BUNDLEID) |
+    BackendId::setBits(system, BITS_GNSS_SYSTEM) |
+    BackendId::setBits(prn_number, BITS_GNSS_PRN) |
+    BackendId::setBits(IdType::gIonosphere, BITS_IDTYPE));
+}
+
+inline BackendId createGnssIfbId(char system,
+                  int code_id, std::string prn = "")
+{
+  CHECK_GE(code_id, 0);
+  int prn_number = 0;
+  if (prn != "") {
+    CHECK(prn.size() == 3);
+    prn_number = atoi(prn.substr(1, 2).data());
+  }
+  return BackendId(
+    BackendId::setBits(0, BITS_BUNDLEID) |
+    BackendId::setBits(system, BITS_GNSS_SYSTEM) |
+    BackendId::setBits(prn_number, BITS_GNSS_PRN) |
+    BackendId::setBits(code_id, BITS_GNSS_CODEID) |
+    BackendId::setBits(IdType::gIfb, BITS_IDTYPE));
+}
+
 inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
 {
   CHECK(id.type() != IdType::cLandmark);
   CHECK(type != IdType::cLandmark);
   CHECK(cam_index == 0 || type == IdType::cExtrinsics || type == IdType::gVelocity ||
-        type == IdType::gExtrinsics);
+        type == IdType::gExtrinsics || type == IdType::gTroposphere);
   CHECK((BackendId::sensorType(id.type()) == BackendId::sensorType(type)) || 
         (BackendId::sensorType(type) == SensorType::IMU));
   uint64_t out = id.asInteger();
@@ -315,7 +346,7 @@ inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
 inline BackendId changeIdType(BackendId id, IdType type, const char system)
 {
   CHECK(id.type() != IdType::gClock);
-  CHECK(type == IdType::gClock);
+  CHECK(type == IdType::gClock || type == IdType::gFrequency);
   CHECK((BackendId::sensorType(id.type()) == BackendId::sensorType(type)) || 
         (BackendId::sensorType(type) == SensorType::IMU));
   uint64_t out = id.asInteger();
@@ -342,6 +373,24 @@ inline bool sameAmbiguity(const BackendId& lhs, const BackendId& rhs)
   uint32_t phase_lhs = BackendId::getBits(lhs.asInteger(), BITS_GNSS_PHASEID);
   uint32_t phase_rhs = BackendId::getBits(rhs.asInteger(), BITS_GNSS_PHASEID);
   if (phase_lhs != phase_rhs) return false;
+
+  return true;
+}
+
+inline bool sameIonosphere(const BackendId& lhs, const BackendId& rhs)
+{
+  CHECK(BackendId::getBits(lhs.asInteger(), BITS_IDTYPE) == 
+        static_cast<uint32_t>(IdType::gIonosphere));
+  CHECK(BackendId::getBits(rhs.asInteger(), BITS_IDTYPE) == 
+        static_cast<uint32_t>(IdType::gIonosphere));
+  
+  uint32_t sys_lhs = BackendId::getBits(lhs.asInteger(), BITS_GNSS_SYSTEM);
+  uint32_t sys_rhs = BackendId::getBits(rhs.asInteger(), BITS_GNSS_SYSTEM);
+  if (sys_lhs != sys_rhs) return false;
+
+  uint32_t prn_lhs = BackendId::getBits(lhs.asInteger(), BITS_GNSS_PRN);
+  uint32_t prn_rhs = BackendId::getBits(rhs.asInteger(), BITS_GNSS_PRN);
+  if (prn_lhs != prn_rhs) return false;
 
   return true;
 }
@@ -376,34 +425,62 @@ inline std::ostream& operator<<(std::ostream& out, const BackendId& id)
 // -----------------------------------------------------------------------------
 // Estimators
 enum class EstimatorType {
+  None,
   Spp,
+  Sdgnss,
   Dgnss,
   Rtk, 
+  Ppp,
   GnssImuLc,
   RtkImuTc,
   GnssImuCameraSrr,
   RtkImuCameraRrr
 };
 
+// Convert from estimator type to string
+std::string estimatorTypeToString(const EstimatorType& type);
+
+// States, that handle pose parameters at every timestamp
+struct State {
+  BackendId id; // pose id
+  BackendId id_in_graph;  // real pose id in graph if it is a overlapped state
+  double timestamp = 0.0;
+  bool is_keyframe = false;
+  GnssSolutionStatus status = GnssSolutionStatus::Single;
+  ceres::ResidualBlockId imu_residual_to_lhs = nullptr;  // IMU residual from last state to current  
+  bool valid() { return (id != BackendId(0) && timestamp != 0.0); }
+
+  // State overlapping handle
+  static std::multimap<BackendId, State> overlaps;  // from real pose id to all overlaped states
+  // Erase an overlap state
+  static inline void eraseOverlap(const State& state) {
+    for (auto it = overlaps.lower_bound(state.id_in_graph);
+      it != overlaps.upper_bound(state.id_in_graph); it++) {
+      if (it->second.id == state.id) { overlaps.erase(it); break; }
+    }
+    if (overlaps.count(state.id_in_graph) == 1) overlaps.erase(state.id_in_graph);
+  }
+  // Synchronize overlap states from one modification
+  static inline void syncOverlap(const State& state, std::deque<State>& states) {
+    if (overlaps.count(state.id_in_graph) > 1) {
+      for (auto it = overlaps.lower_bound(state.id_in_graph);
+        it != overlaps.upper_bound(state.id_in_graph); it++) {
+        for (auto& s : states) {
+          if (s.id == it->second.id) {
+            s.imu_residual_to_lhs = state.imu_residual_to_lhs;
+            break;
+          }
+        }
+        it->second.imu_residual_to_lhs = state.imu_residual_to_lhs;
+      }
+    }
+  }
+};
+
 // Solution generated by estimators
 struct Solution {
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  // Backend output
-  struct Backend {
-    EIGEN_MAKE_ALIGNED_OPERATOR_NEW
-
-    double timestamp;
-    Transformation pose;
-    SpeedAndBias speed_and_bias;
-    // In position, attitude, speed, bias of gyro, bias of acc order
-    Eigen::Matrix<double, 15, 15> covariance;
-    GeoCoordinatePtr coordinate;
-  };
-  Backend backend;
-
-  // Final solution
-  // The backend solution will be integrated to final solution
   double timestamp;
   double differential_age;
   int num_satellites;
@@ -411,6 +488,7 @@ struct Solution {
   Transformation pose;
   SpeedAndBias speed_and_bias;
   Eigen::Matrix<double, 15, 15> covariance;
+  GeoCoordinatePtr coordinate;
 };
 
 // Role of solution when it behaves as measurement (for loosely couple)
@@ -422,6 +500,59 @@ enum class SolutionRole {
   Pose,
   PoseAndVelocity,
   PositionAndVelocity
+};
+
+// All estimator data (measurements and solutions)
+// Every instantiation should have only one data type
+class EstimatorDataCluster {
+public:
+  EIGEN_MAKE_ALIGNED_OPERATOR_NEW
+
+  EstimatorDataCluster(const GnssMeasurement& data) : 
+    gnss(std::make_shared<GnssMeasurement>(data)), 
+    gnss_role(data.role), tag(data.tag), timestamp(data.timestamp) {}
+
+  EstimatorDataCluster(
+    const ImuMeasurement& data, const ImuRole& role, const std::string& tag) :
+    imu(std::make_shared<ImuMeasurement>(data)),
+    imu_role(role), tag(tag), timestamp(data.timestamp) {}
+
+  EstimatorDataCluster(const std::shared_ptr<cv::Mat>& data, const CameraRole& role, 
+                       const std::string& tag, const double time) :
+    image(data),
+    image_role(role), tag(tag), timestamp(time) {}
+
+  EstimatorDataCluster(
+    const FrameBundlePtr& data, const std::string& tag) : 
+    frame_bundle(data), timestamp(data->getMinTimestampSeconds()),
+    tag(tag) {}
+
+  EstimatorDataCluster(
+    const Solution& data, const SolutionRole& role, const std::string& tag) :
+    solution(std::make_shared<Solution>(data)),
+    solution_role(role), timestamp(data.timestamp), tag(tag) {}
+
+  ~EstimatorDataCluster() {}
+
+  // Raw data
+  std::shared_ptr<GnssMeasurement> gnss;
+  std::shared_ptr<ImuMeasurement> imu;
+  std::shared_ptr<cv::Mat> image;
+
+  // Intermediate processing data, which generated from other estimators
+  // or frontend processors
+  std::shared_ptr<FrameBundle> frame_bundle;
+  std::shared_ptr<Solution> solution;
+
+  // Roles
+  GnssRole gnss_role;
+  ImuRole imu_role;
+  CameraRole image_role;
+  SolutionRole solution_role;
+
+  // Common parameters
+  std::string tag;
+  double timestamp;
 };
 
 } // namespace gici

@@ -15,6 +15,7 @@
 #include "gici/utility/option.h"
 #include "gici/utility/rtklib_safe.h"
 #include "gici/estimate/estimator_types.h"
+#include "gici/gnss/code_bias.h"
 
 namespace gici {
 
@@ -27,7 +28,9 @@ enum class FormatorType {
   ImagePack,  
   IMUPack,
   OptionPack, 
-  NMEA
+  NMEA,
+  DcbFile,
+  AtxFile
 };
 
 // GNSS data types
@@ -37,7 +40,8 @@ enum class GnssDataType {
   Observation = 1,
   AntePos = 5,  // Antenna position
   IonPara = 9,  // Ionosphere parameters
-  SSR = 10
+  SSR = 10,
+  PhaseCenter   // PCVs and PCOs
 };
 
 // Data 
@@ -46,8 +50,18 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   DataCluster() {}
+
   DataCluster(FormatorType type);
-  DataCluster(FormatorType type, int _width, int _height);
+
+  DataCluster(FormatorType type, int _width, int _height, int _step);
+
+  DataCluster(const Solution& data) : 
+    solution(std::make_shared<Solution>(data)) {}
+
+  DataCluster(const FramePtr& data) : frame(data) {}
+
+  DataCluster(const MapPtr& data) : map(data) {}
+
   ~DataCluster();
 
   // GNSS data format
@@ -63,12 +77,13 @@ public:
 
   // Image data format
   struct Image {
-    void init(int _width, int _height);
+    void init(int _width, int _height, int _step);
     void free();
 
     double time;
     int width;
     int height;
+    int step;
     uint8_t *image;
   };
 
@@ -84,18 +99,24 @@ public:
 
   };
 
-  // Parameters
+  // Input data types
   std::shared_ptr<GNSS> gnss;
   std::shared_ptr<Image> image;
   std::shared_ptr<IMU> imu;
   std::shared_ptr<Option> option;
+
+  // Output data types
   std::shared_ptr<Solution> solution;
+  std::shared_ptr<Frame> frame;
+  std::shared_ptr<Map> map;
 };
 
 // Formats of FormatorType::GNSS_Raw
 enum class GnssRawFormats {
   Ublox = STRFMT_UBX,
-  Septentrio = STRFMT_SEPT
+  Septentrio = STRFMT_SEPT,
+  Novatel = STRFMT_OEM4,
+  Tersus = STRFMT_OEM4
 };
 
 // Max number of output data buffers for decoders
@@ -127,8 +148,15 @@ extern void updateAntennaPosition(
   sta_t *sta, std::shared_ptr<DataCluster::GNSS>& gnss_data);
 
 // Update ssr corrections
-extern void updateSSR(
-  ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data);
+enum class UpdateSsrType {
+  Ephemeris,
+  CodeBias,
+  PhaseBias
+};
+extern void updateSsr(
+  ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data,
+  std::vector<UpdateSsrType> type = {UpdateSsrType::Ephemeris, 
+  UpdateSsrType::CodeBias, UpdateSsrType::PhaseBias});
 
 // Select data from GNSS stream
 // Note that data except for observation are 
@@ -167,11 +195,11 @@ protected:
 // RTCM 2
 class RTCM2Formator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     double start_time; 
   };
 
-  RTCM2Formator(Config& config);
+  RTCM2Formator(Option& option);
   RTCM2Formator(YAML::Node& node);
   ~RTCM2Formator();
 
@@ -189,11 +217,11 @@ protected:
 // RTCM 3
 class RTCM3Formator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     double start_time; 
   };
 
-  RTCM3Formator(Config& config);
+  RTCM3Formator(Option& option);
   RTCM3Formator(YAML::Node& node);
   ~RTCM3Formator();
 
@@ -211,12 +239,12 @@ protected:
 // GNSS raw
 class GnssRawFormator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     double start_time; 
     std::string sub_type;
   };
 
-  GnssRawFormator(Config& config);
+  GnssRawFormator(Option& option);
   GnssRawFormator(YAML::Node& node);
   ~GnssRawFormator();
 
@@ -235,12 +263,13 @@ protected:
 // Image V4L2
 class ImageV4L2Formator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     int width;
     int height;
+    int step = 1;
   };
 
-  ImageV4L2Formator(Config& config);
+  ImageV4L2Formator(Option& option);
   ImageV4L2Formator(YAML::Node& node);
   ~ImageV4L2Formator();
 
@@ -258,12 +287,13 @@ protected:
 // Image pack
 class ImagePackFormator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     int width;
     int height;
+    int step = 1;
   };
 
-  ImagePackFormator(Config& config);
+  ImagePackFormator(Option& option);
   ImagePackFormator(YAML::Node& node);
   ~ImagePackFormator();
 
@@ -281,11 +311,11 @@ protected:
 // IMU pack
 class IMUPackFormator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     
   };
 
-  IMUPackFormator(Config& config);
+  IMUPackFormator(Option& option);
   IMUPackFormator(YAML::Node& node);
   ~IMUPackFormator();
 
@@ -303,11 +333,11 @@ protected:
 // Option
 class OptionFormator : public FormatorBase {
 public:
-  struct Config {
+  struct Option {
     
   };
 
-  OptionFormator(Config& config);
+  OptionFormator(Option& option);
   OptionFormator(YAML::Node& node);
   ~OptionFormator();
 
@@ -327,14 +357,14 @@ class NmeaFormator : public FormatorBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  struct Config {
+  struct Option {
     bool use_gga = true;
     bool use_rmc = true;
-    bool use_esa = true;
+    bool use_esa = false;
     std::string talker_id = "GN";
   };
 
-  NmeaFormator(Config& config);
+  NmeaFormator(Option& option);
   NmeaFormator(YAML::Node& node);
   ~NmeaFormator();
 
@@ -360,14 +390,77 @@ protected:
   void convertSolution(const Solution& solution, sol_t& sol);
 
   // Configure
-  Config config_;
+  Option option_;
+};
+
+// Read DCB file in CAS format (https://cddis.nasa.gov/archive/gnss/products/bias/)
+class DcbFileFormator : public FormatorBase {
+public:
+  struct Option {
+    
+  };
+
+  DcbFileFormator(Option& option);
+  DcbFileFormator(YAML::Node& node);
+  ~DcbFileFormator();
+
+  // Decode stream to data
+  int decode(const uint8_t *buf, int size, 
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
+
+  // Encode data to stream
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
+
+protected:
+  const int max_line_length_ = 128;
+  std::string line_;
+  bool passed_header_ = false;
+  bool finished_reading_ = false;
+
+  // map from PRN string to DCB storage
+  using Dcb = CodeBias::Dcb;
+  std::multimap<std::string, Dcb> dcbs_;
+};
+
+// Read IGS ATX file
+class AtxFileFormator : public FormatorBase {
+public:
+  struct Option {
+    
+  };
+
+  AtxFileFormator(Option& option);
+  AtxFileFormator(YAML::Node& node);
+  ~AtxFileFormator();
+
+  // Decode stream to data
+  int decode(const uint8_t *buf, int size, 
+    std::vector<std::shared_ptr<DataCluster>>& data) override;
+
+  // Encode data to stream
+  int encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf) override;
+
+private:
+  // Add antenna parameter
+  void addpcv(const pcv_t *pcv, pcvs_t *pcvs);
+
+  // Decode antenna parameter field
+  int decodef(char *p, int n, double *v);
+
+protected:
+  const int max_line_length_ = 256;
+  std::string line_;
+  pcvs_t *pcvs_;
+  pcv_t pcv_;
+  int state_ = 0;
+  int last_size_ = 0;
 };
 
 // Get formator handle from configure
 #define MAKE_FORMATOR(Formator) \
 inline std::shared_ptr<FormatorBase> makeFormator( \
-  Formator::Config& config) { \
-   return std::make_shared<Formator>(config); \
+  Formator::Option& option) { \
+   return std::make_shared<Formator>(option); \
 }
 MAKE_FORMATOR(RTCM2Formator);
 MAKE_FORMATOR(RTCM3Formator);
@@ -377,6 +470,8 @@ MAKE_FORMATOR(ImagePackFormator);
 MAKE_FORMATOR(IMUPackFormator);
 MAKE_FORMATOR(OptionFormator);
 MAKE_FORMATOR(NmeaFormator);
+MAKE_FORMATOR(DcbFileFormator);
+MAKE_FORMATOR(AtxFileFormator);
 
 // Get formator handle from yaml
 std::shared_ptr<FormatorBase> makeFormator(YAML::Node& node);

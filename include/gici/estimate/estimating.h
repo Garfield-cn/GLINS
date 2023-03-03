@@ -15,9 +15,9 @@
 
 #include "gici/utility/option.h"
 #include "gici/estimate/estimator_types.h"
-#include "gici/gnss/gnss_types.h"
-#include "gici/imu/imu_types.h"
-#include "gici/vision/image_types.h"
+#include "gici/stream/formator.h"
+#include "gici/estimate/estimator_base.h"
+#include "gici/utility/node_option_handle.h"
 
 namespace gici {
 
@@ -25,18 +25,20 @@ class EstimatingBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  using SolutionCallback = std::function<void(std::string, SolutionRole, Solution&)>;
+  // The solution data cluster contains the following structures:
+  // Solution: position, velocity and attitude solutions. The SolutionRole need to be 
+  // specified for this data type, it tells other estimators how it will be used to 
+  // implement multi-sensor fusion algorithm.
+  // Frame: Features outputs to ROS
+  // Map: Landmarks outputs to ROS
+  using OutputDataCallback = std::function<
+    void(const std::string&, const std::shared_ptr<DataCluster>&)>;;
   // We do not need to store tags here because if any client registered this callback, 
   // we will send solution to it without tag check. The tag check is defined to distingush
   // input streams, see EstimateHandle::bindWithStreams.
-  using SolutionCallbacks = std::vector<SolutionCallback>;
-  // output to ROS
-  using FeaturedImageCallback = std::function<void(FramePtr&)>;
-  using FeaturedImageCallbacks = std::vector<FeaturedImageCallback>;
-  using MapPointCallback = std::function<void(MapPtr&)>;
-  using MapPointCallbacks = std::vector<MapPointCallback>;
+  using OutputDataCallbacks = std::vector<OutputDataCallback>;
 
-  EstimatingBase(YAML::Node& node);
+  EstimatingBase(const NodeOptionHandlePtr& nodes, size_t i_estimator);
   ~EstimatingBase();
 
   // Start thread
@@ -45,42 +47,14 @@ public:
   // Stop thread
   void stop();
 
-  // GNSS data callback
-  virtual void gnssCallback(GnssMeasurement& data) {
-    return;
-  }
-
-  // IMU data callback
-  virtual void imuCallback(
-    std::string tag, ImuRole role, ImuMeasurement& data) {
-    return;
-  }
-
-  // Image data callback
-  virtual void imageCallback(double timestamp, 
-    std::string tag, CameraRole role, cv::Mat& image) {
-    return;
-  }
-
-  // Solution callback from other estimators
-  virtual void solutionCallback(
-    std::string tag, SolutionRole role, Solution& data) {
+  // Estimator data callback
+  virtual void estimatorDataCallback(EstimatorDataCluster& data) {
     return;
   }
 
   // Set solution callback
-  void setSolutionCallback(SolutionCallback solution_callback) {
-    solution_callbacks_.push_back(solution_callback);
-  } 
-
-  // Set featured image callback
-  void setFeaturedImageCallback(FeaturedImageCallback featured_image_callback) {
-    featured_image_callbacks_.push_back(featured_image_callback);
-  } 
-
-  // Set map point callback
-  void setMapPointCallback(MapPointCallback map_point_callback) {
-    map_point_callbacks_.push_back(map_point_callback);
+  void setOutputDataCallback(OutputDataCallback output_data_callback) {
+    output_data_callbacks_.push_back(output_data_callback);
   } 
 
   // Get tag
@@ -89,6 +63,21 @@ public:
   // Process funtion in every loop
   virtual void process() = 0;
 
+  // Update latest solution
+  virtual bool updateSolution() = 0;
+
+  // Check if we can continue under downsampling
+  inline bool checkDownsampling(const std::string& tag) {
+    if (++output_downsample_cnt_ < output_downsample_rate_) {
+      return false;
+    }
+    else {
+      output_downsample_cnt_ = 0; 
+      return true;
+    }
+    return true;
+  }
+
 private:
 	// Loop processing
 	void run();
@@ -96,26 +85,34 @@ private:
 protected:
 	// Thread handles
 	std::unique_ptr<std::thread> thread_;
-	std::mutex mutex_input_, mutex_process_, mutex_output_;
 	bool quit_thread_ = false;
-  double loop_duration_;
+  // input data alignment
+  bool enable_input_align_ = false;
+  double input_align_latency_ = 0.0;
+  // through some data when backend is pending
+  bool enable_backend_data_spasify_ = false;
+  int pending_num_threshold_ = 0;
+  int pending_sparsify_num_ = 0;
   // if user setted "loop_duration" as zero, we align the output rate to this input stream
-  std::string loop_duration_align_tag_;
-  bool aligned_new_data_;
-  double aligned_new_timestamp_;
+  std::string output_align_tag_;
+  // Output downsampling
+  int output_downsample_rate_;
+  int output_downsample_cnt_;
+  // Pending output timestamps
+  std::deque<double> output_timestamps_;
+
+  // Between-estimator data pipeline control
+  std::map<std::string, SolutionRole> estimator_tag_to_role_;
 
   // Estimator control
   std::string tag_;  // estimator tag
-  SolutionRole role_;
   EstimatorType type_;
+  std::shared_ptr<EstimatorBase> estimator_;
+  bool compute_covariance_;
 
   // Solutions
   Solution solution_;
-  ImuParameters imu_parameters_;
-  double publish_timestamp_;
-  SolutionCallbacks solution_callbacks_;
-  FeaturedImageCallbacks featured_image_callbacks_;
-  MapPointCallbacks map_point_callbacks_;
+  OutputDataCallbacks output_data_callbacks_;
 };
 
 }

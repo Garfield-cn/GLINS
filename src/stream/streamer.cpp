@@ -20,12 +20,12 @@ std::vector<StreamerBase *> StreamerBase::static_this_;
 
 // Load option with info
 #define LOAD_COMMON(opt) \
-  if (!option_tools::safeGet(node, #opt, &config_.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &option_.opt)) { \
   LOG(INFO) << __FUNCTION__ << ": Unable to load " << #opt \
          << ". Using default instead."; }
 // Load option with fatal error
 #define LOAD_REQUIRED(opt) \
-  if (!option_tools::safeGet(node, #opt, &config_.opt)) { \
+  if (!option_tools::safeGet(node, #opt, &option_.opt)) { \
   LOG(FATAL) << __FUNCTION__ << ": Unable to load " << #opt << "!"; }
 
 // Enable replay mode
@@ -61,6 +61,7 @@ void StreamerBase::syncStreams()
   int master_index = -1, max_size = 0;
   for (size_t i = 0; i < static_this_.size(); i++) {
     if (static_this_[i]->stream_.type != STR_FILE) continue;
+    if (static_this_[i]->stream_.port == NULL) continue;
     file_t *file = static_cast<file_t *>(static_this_[i]->stream_.port);
     if (file->fp_tag == NULL) continue;
     std::string tag_path = file->openpath + std::string(".tag");
@@ -100,10 +101,10 @@ SerialStreamer::SerialStreamer(YAML::Node& node)
 int SerialStreamer::open(StreamerRWType type)
 {
   std::stringstream path;
-  path << config_.port << ":" << config_.baudrate << ":" 
-     << config_.parity << ":" << config_.stop_bit << ":" 
-     << config_.flow_control;
-        
+  path << option_.port << ":" << option_.baudrate << ":" 
+     << option_.parity << ":" << option_.stop_bit << ":" 
+     << option_.flow_control;
+     
   return stropen(&stream_, STR_SERIAL, static_cast<int>(type), path.str().data());
 }
 
@@ -120,19 +121,28 @@ FileStreamer::FileStreamer(YAML::Node& node)
 int FileStreamer::open(StreamerRWType type)
 {
   std::stringstream path;
-  path << config_.path;
-  if (config_.enable_time_tag) {
-#if 0
+  path << option_.path;
+  if (option_.enable_time_tag) {
+#if 1
     path << "::T::+" << replay_options_.start_offset << "::x" 
-       << replay_options_.speed << "::S=" << config_.swap_interval << "::P=4"; 
+       << replay_options_.speed << "::S=" << option_.swap_interval << "::P=4"; 
 #else
     path << "::T::+" << replay_options_.start_offset << "::x" 
-       << replay_options_.speed << "::S=" << config_.swap_interval << "::P=8"; 
+       << replay_options_.speed << "::S=" << option_.swap_interval << "::P=8"; 
 #endif
   }
   
   // R&W mode may fail if file does not exist
-  return stropen(&stream_, STR_FILE, static_cast<int>(type), path.str().data());
+  if (!stropen(&stream_, STR_FILE, static_cast<int>(type), path.str().data())) {
+    return 0;
+  }
+
+  // Pre-shift file pointer to start_offset
+  if (option_.enable_time_tag && replay_options_.start_offset > 0.0) {
+    fileshift(&stream_);
+  }
+
+  return 1;
 }
 
 // TCP server stream control
@@ -146,7 +156,7 @@ TcpServerStreamer::TcpServerStreamer(YAML::Node& node)
 int TcpServerStreamer::open(StreamerRWType type)
 {
   std::stringstream path;
-  path << ":" << config_.port;
+  path << ":" << option_.port;
         
   return stropen(&stream_, STR_TCPSVR, static_cast<int>(type), path.str().data());
 }
@@ -163,7 +173,7 @@ TcpClientStreamer::TcpClientStreamer(YAML::Node& node)
 int TcpClientStreamer::open(StreamerRWType type)
 {
   std::stringstream path;
-  path << config_.ip << ":" << config_.port;
+  path << option_.ip << ":" << option_.port;
         
   return stropen(&stream_, STR_TCPCLI, static_cast<int>(type), path.str().data());
 }
@@ -182,8 +192,8 @@ NtripServerStreamer::NtripServerStreamer(YAML::Node& node)
 int NtripServerStreamer::open(StreamerRWType type)
 {
   std::stringstream path;
-  path << ":" << config_.passward << "@" << config_.ip << ":" 
-     << config_.port << "/" << config_.mountpoint << ":";
+  path << ":" << option_.passward << "@" << option_.ip << ":" 
+     << option_.port << "/" << option_.mountpoint << ":";
         
   return stropen(&stream_, STR_NTRIPSVR, static_cast<int>(type), path.str().data());
 }
@@ -203,8 +213,8 @@ NtripClientStreamer::NtripClientStreamer(YAML::Node& node)
 int NtripClientStreamer::open(StreamerRWType type)
 {
   std::stringstream path;
-  path << config_.username << ":" << config_.passward << "@"
-     << config_.ip << ":" << config_.port << "/" << config_.mountpoint;
+  path << option_.username << ":" << option_.passward << "@"
+     << option_.ip << ":" << option_.port << "/" << option_.mountpoint;
         
   return stropen(&stream_, STR_NTRIPCLI, static_cast<int>(type), path.str().data());
 }
@@ -227,7 +237,7 @@ int V4l2Streamer::open(StreamerRWType type)
   v4l2_buffer buffer;
 
   // Open video device
-  if ((dev_ = ::open(config_.dev.data(), O_RDWR)) < 0) {
+  if ((dev_ = ::open(option_.dev.data(), O_RDWR)) < 0) {
     LOG(ERROR) << "V4L2 device open failed!"; return 0;
   }
 
@@ -235,8 +245,8 @@ int V4l2Streamer::open(StreamerRWType type)
   memset(&format, 0, sizeof(format));
   format.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   format.fmt.pix.pixelformat = V4L2_PIX_FMT_GREY;
-  format.fmt.pix.width = config_.width;
-  format.fmt.pix.height = config_.height;
+  format.fmt.pix.width = option_.width;
+  format.fmt.pix.height = option_.height;
   if (ioctl(dev_, VIDIOC_TRY_FMT, &format) != 0) {
     LOG(ERROR) << "V4L2 VIDIOC_TRY_FMT failed!"; return 0;
   }
@@ -246,18 +256,18 @@ int V4l2Streamer::open(StreamerRWType type)
     LOG(ERROR) << "V4L2 VIDIOC_S_FMT failed!"; return 0;
   }
  
-  req.count = config_.buffer_count;
+  req.count = option_.buffer_count;
   req.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   req.memory = V4L2_MEMORY_MMAP;
   if (ioctl(dev_, VIDIOC_REQBUFS, &req) != 0 || 
-    req.count < config_.buffer_count) {
+    req.count < option_.buffer_count) {
     LOG(ERROR) << "V4L2 VIDIOC_REQBUFS failed!"; return 0;
   }
     
   memset(&buffer, 0, sizeof(buffer));
   buffer.type = req.type;
   buffer.memory = V4L2_MEMORY_MMAP;
-  v4l2_buf = (uint8_t **)malloc(sizeof(uint8_t *)*config_.buffer_count);
+  v4l2_buf = (uint8_t **)malloc(sizeof(uint8_t *)*option_.buffer_count);
   for (int i = 0; i < static_cast<int>(req.count); i++) {
     buffer.index = i;
     if(ioctl(dev_, VIDIOC_QUERYBUF, &buffer) != 0) {
@@ -307,17 +317,17 @@ int V4l2Streamer::read(uint8_t *buf, int max_size)
   memset(&buffer, 0, sizeof(buffer));
   buffer.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
   buffer.memory = V4L2_MEMORY_MMAP;
-  buffer.index = config_.buffer_count;
+  buffer.index = option_.buffer_count;
   ret = ioctl(dev_, VIDIOC_DQBUF, &buffer);
   if (ret != 0) {
     LOG(ERROR) << "V4L2 VIDIOC_DQBUF failed!"; return 0;
   }
-  if (buffer.index<0 || buffer.index >= config_.buffer_count) {
+  if (buffer.index<0 || buffer.index >= option_.buffer_count) {
     LOG(ERROR) << "V4L2: Invalid buffer index " << buffer.index << "!"; 
     return 0;
   }
  
-  int length = config_.width * config_.height;
+  int length = option_.width * option_.height;
   memcpy(buf, v4l2_buf[buffer.index], length);
  
   ret = ioctl(dev_, VIDIOC_QBUF, &buffer);

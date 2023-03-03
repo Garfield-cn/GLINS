@@ -4,7 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/stream/stream_handle.h"
+#include "gici/stream/node_handle.h"
 #include "gici/utility/signal_handle.h"
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_types.h"
@@ -66,12 +66,12 @@ int main(void)
   // gnss_imu_lc_estimator_ = std::make_unique<GnssImuLcEstimator>(gnss_imu_lc_estimator_options);
 
   // YAML::Node stream_config = config["stream"];
-  // StreamHandle stream_handle(stream_config);
+  // NodeHandle stream_handle(stream_config);
 
-  // StreamHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
+  // NodeHandle::GnssCallback gnss_callback = std::bind(gnssCallback, std::placeholders::_1);
   // stream_handle.setGnssCallback(gnss_callback);
 
-  // StreamHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
+  // NodeHandle::ImuCallback imu_callback = std::bind(imuCallback, std::placeholders::_1);
   // stream_handle.setImuCallback(imu_callback);
 
   // std::ofstream outfile;

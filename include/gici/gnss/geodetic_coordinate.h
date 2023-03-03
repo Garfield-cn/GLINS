@@ -42,8 +42,19 @@ public:
   Eigen::Vector3d convert(const Eigen::Vector3d& position,
               const GeoType in_type, const GeoType out_type);
 
+  // Rotate coordinate
+  Eigen::Vector3d rotate(const Eigen::Vector3d& position,
+              const GeoType in_type, const GeoType out_type);
+
+  // Convert covariance
+  Eigen::Matrix3d convertCovariance(const Eigen::Matrix3d& cov,
+              const GeoType in_type, const GeoType out_type);
+
   // Rotation matrices
   Eigen::Matrix3d rotationMatrix(GeoType from, GeoType to);
+
+  // Get coordinate zero
+  Eigen::Vector3d getZero(const GeoType type);
 
   // Convert LLA in degree to LLA in rad
   inline static Eigen::Vector3d degToRad(Eigen::Vector3d& deg) {

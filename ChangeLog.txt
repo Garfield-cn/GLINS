@@ -1,0 +1,8 @@
+--------------------------------------------------------------------------------
+gici version 1.0.0 (2023.02.18)
+Initial version.
+--------------------------------------------------------------------------------
+gici version 1.0.1 (2023.03.02)
+  ADDED   : Measurement data realignment to ensure measurement timestamp ascending.
+  ADDED   : Backend pending check and measurement data sparsifying.
+  FIXED   : Jamming on image frontend thread.

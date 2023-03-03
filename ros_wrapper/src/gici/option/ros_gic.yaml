@@ -1,0 +1,110 @@
+# Gici board configurations
+stream:
+  streamers:
+  - streamer:
+      tag: str-gnss-rov
+      type: tcp-client
+      ip: 192.168.8.101
+      port: 9001
+      buffer_length: 32768
+      formator_tags: [fmt-gnss-rov]
+
+  - streamer:
+      tag: str-gnss-head
+      type: tcp-client
+      ip: 192.168.8.101
+      port: 9002
+      buffer_length: 32768
+      formator_tags: [fmt-gnss-head]
+
+  # - streamer:
+  #     tag: str-gnss-ref
+  #     type: ntrip-client
+  #     ip: 101.132.190.162
+  #     port: 8001
+  #     username: sjtugnc
+  #     passward: gnc2021
+  #     mountpoint: Channel_1
+  #     buffer_length: 32768
+  #     formator_tags: [fmt-gnss-ref]
+
+  - streamer:
+      tag: str-imu
+      type: tcp-client
+      ip: 192.168.8.101
+      port: 9011
+      buffer_length: 32768
+      formator_tags: [fmt-imu]
+
+  - streamer:
+      tag: str-camera
+      type: tcp-client
+      ip: 192.168.8.101
+      port: 9021
+      buffer_length: 361472  # 752 * 480 + 512
+      formator_tags: [fmt-camera]
+
+  - streamer:
+      tag: str-ros-imu
+      type: ros
+      input_formator_tag: fmt-imu
+      topic_name: imu_raw
+      queue_size: 10
+      io: log
+      format: imu
+
+  - streamer:
+      tag: str-ros-camera
+      type: ros
+      input_formator_tag: fmt-camera
+      topic_name: image_raw
+      queue_size: 10
+      io: log
+      format: image
+
+  formators:
+  - formator:
+      io: input
+      tag: fmt-gnss-rov
+      type: gnss-rtcm-3
+      role: [rover, ephemeris]
+
+  - formator:
+      io: input
+      tag: fmt-gnss-head
+      type: gnss-rtcm-3
+      role: [heading]
+
+  - formator:
+      io: input
+      tag: fmt-gnss-ref
+      type: gnss-rtcm-3
+      role: [reference]
+
+  - formator:
+      io: input
+      tag: fmt-imu
+      type: imu-pack
+      role: [major]
+
+  - formator:
+      io: input
+      tag: fmt-camera
+      width: 752
+      height: 480
+      type: image-pack
+      role: [mono]
+
+  replay:
+    enable: false
+    speed: 1.0
+    start_offset: 5.0
+
+estimate:
+
+
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: /home/cc/datasets/log

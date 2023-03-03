@@ -22,7 +22,8 @@ bool initPoseAndBiases(const ImuMeasurements& imu_measurements,
 
   if (imu_measurements.size() == 0) return false;
 
-  // averageing
+  // Check zero motion
+#if 1
   int n_measurements = 0;
   int n_valid_measurements = 0;
   Eigen::Vector3d acc_B = Eigen::Vector3d::Zero();
@@ -36,22 +37,45 @@ bool initPoseAndBiases(const ImuMeasurements& imu_measurements,
     // zero motion check
     // if (fabs(imu_measurements[i].linear_acceleration.norm() - gravity) > 0.5 || 
     //     fabs(imu_measurements[i].angular_velocity.norm()) > 0.05) continue;
-    if (fabs(imu_measurements[i].linear_acceleration.norm() - gravity) > 0.5) continue;
+    double acc_norm = fabs(imu_measurements[i].linear_acceleration.norm() - gravity);
+    if (acc_norm > 0.5) continue;
 
     acc_B += imu_measurements[i].linear_acceleration;
     gyro_B += imu_measurements[i].angular_velocity;
     n_valid_measurements++;
   }
-  if (n_measurements == 0) {
-    LOG(INFO) << "No measurement in the given time window!";
-    return false;
-  }
-  else if (n_valid_measurements != n_measurements) {
-    LOG(INFO) << "Keep stady!";
-    return false;
-  }
+  if (n_measurements == 0) return false;
+  else if (n_valid_measurements != n_measurements) return false;
   acc_B /= static_cast<double>(n_measurements);
   gyro_B /= static_cast<double>(n_measurements);
+#else
+  std::vector<double> acc[3], gyro[3];
+  Eigen::Vector3d acc_B = Eigen::Vector3d::Zero();
+  Eigen::Vector3d gyro_B = Eigen::Vector3d::Zero();
+  for (auto imu : imu_measurements) {
+    for (int i = 0; i < 3; i++) {
+      acc[i].push_back(imu.linear_acceleration(i));
+      gyro[i].push_back(imu.angular_velocity(i));
+    }
+    acc_B += imu.linear_acceleration;
+    gyro_B += imu.angular_velocity;
+  }
+  double median_acc[3], median_gyro[3];
+  double std_acc[3], std_gyro[3];
+  for (int i = 0; i < 3; i++) {
+    median_acc[i] = getMedian(acc[i]);
+    median_gyro[i] = getMedian(gyro[i]);
+    std_acc[i] = getStandardDeviation(acc[i], median_acc[i]);
+    std_gyro[i] = getStandardDeviation(gyro[i], median_gyro[i]);
+  }
+  for (int i = 0; i < 3; i++) {
+    if (std_acc[i] > 0.5) return false;
+    if (std_gyro[i] > 0.02) return false;
+    if (fabs(median_gyro[i]) > 0.008) return false;
+  }
+  acc_B /= static_cast<double>(imu_measurements.size());
+  gyro_B /= static_cast<double>(imu_measurements.size());
+#endif
 
   Eigen::Vector3d e_acc = acc_B.normalized();
 

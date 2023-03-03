@@ -51,6 +51,9 @@ public:
   /// Get the pose of body frame with respect to the camera i.
   const Transformation& get_T_C_B(size_t camera_index) const;
 
+  /// Set the pose of body frame with respect to the camera i.
+  void set_T_C_B(size_t camera_index, const Transformation& T_CB);
+
   /// Get all transformations.
   const TransformationVector& getTransformationVector() const;
 

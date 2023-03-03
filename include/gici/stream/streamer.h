@@ -80,8 +80,11 @@ public:
   // Resume stream
   void enable() { disable_ = false; }
 
+  // Get stream message
+  const std::string getMessage() const { return stream_.msg; }
+
   // Enable replay mode
-  // This function should be called after all the streamers are initialized
+  // This function should be called after all the streamers have been initialized
   static void enableReplay(StreamerReplayOptions option);
 
   // Synchronize streams for replay
@@ -100,7 +103,7 @@ protected:
 // Serial stream control
 class SerialStreamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string port;
     int baudrate;
     int bit_size = 8;
@@ -109,8 +112,8 @@ public:
     std::string flow_control = "off"; // off|rts
   };
 
-  SerialStreamer(Config& config) :
-    config_(config) { 
+  SerialStreamer(Option& option) :
+    option_(option) { 
     type_ = StreamerType::Serial;
   }
   SerialStreamer(YAML::Node& node);
@@ -120,20 +123,20 @@ public:
   int open(StreamerRWType type) override;
 
 protected:
-  Config config_;
+  Option option_;
 };
 
 // File stream control
 class FileStreamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string path;
     bool enable_time_tag = true;
     int swap_interval = 0;  // output swap interval (hr) (0: no swap)
   };
 
-  FileStreamer(Config& config) :
-    config_(config) { 
+  FileStreamer(Option& option) :
+    option_(option) { 
     type_ = StreamerType::File;
   }
   FileStreamer(YAML::Node& node);
@@ -143,18 +146,18 @@ public:
   int open(StreamerRWType type) override;
 
 protected:
-  Config config_;
+  Option option_;
 };
 
 // TCP server stream control
 class TcpServerStreamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string port;
   };
 
-  TcpServerStreamer(Config& config) :
-    config_(config) {
+  TcpServerStreamer(Option& option) :
+    option_(option) {
     type_ = StreamerType::TcpServer;
   }
   TcpServerStreamer(YAML::Node& node);
@@ -164,19 +167,19 @@ public:
   int open(StreamerRWType type) override;
 
 protected:
-  Config config_;
+  Option option_;
 };
 
 // TCP client stream control
 class TcpClientStreamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string ip;
     std::string port;
   };
 
-  TcpClientStreamer(Config& config) :
-    config_(config) {
+  TcpClientStreamer(Option& option) :
+    option_(option) {
     type_ = StreamerType::TcpClient;
   }
   TcpClientStreamer(YAML::Node& node);
@@ -186,21 +189,21 @@ public:
   int open(StreamerRWType type) override;
 
 protected:
-  Config config_;
+  Option option_;
 };
 
 // Ntrip server stream control
 class NtripServerStreamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string ip;
     std::string port;
     std::string passward;
     std::string mountpoint;
   };
 
-  NtripServerStreamer(Config& config) :
-    config_(config) { 
+  NtripServerStreamer(Option& option) :
+    option_(option) { 
     type_ = StreamerType::NtripServer;
   }
   NtripServerStreamer(YAML::Node& node);
@@ -210,13 +213,13 @@ public:
   int open(StreamerRWType type) override;
 
 protected:
-  Config config_;
+  Option option_;
 };
 
 // Ntrip client stream control
 class NtripClientStreamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string ip;
     std::string port;
     std::string username;
@@ -224,8 +227,8 @@ public:
     std::string mountpoint;
   };
 
-  NtripClientStreamer(Config& config) :
-    config_(config) { 
+  NtripClientStreamer(Option& option) :
+    option_(option) { 
     type_ = StreamerType::NtripClient;
   }
   NtripClientStreamer(YAML::Node& node);
@@ -235,21 +238,21 @@ public:
   int open(StreamerRWType type) override;
 
 protected:
-  Config config_;
+  Option option_;
 };
 
 // V4L2 stream control
 class V4l2Streamer : public StreamerBase {
 public:
-  struct Config {
+  struct Option {
     std::string dev;
     int height;
     int width;
     int buffer_count = 1;
   };
 
-  V4l2Streamer(Config& config) :
-    config_(config) { 
+  V4l2Streamer(Option& option) :
+    option_(option) { 
     type_ = StreamerType::V4L2;
   }
   V4l2Streamer(YAML::Node& node);
@@ -268,15 +271,15 @@ public:
   int write(uint8_t *buf, int size) override;
 
 protected:
-  Config config_;
+  Option option_;
   dev_t dev_;
   uint8_t **v4l2_buf;
 };
 
 // Get stream handle from configure
 #define MAKE_STREAMER(Streamer) \
-  inline std::shared_ptr<StreamerBase> makeStreamer(Streamer::Config& config) { \
-    return std::make_shared<Streamer>(config); \
+  inline std::shared_ptr<StreamerBase> makeStreamer(Streamer::Option& option) { \
+    return std::make_shared<Streamer>(option); \
   }
 MAKE_STREAMER(SerialStreamer);
 MAKE_STREAMER(FileStreamer);

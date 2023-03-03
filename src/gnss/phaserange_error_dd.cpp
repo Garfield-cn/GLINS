@@ -100,8 +100,8 @@ bool PhaserangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
   Eigen::Vector3d t_WR_ECEF, t_WS_W, t_SR_S;
   Eigen::Quaterniond q_WS;
   double dtroposphere_delay = 0.0, dionosphere_delay = 0.0;
-  double gmf_wet_rov, gmf_wet_ref;
-  double gmf_wet_rov_base, gmf_wet_ref_base;
+  double gmf_wet_rov, gmf_wet_ref, gmf_hydro_rov, gmf_hydro_ref;
+  double gmf_wet_rov_base, gmf_wet_ref_base, gmf_hydro_rov_base, gmf_hydro_ref_base;
   double dambiguity, dambiguity_base;
   
   // Position and clock
@@ -164,51 +164,55 @@ bool PhaserangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
   else
   { 
     // use estimated atomspheric delays
-    double troposphere_wet_rov = 0.0, troposphere_wet_ref = 0.0;
+    double zwd_rov = 0.0, zwd_ref = 0.0;
     double dionosphere_delay_cur = 0.0, dionosphere_delay_base = 0.0;
     if (!is_estimate_body_) {
-      troposphere_wet_rov = parameters[3][0];
-      troposphere_wet_ref = parameters[4][0];
+      zwd_rov = parameters[3][0];
+      zwd_ref = parameters[4][0];
       dionosphere_delay_cur = parameters[5][0];
       dionosphere_delay_base = parameters[6][0];
     }
     else {
-      troposphere_wet_rov = parameters[4][0];
-      troposphere_wet_ref = parameters[5][0];
+      zwd_rov = parameters[4][0];
+      zwd_ref = parameters[5][0];
       dionosphere_delay_cur = parameters[6][0];
       dionosphere_delay_base = parameters[7][0];
     }
 
     // troposphere hydro-static delay
-    double troposphere_delay_rov = gnss_common::troposphereSaastamoinen(
-      timestamp, t_WR_ECEF, elevation_rov);
-    double troposphere_delay_ref = gnss_common::troposphereSaastamoinen(
-      timestamp, t_WR_ECEF, elevation_ref);
-    double troposphere_delay_rov_base = gnss_common::troposphereSaastamoinen(
-      timestamp, t_WR_ECEF, elevation_rov_base);
-    double troposphere_delay_ref_base = gnss_common::troposphereSaastamoinen(
-      timestamp, t_WR_ECEF, elevation_ref_base);
-    // troposphere wet delay
+    double zhd_rov = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, PI / 2.0);
+    double zhd_ref = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, PI / 2.0);
+    double zhd_rov_base = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, PI / 2.0);
+    double zhd_ref_base = gnss_common::troposphereSaastamoinen(
+      timestamp, t_WR_ECEF, PI / 2.0);
+    // mapping
     gnss_common::troposphereGMF(
-      timestamp, t_WR_ECEF, elevation_rov, nullptr, &gmf_wet_rov);
+      timestamp, t_WR_ECEF, elevation_rov, &gmf_hydro_rov, &gmf_wet_rov);
     gnss_common::troposphereGMF(
-      timestamp, t_WR_ECEF, elevation_ref, nullptr, &gmf_wet_ref);
+      timestamp, t_WR_ECEF, elevation_ref, &gmf_hydro_ref, &gmf_wet_ref);
     gnss_common::troposphereGMF(
-      timestamp, t_WR_ECEF, elevation_rov_base, nullptr, &gmf_wet_rov_base);
+      timestamp, t_WR_ECEF, elevation_rov_base, &gmf_hydro_rov_base, &gmf_wet_rov_base);
     gnss_common::troposphereGMF(
-      timestamp, t_WR_ECEF, elevation_ref_base, nullptr, &gmf_wet_ref_base);
-    dtroposphere_delay = troposphere_delay_rov - troposphere_delay_ref - 
-      troposphere_delay_rov_base + troposphere_delay_ref_base + 
-      troposphere_wet_rov * gmf_wet_rov - troposphere_wet_ref * gmf_wet_ref - 
-      troposphere_wet_rov * gmf_wet_rov_base + troposphere_wet_ref * gmf_wet_ref_base;
+      timestamp, t_WR_ECEF, elevation_ref_base, &gmf_hydro_ref_base, &gmf_wet_ref_base);
+    dtroposphere_delay = zhd_rov * gmf_hydro_rov - zhd_ref * gmf_hydro_ref - 
+      zhd_rov_base * gmf_hydro_rov_base + zhd_ref_base * gmf_hydro_ref_base + 
+      zwd_rov * gmf_wet_rov - zwd_ref * gmf_wet_ref - 
+      zwd_rov * gmf_wet_rov_base + zwd_ref * gmf_wet_ref_base;
 
     // ionosphere
+    dionosphere_delay_cur = gnss_common::ionosphereConvertFromBase(
+      dionosphere_delay_cur, observation_rov_.wavelength);
+    dionosphere_delay_base = gnss_common::ionosphereConvertFromBase(
+      dionosphere_delay_base, observation_rov_base_.wavelength);
     dionosphere_delay = dionosphere_delay_cur - dionosphere_delay_base;
   }
 
   // Get estimate derivated measurement
   double dphaserange_estimate = rho_rov - rho_ref - rho_rov_base + rho_ref_base
-   + dtroposphere_delay + dionosphere_delay + dambiguity - dambiguity_base;
+   + dtroposphere_delay - dionosphere_delay + dambiguity - dambiguity_base;
 
   // Compute error
   double dphaserange = observation_rov_.phaserange - observation_ref_.phaserange -
@@ -266,8 +270,10 @@ bool PhaserangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
       (gmf_wet_ref - gmf_wet_ref_base) * Eigen::MatrixXd::Identity(1, 1);
 
     // Ionosphere
-    Eigen::Matrix<double, 1, 1> J_iono = -Eigen::MatrixXd::Identity(1, 1);
-    Eigen::Matrix<double, 1, 1> J_iono_base = Eigen::MatrixXd::Identity(1, 1);
+    Eigen::Matrix<double, 1, 1> J_iono = Eigen::MatrixXd::Identity(1, 1) * 
+      gnss_common::ionosphereConvertFromBase(1.0, observation_rov_.wavelength);
+    Eigen::Matrix<double, 1, 1> J_iono_base = -Eigen::MatrixXd::Identity(1, 1) * 
+      gnss_common::ionosphereConvertFromBase(1.0, observation_rov_base_.wavelength);
 
     // Group 1
     if (parameter_block_group_ == 1 || parameter_block_group_ == 3) 
@@ -350,7 +356,7 @@ bool PhaserangeErrorDD<Ns ...>::EvaluateWithMinimalJacobians(
         }
       }
     }
-    // // Group 2
+    // Group 2
     if (parameter_block_group_ == 2 || parameter_block_group_ == 4)
     {
       // Pose

@@ -54,6 +54,8 @@ enum class ErrorType: uint8_t
   kMarginalizationError,
   kPoseError,
   kIMUError,
+  kHMCError,
+  kNHCError,
   kRelativePoseError,
   kPseudorangeError,
   kPseudorangeErrorSD, 
@@ -61,13 +63,21 @@ enum class ErrorType: uint8_t
   kPhaserangeError, 
   kPhaserangeErrorSD,
   kPhaserangeErrorDD,
+  kDopplerError,
   kAmbiguityError,
   kPositionError,
   kVelocityError,
+  kClockError,
+  kFrequencyError,
+  kTroposphereError,
+  kIonosphereError,
   kRelativePositionError, 
   kRelativePositionAndVelocityError,
   kRelativeClockError,
-  kRelativeAmbiguityError
+  kRelativeFrequencyError,
+  kRelativeAmbiguityError,
+  kRelativeTroposphereError,
+  kRelativeIonosphereError
 };
 
 extern const std::map<ErrorType, std::string> kErrorToStr;

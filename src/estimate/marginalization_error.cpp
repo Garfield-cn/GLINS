@@ -427,7 +427,7 @@ bool MarginalizationError::addResidualBlock(
 
     CHECK(H_.allFinite())
         << jacobians_minimal_eigen.at(i).transpose().eval()
-           * jacobians_minimal_eigen.at(i);
+           * jacobians_minimal_eigen.at(i) << std::endl << (int)parameters[i].first;
 
     for (size_t j = 0; j < i; ++j)
     {
@@ -509,7 +509,8 @@ void MarginalizationError::check() {
     CHECK(parameter_block_infos_[i].dimension==
                 size_t(base_t::parameter_block_sizes()[i]));
     CHECK(graph_->parameterBlockExists(
-                  parameter_block_infos_[i].parameter_block_id));
+                  parameter_block_infos_[i].parameter_block_id)) 
+                  << parameter_block_infos_[i].parameter_block_id;
     CHECK(parameter_block_id_to_parameter_block_info_idx_[
                 parameter_block_infos_[i].parameter_block_id]==i);
     if (i < dense_indices_)

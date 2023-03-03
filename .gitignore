@@ -55,3 +55,4 @@ third_party/yaml-cpp/
 data*/
 bin/
 lib/
+*.atx

@@ -70,6 +70,8 @@
 *                           fix bug on clock reference time in satpos_ssr()
 *                           fix bug on wrong value with ura=15 in var_ura()
 *                           use integer types in stdint.h
+*
+* modified : Cheng Chi
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 

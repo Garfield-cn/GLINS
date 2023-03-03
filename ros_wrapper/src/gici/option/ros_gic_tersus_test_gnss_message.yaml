@@ -1,0 +1,58 @@
+# Gici board configurations
+stream:
+  streamers:
+  - streamer:
+      tag: str_gnss_rov_file
+      output_tags: [fmt_gnss_rov]
+      type: file
+      path: /media/cc/T72/ubuntu/datasets/gici/20221126/gnss_rover.bin
+  - streamer:
+      tag: str_gnss_ref
+      output_tags: [fmt_gnss_ref]
+      type: file
+      path: /media/cc/T72/ubuntu/datasets/gici/20221126/gnss_reference.bin
+  - streamer:
+      tag: str_ros_gnss_rov
+      input_tags: [fmt_gnss_rov]
+      type: ros
+      topic_name: gnss_rover
+      queue_size: 3
+      io: log
+      format: gnss_raw
+      enable_observation: true
+  - streamer:
+      tag: str_ros_gnss_ref
+      input_tags: [fmt_gnss_ref]
+      type: ros
+      topic_name: gnss_reference
+      queue_size: 3
+      io: log
+      format: gnss_raw
+      enable_observation: true
+      enable_ephemeris: true
+      enable_antenna_position: true
+      enable_ionosphere_parameter: true
+
+  formators:
+  - formator:
+      io: input
+      tag: fmt_gnss_rov
+      type: gnss-raw
+      sub_type: tersus
+      start_time: 2022.11.26.03
+  - formator:
+      io: input
+      tag: fmt_gnss_ref
+      type: gnss-rtcm-3
+      start_time: 2022.11.26.03
+
+  replay:
+    enable: true
+    speed: 1.0
+    start_offset: 30.0
+
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: /home/cc/datasets/log

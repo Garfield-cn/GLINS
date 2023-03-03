@@ -20,6 +20,7 @@ typedef struct {
   gtime_t time;     /* message time */
   int width;      /* image width */ 
   int height;     /* image height */ 
+  int step;       /* image step */
   int nmax;       /* max number of buffer */
   uint8_t *image;   /* image data */
   int nbyte;      /* number of bytes in message buffer */ 
@@ -59,7 +60,7 @@ extern int input_image_v4l2(img_t *img, const uint8_t *buf, int n);
 extern int gen_img(img_t *img);
 
 /* Initialize image structure */
-extern void init_img(img_t *img, int width, int height);
+extern void init_img(img_t *img, int width, int height, int step);
 
 /* Free image structure */
 extern void free_img(img_t *img);

@@ -13,6 +13,8 @@
 #include "gici/vision/feature_matcher.h"
 #include "gici/vision/feature_tracker.h"
 #include "gici/vision/visual_initialization.h"
+#include "gici/utility/common.h"
+#include "gici/imu/imu_estimator_base.h"
 
 namespace gici {
 
@@ -31,17 +33,17 @@ struct FeatureHandlerOptions {
   double kfselect_min_disparity = 10.0;
 
   // Minimum distance in meters before a new keyframe is selected.
-  double kfselect_min_dist_metric = 0.5;
+  double kfselect_min_dist_metric = 1.5;
 
   // Minimum angle in degrees to closest KF
-  double kfselect_min_angle = 5.0;
+  double kfselect_min_angle = 10.0;
 
   // Minimum time duration in seconds to forcely select a new keyframe
   // This is used to control the long duration IMU drift under a slow or static motion.
   double kfselect_min_dt = 2.0;
 
   // Image max pyramid level
-  int max_pyramid_level = 4;
+  int max_pyramid_level = 3;
 
   // Minimum disparity to triangulate a landmark
   double min_disparity_init_landmark = 5.0;
@@ -64,32 +66,36 @@ class FeatureHandler {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  FeatureHandler(const FeatureHandlerOptions& options);
+  using PoseRequest = std::function<bool(const double, Transformation&)>;
+
+  FeatureHandler(const FeatureHandlerOptions& options, 
+                 const ImuEstimatorBaseOptions& imu_options);
   ~FeatureHandler();
 
   // Add images
-  bool addImageBundle(const std::vector<cv::Mat>& imgs, 
+  bool addImageBundle(const std::vector<std::shared_ptr<cv::Mat>>& imgs, 
                       const double timestamp);
 
-  // Add camera pose to a specific frame at given timestamp
-  bool addCameraPose(const double timestamp, 
-                     const Transformation& T_WS);
+  // Add images with poses
+  bool addImageBundle(const std::vector<std::shared_ptr<cv::Mat>>& imgs, 
+                      const double timestamp, const std::vector<Transformation>& T_WSs);
 
-  // After the poses and landmarks were adjusted to global, call this function to 
-  // apply the changes.
-  void setGlobalInitializationResult(const std::deque<FramePtr>& scaled_frames);
+  // Process current added image bundle. Should be called after addImageBundle.
+  bool processImageBundle();
 
-  // Add IMU measurement for pose integration
-  void addImuMeasurement(const ImuMeasurement& imu_measurement);
+  // Initialize landmarks 
+  void initializeLandmarks(const FramePtr& keyframe);
 
-  // Set current speed and bias
-  void setSpeedAndBias(const double timestamp, 
-                       const SpeedAndBias speed_and_bias);
+  // Set pose for a frame and adjust the frames behind
+  void setPoseAndAdjust(const double timestamp, const Transformation& T_WS);
 
   // Set a rotation prior for initialization
   inline void setRotationPrior(const Eigen::Quaterniond& R_WS) {
     initializer_->setRotationPrior(R_WS);
   }
+
+  // Set a function to be called for getting a pose at given timestamp
+  void setPoseRequestSource(PoseRequest& f) { pose_request_ = f; }
 
   // Get current map
   inline const MapPtr& getMap() const { return map_; }
@@ -106,37 +112,41 @@ public:
   // Get current processed frame bundle
   FrameBundlePtr getFrameBundle() { return lastFrames(); }
 
+  // Get all frame bundles
+  std::deque<FrameBundlePtr>& getFrameBundles() { return frame_bundles_; }
+
   // Check if it is the first frame
   bool isFirstFrame() { return frame_bundles_.size() < 2; }
 
   // Get current processed frame
   FramePtr getFrame() { return lastFrame(); }
 
-  // Lock or unlock frame and map (landmarks)
-  inline void lock() { mutex_.lock(); }
-  inline void unlock() { mutex_.unlock(); }
+  // Set global initialization flag
+  void setGlobalScaleInitialized() { global_scale_initialized_ = true; }
 
 private:
-  // Get frame
+  // Get last frame
   const FramePtr& lastFrame() {
-    CHECK(frame_bundles_.size() > 1);
-    return frame_bundles_[frame_bundles_.size() - 2]->at(0);
+    return getLast(frame_bundles_)->at(0);
   }
+
+  // Get current frame
   const FramePtr& curFrame() {
-    CHECK(frame_bundles_.size() > 0);
-    return frame_bundles_.back()->at(0);
+    return getCurrent(frame_bundles_)->at(0);
   }
+
+  // Get last frame bundle
   FrameBundlePtr& lastFrames() {
-    CHECK(frame_bundles_.size() > 1);
-    return frame_bundles_[frame_bundles_.size() - 2];
+    return getLast(frame_bundles_);
   }
+
+  // Get current frame bundle
   FrameBundlePtr& curFrames() {
-    CHECK(frame_bundles_.size() > 0);
-    return frame_bundles_.back();
+    return getCurrent(frame_bundles_);
   }
 
   // Keyframe selection criterion.
-  bool needNewKeyFrame();
+  bool needKeyFrame(const FramePtr& last_keyframe, const FramePtr& frame);
 
   // Detect features
   void detectFeatures(const FramePtr& frame);
@@ -155,13 +165,10 @@ private:
   void addObservation(const FramePtr& frame);
 
   // Set the new frame as keyframe
-  void setNewKeyFrame();
-
-  // Initialize landmarks 
-  void initializeNewLandmarks();
+  void setKeyFrame(const FrameBundlePtr& frame_bundle);
 
   // Initialize scale and landmarks at first
-  bool initialize();
+  bool initializeScale();
 
   // Processes frame bundle
   bool processFrameBundle();
@@ -179,12 +186,10 @@ protected:
   // Frames
   std::deque<FrameBundlePtr> frame_bundles_;
   size_t frame_counter_ = 0;
-  bool initialized_;
+  bool local_scale_initialized_;
   bool global_scale_initialized_;
 
   // IMU
-  ImuMeasurements imu_measurements_;
-  std::mutex imu_mutex_;
   double speed_and_bias_timestamp_;
   SpeedAndBias speed_and_bias_;
 
@@ -196,8 +201,11 @@ protected:
   // Map that handles keyframes and keypoints
   MapPtr map_;
 
-  // Mutex lock to protect feature and landmark variables
-  std::mutex mutex_;
+  // Mutex lock to protect landmarks
+  std::timed_mutex mutex_;
+
+  // Call other functions to get pose at given timestamp
+  PoseRequest pose_request_;
 };
 
 }

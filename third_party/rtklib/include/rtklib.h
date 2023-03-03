@@ -27,6 +27,8 @@
 *           2011/05/27 1.9  rtklib ver.2.4.1
 *           2013/03/28 1.10 rtklib ver.2.4.2
 *           2020/11/30 1.11 rtklib ver.2.4.3 b34
+*
+* modified : Cheng Chi
 *-----------------------------------------------------------------------------*/
 #ifndef RTKLIB_H
 #define RTKLIB_H
@@ -783,6 +785,7 @@ typedef struct {        /* SSR correction type */
     float  stdpb[MAXCODE]; /* std-dev of phase biases (m) */
     double yaw_ang,yaw_rate; /* yaw angle and yaw rate (deg,deg/s) */
     uint8_t update;     /* update flag (0:no update,1:update) */
+    uint8_t isdcb, isdpb;  /* if differenced */
 } ssr_t;
 
 typedef struct {        /* navigation data type */
@@ -1682,6 +1685,7 @@ EXPORT void strunlock(stream_t *stream);
 EXPORT int  stropen  (stream_t *stream, int type, int mode, const char *path);
 EXPORT void strclose (stream_t *stream);
 EXPORT int  strread  (stream_t *stream, uint8_t *buff, int n);
+EXPORT void fileshift(stream_t *stream);
 EXPORT int  strwrite (stream_t *stream, uint8_t *buff, int n);
 EXPORT void strsync  (stream_t *stream1, stream_t *stream2);
 EXPORT int  strstat  (stream_t *stream, char *msg);

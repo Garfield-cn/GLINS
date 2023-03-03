@@ -52,12 +52,9 @@ bool RollAndPitchError::EvaluateWithMinimalJacobians(double const* const * param
       Eigen::Quaterniond(parameters[0][6], parameters[0][3], parameters[0][4],
                          parameters[0][5]));
   // delta pose
-  Eigen::Vector3d ypr = T_WS.getEigenQuaternion().matrix().eulerAngles(2, 1, 0);
-  Eigen::Quaterniond q_WS_meas = 
-    Eigen::AngleAxisd(ypr(0), Eigen::Vector3d::UnitZ()) * 
-    Eigen::AngleAxisd(measurement_(1), Eigen::Vector3d::UnitY()) * 
-    Eigen::AngleAxisd(measurement_(0), Eigen::Vector3d::UnitX());
-  Transformation T_WS_meas = Transformation(T_WS.getPosition(), q_WS_meas);
+  Eigen::Vector3d rpy = quaternionToEulerAngle(T_WS.getEigenQuaternion());
+  Eigen::Vector3d rpy_meas(measurement_(0), measurement_(1), rpy(2));
+  Transformation T_WS_meas(T_WS.getPosition(), eulerAngleToQuaternion(rpy_meas));
   Transformation dp = T_WS_meas * T_WS.inverse();
   // get the error
   Eigen::Vector2d error;

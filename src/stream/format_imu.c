@@ -97,7 +97,7 @@ extern int encode_imu(imu_t *imu)
 * notes  : 
 *      imu message format:
 *      +----------+-----------+--------------------+---------+
-*      | preamble |  length   |  data message  | parity  |
+*      | preamble |  length   |    data message    | parity  |
 *      +----------+-----------+--------------------+---------+
 *      |<-- 16 -->|<--- 8 --->|<--- length x 8 --->|<-- 8 -->|
 *      
@@ -113,7 +113,9 @@ extern int input_imu(imu_t *imu, uint8_t data)
     return 0;
   }
   if (imu->nbyte==1) {
-    if (data!=(uint8_t)(IMUPREAMB&0x00FF)) return 0;
+    if (data!=(uint8_t)(IMUPREAMB&0x00FF)) {
+      imu->nbyte = 0; return 0;
+    }
     imu->buff[imu->nbyte++]=data;
     return 0;
   }

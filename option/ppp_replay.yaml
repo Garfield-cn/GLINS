@@ -2,51 +2,194 @@
 stream:
   streamers:
   - streamer:
-      tag: str-log-brux0
+      tag: str-brux0
       type: file
-      path: /home/cc/datasets/ntrip/20220411/brux0.rtcm3
+      path: /home/cc/datasets/ntrip/20220714/brux0.rtcm3
       enable_time_tag: true
       swap_interval: 0
       loop_duration: 0.01
       formator_tags: [gnss-brux0]
   - streamer:
-      tag: str-log-bkg0
+      tag: str-dlr0
       type: file
-      path: /home/cc/datasets/ntrip/20220324/bkg0.rtcm3
+      path: /home/cc/datasets/ntrip/20220714/dlr0.rtcm3
       enable_time_tag: true
       swap_interval: 0
       loop_duration: 0.01
-      formator_tags: [gnss-bkg0]
+      formator_tags: [gnss-dlr0]
   - streamer:
-      tag: str-log-ssr
+      tag: str-cas
       type: file
-      path: /home/cc/datasets/ntrip/20220324/ssr.rtcm3
+      path: /home/cc/datasets/ntrip/20220714/cas.rtcm3
       enable_time_tag: true
       swap_interval: 0
       loop_duration: 0.01
-      formator_tags: [gnss-ssr]
+      formator_tags: [gnss-cas]
+  - streamer:
+      tag: str-cnes
+      type: file
+      path: /home/cc/datasets/ntrip/20220714/cnes.rtcm3
+      enable_time_tag: true
+      swap_interval: 0
+      loop_duration: 0.01
+      formator_tags: [gnss-cnes]
+#   - streamer:
+#       tag: dcb_file
+#       type: file
+#       path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+#       enable_time_tag: false
+#       formator_tags: [dcb_file]
+  - streamer:
+      tag: atx_file
+      type: file
+      path: /home/cc/linux/softwares/gici/option/igs14.atx
+      enable_time_tag: false
+      formator_tags: [atx_file]
+  - streamer:
+      tag: solution_spp
+      type: file
+      path: /home/cc/datasets/tmp/solution_spp.txt
+      enable_time_tag: false
+      swap_interval: 0
+      buffer_length: 4096
+      loop_duration: 1e-3
+      formator_tags: [solution_spp]
 
   formators:
   - formator:
       io: input
       tag: gnss-brux0
       type: gnss-rtcm-3
-      start_time: 1649642793
+      start_time: 2022.07.14.14
       role: [rover]
   - formator:
       io: input
-      tag: gnss-bkg0
+      tag: gnss-dlr0
       type: gnss-rtcm-3
-      start_time: 1649642793
+      start_time: 2022.07.14.14
       role: [ephemeris]
   - formator:
       io: input
-      tag: gnss-ssr
+      tag: gnss-cas
       type: gnss-rtcm-3
-      start_time: 1649642793
-      role: [correction]
+      start_time: 2022.07.14.14
+      role: []
+  - formator:
+      io: input
+      tag: gnss-cnes
+      type: gnss-rtcm-3
+      start_time: 2022.07.14.14
+      role: [ssr_ephemeris, code_bias, phase_bias]
+  - formator:
+      io: input
+      tag: dcb_file
+      type: dcb-file
+      role: [code_bias]
+  - formator:
+      io: input
+      tag: atx_file
+      type: atx-file
+      role: [phase_center]
+  - formator:
+      io: output
+      tag: solution_spp
+      type: nmea
+      talker_id: GP
+      use_gga: true
+      use_rmc: true
+      use_esa: false
 
   replay:
     enable: true
     speed: 10.0
-    start_offset: 0.0
+    start_offset: 21600.0
+
+estimate:
+# - estimator:
+#     tag: spp
+#     type: spp
+#     input_formator_tags: [gnss-brux0]
+#     input_estimator_tags: []
+#     output_formator_tags: [solution_spp]
+#     loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
+#     output_align_tag: gnss-brux0
+#     role: position
+#     compute_covariance: false
+#     estimator_base_options:
+#       max_iteration: 10
+#       num_threads: 2
+#       max_solver_time: 0.05
+#       verbose_output: true
+#       solver_type: dense_normal_cholesky
+#       trust_region_strategy_type: levenberg_marquardt
+#     gnss_estimator_base_options:
+#       gnss_common:
+#         min_elevation: 7.0
+#         max_gdop: 10.0
+#         system_exclude: [R, E, C]
+
+- estimator:
+    tag: ppp
+    type: ppp
+    input_formator_tags: [gnss-brux0]
+    input_estimator_tags: []
+    output_formator_tags: [solution_spp]
+    loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
+    output_align_tag: gnss-brux0
+    role: position
+    compute_covariance: false
+    estimator_base_options:
+      max_iteration: 10
+      num_threads: 4
+      max_solver_time: 0.01
+      verbose_output: true
+      solver_type: dense_schur
+      trust_region_strategy_type: dogleg
+      log_intermediate_data: true
+      log_intermediate_data_directory: /home/cc/datasets/log_estimator
+    gnss_estimator_base_options:
+      use_outlier_rejection: true
+      max_pesudorange_norm_error: 4.0
+      max_phaserange_norm_error: 4.0
+      gnss_common:
+        min_elevation: 7.0
+        max_gdop: 10.0
+        system_exclude: [R, G, C]
+        # code_exclude: [G|5Q]
+        code_exclude: [E|7Q, E|6C, E|8Q, G|2L, G|5Q, C|7I]
+        mw_slip_thres: 3.0
+        gf_slip_thres: 0.05
+        receiver_pco: [0.0, 0.001, 0.4689]
+      gnss_error_parameter:
+        code_to_phase_ratio: 100
+        phase_error_factor: [0.003, 0.003, 0.0]
+        system_error_ratio: [1.0, 5.0, 1.0, 1.5]  # G, R, E, C 
+        relative_position: [0.001, 0.001, 0.001]
+        relative_velocity: [1.0e1, 1.0e1, 1.0e1]
+        relative_ionosphere: 3.0e-2
+        relative_troposphere: 3.0e-4
+        relative_ambiguity: 1.0e-4
+        relative_frequency: 1.0e-2
+        relative_gps_ifcb: 5.0e-4
+        residual_gps_ifcb: 1.0e-2
+    ppp_options:
+      max_window_length: 2
+      use_ambiguity_resolution: false
+      estimate_velocity: false
+    ambiguity_resolution_options:
+      # system_exclude: [R, E, C]
+      # phase_exclude: [G|L2C]
+      min_elevation: 10.0
+      ratio: 2.0
+      min_percentage_fixation_uwl: 0.8
+      min_percentage_fixation_wl: 0.8
+      min_percentage_fixation_nl: 0.7
+      norm_phase_residual_reject_thres: 9999
+      min_consistant_fix_as_stable: 20
+      fix_and_hold: true
+    
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: /home/cc/datasets/log

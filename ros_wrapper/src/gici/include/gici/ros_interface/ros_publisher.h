@@ -23,12 +23,15 @@
 #include <pcl/point_types.h>
 
 #include "gici/utility/svo.h"
+#include "gici/stream/formator.h"
 
 namespace gici {
 
 // Publish raw image
 void publishImage(ros::Publisher& pub, 
-  const FramePtr& frame, const ros::Time time);
+  const cv::Mat& image, const ros::Time time);
+void publishImage(ros::Publisher& pub, 
+  const FramePtr& frame, const ros::Time time, const std::string& encoding);
 
 // Publish image with features
 void publishFeaturedImage(ros::Publisher& pub, 
@@ -61,6 +64,12 @@ void publishPoseWithCovarianceAndTransform(ros::Publisher& pub,
   const Transformation& pose, const Eigen::Matrix<double, 6, 6>& covariance,
   const ros::Time time, std::string frame_id, std::string child_frame_id);
 
+// Publish odometry
+void publishOdometry(ros::Publisher& pub, tf::TransformBroadcaster& broadcaster,
+  const Transformation& pose, const Eigen::Vector3d& velocity, 
+  const Eigen::Matrix<double, 9, 9>& covariance, const ros::Time time, 
+  std::string frame_id, std::string child_frame_id);
+
 // Path publisher
 class PathPublisher {
 public:
@@ -84,5 +93,25 @@ protected:
 void publishError3d(ros::Publisher& pub, 
   const Eigen::Vector3d& error, const ros::Time time, 
   std::string frame_id);
+
+// Publish IMU message
+void publishImu(ros::Publisher& pub, const DataCluster::IMU& imu);
+void publishImu(ros::Publisher& pub, const ImuMeasurement& imu);
+
+// Publish GNSS message
+void publishGnssObservations(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
+void publishGnssEphemerides(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
+void publishGnssAntennaPosition(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
+void publishGnssIonosphereParameter(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
+void publishGnssSsrCodeBiases(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
+void publishGnssSsrPhaseBiases(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
+void publishGnssSsrEphemerides(
+  ros::Publisher& pub, const DataCluster::GNSS& gnss);
 
 }

@@ -66,6 +66,7 @@ void FastDetector::detect(
   fd_utils::fastDetector(
         img_pyr, options_.threshold_primary, options_.border,
         options_.min_level, options_.max_level, corners, grid_);
+  
   fd_utils::fillFeatures(
         corners, FeatureType::kCorner, mask, options_.threshold_primary,
         max_n_features, px_vec, score_vec, level_vec, grad_vec, types_vec, grid_);

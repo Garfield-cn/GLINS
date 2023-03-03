@@ -14,6 +14,7 @@
 #pragma diagnostic pop
 
 #include "gici/estimate/error_interface.h"
+#include "gici/utility/global_variable.h"
 
 namespace gici {
 
@@ -109,6 +110,8 @@ public:
     Eigen::Map<const Eigen::VectorXd> para_cur(parameters[1], Dim);
     Eigen::Map<Eigen::VectorXd> Res(residuals, Dim);
     Res = square_root_information_ * (para_cur - para_pre);
+
+    if (global::__cost_function_no_residual_weighting__) Res = (para_cur - para_pre);
 
     // Jacobian
     if (jacobians != nullptr)

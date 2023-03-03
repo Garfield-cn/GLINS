@@ -94,6 +94,13 @@ const Transformation& NCamera::get_T_C_B(size_t camera_index) const
   return T_C_B_[camera_index];
 }
 
+/// Set the pose of body frame with respect to the camera i.
+void NCamera::set_T_C_B(size_t camera_index, const Transformation& T_CB)
+{
+  CHECK_LT(camera_index, cameras_.size());
+  T_C_B_[camera_index] = T_CB;
+}
+
 const TransformationVector& NCamera::getTransformationVector() const
 {
   return T_C_B_;

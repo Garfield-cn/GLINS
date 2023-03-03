@@ -85,7 +85,19 @@ inline void changeFeatureTypeToSeed(FeatureType& t)
   else if(t == FeatureType::kMapPoint)
     t = FeatureType::kMapPointSeed;
   else
-    LOG(FATAL) << "Unknown feature types.";
+    LOG(ERROR) << "Unknown feature types: " << static_cast<int>(t);
+}
+
+inline void changeFeatureTypeFromSeed(FeatureType& t) 
+{
+  if(t == FeatureType::kCornerSeed)
+    t = FeatureType::kCorner;
+  else if(t == FeatureType::kEdgeletSeed)
+    t = FeatureType::kEdgelet;
+  else if(t == FeatureType::kMapPointSeed)
+    t = FeatureType::kMapPoint;
+  else
+    LOG(ERROR) << "Unknown feature types: " << static_cast<int>(t);
 }
 
 }

@@ -6,12 +6,11 @@
 **/
 #include "gici/utility/spin_control.h"
 
-#include <thread>
-
 namespace gici {
 
 // Static variable
 bool SpinControl::ok_ = true;
+bool SpinControl::wait_ = true;
 
 SpinControl::SpinControl(double duration) : duration_(duration)
 {

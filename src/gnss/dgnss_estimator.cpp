@@ -1,244 +1,149 @@
 /**
-* @Function: DGNSS (Double differenced pseudorange positioning) implementation
+* @Function: Double-differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
 #include "gici/gnss/dgnss_estimator.h"
 
-#include "gici/gnss/pseudorange_error_dd.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
 
 namespace gici {
 
 // The default constructor
-DgnssEstimator::DgnssEstimator(const DgnssEstimatorOptions& options) :
-  options_(options), graph_(std::make_shared<Graph>()),
-  cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
-  huber_loss_function_ptr_(new ceres::HuberLoss(1)),
-  debug_callback_(new CeresDebugCallback())
+DgnssEstimator::DgnssEstimator(const DgnssEstimatorOptions& options, 
+               const GnssEstimatorBaseOptions& gnss_base_options, 
+               const EstimatorBaseOptions& base_options) :
+  dgnss_options_(options), 
+  GnssEstimatorBase(gnss_base_options, base_options),
+  EstimatorBase(base_options)
 {
-  // For debug
-  // graph_->options.callbacks.push_back(debug_callback_.get());
+  type_ = EstimatorType::Dgnss;
+  can_compute_covariance_ = true;
+
+  // SPP estimator for setting initial states
+  spp_estimator_.reset(new SppEstimator(gnss_base_options));
+
+  states_.push_back(State());
+  gnss_measurement_pairs_.push_back(
+    std::make_pair(GnssMeasurement(), GnssMeasurement()));
 }
 
 // The default destructor
 DgnssEstimator::~DgnssEstimator()
 {}
 
+// Add measurement
+bool DgnssEstimator::addMeasurement(const EstimatorDataCluster& measurement)
+{
+  GnssMeasurement rov, ref;
+  meausrement_align_.add(measurement);
+  if (meausrement_align_.get(dgnss_options_.max_age, rov, ref)) {
+    return addGnssMeasurementAndState(rov, ref);
+  }
+
+  return false;
+}
+
 // Add GNSS measurements and state
 bool DgnssEstimator::addGnssMeasurementAndState(
-                    const GnssMeasurement& measurement_rov, 
-                    const GnssMeasurement& measurement_ref)
+  const GnssMeasurement& measurement_rov, 
+  const GnssMeasurement& measurement_ref)
 {
-  // Check timestamp
-  differential_age_ = fabs(measurement_rov.timestamp - measurement_ref.timestamp);
-  if (differential_age_ > options_.max_age) {
-    LOG(WARNING) << "Max age between two measurements exceeded! "
-      << "age = " << differential_age_ << ", max_age = " << options_.max_age;
+  // Get prior states
+  if (!spp_estimator_->addGnssMeasurementAndState(measurement_rov)) {
     return false;
   }
-
-  measurement_rov_ = measurement_rov;
-  measurement_ref_ = measurement_ref;
-
-  // Get last estimate
-  Eigen::Vector3d last_position = getPositionEstimate();
-
-  // Add parameter blocks in current timestamp
-  double timestamp = measurement_rov_.timestamp;
-
-  // Erase all parameters
-  for (auto id : parameter_ids_) {
-    graph_->removeParameterBlock(id.asInteger());
+  if (!spp_estimator_->estimate()) {
+    return false;
   }
-  parameter_ids_.clear();
+  Eigen::Vector3d position_prior = spp_estimator_->getPositionEstimate();
+  Eigen::Vector3d velocity_prior = spp_estimator_->getVelocityEstimate();
+  std::map<char, double> frequency_prior = spp_estimator_->getFrequencyEstimate();
+  curState().status = GnssSolutionStatus::Single;
 
+  // Set to local measurement handle
+  curGnssRov() = measurement_rov;
+  curGnssRov().position = position_prior;
+  curGnssRef() = measurement_ref;
+
+  // Form double difference pair
+  GnssMeasurementDDIndexPairs index_pairs = gnss_common::formPseudorangeDDPair(
+    curGnssRov(), curGnssRef(), gnss_base_options_.common);
+
+  // Add parameter blocks
+  double timestamp = curGnssRov().timestamp;
+  curState().timestamp = timestamp;
   // position block
-  BackendId position_id = createGnssPositionId(measurement_rov_.id);
-  Eigen::Vector3d position_prior = measurement_rov_.position;
-  if (!checkZero(last_position)) position_prior = last_position;
-  std::shared_ptr<PositionParameterBlock> position_parameter_block = 
-    std::make_shared<PositionParameterBlock>(position_prior, position_id.asInteger());
-  if (!graph_->addParameterBlock(position_parameter_block)) {
+  BackendId position_id = addGnssPositionParameterBlock(curGnssRov().id, position_prior);
+  curState().id = position_id;
+  curState().id_in_graph = position_id;
+  if (dgnss_options_.estimate_velocity) {
+    // velocity block
+    addGnssVelocityParameterBlock(curGnssRov().id, velocity_prior);
+    // frequency block
+    int num_valid_doppler_system = 0;
+    addFrequencyParameterBlocks(curGnssRov(), curGnssRov().id, 
+      num_valid_doppler_system, frequency_prior);
+  }
+  
+  // Add pseudorange residual blocks
+  int num_valid_satellite = 0;
+  addDdPseudorangeResidualBlocks(curGnssRov(), curGnssRef(), 
+    index_pairs, curState(), num_valid_satellite, dgnss_options_.use_single_frequency);
+
+  // Check if insufficient satellites
+  if (!checkSufficientSatellite(num_valid_satellite, 0)) {
     return false;
   }
-  parameter_ids_.push_back(position_id);
+  num_satellites_ = num_valid_satellite;
 
-  // select double difference pairs
-  GnssMeasurementDDIndexPairs dd_pairs = gnss_common::formPseudorangeDDPair(
-      measurement_rov_, measurement_ref_, options_.common);
+  // Add doppler residual blocks
+  if (dgnss_options_.estimate_velocity) {
+    addDopplerResidualBlocks(curGnssRov(), curState(), num_valid_satellite);
+    if (checkSufficientSatellite(num_valid_satellite, 0, false)) {
+      has_velocity_estimate_ = true;
+    }
+    else {
+      has_velocity_estimate_ = false;
+    }
+  }
 
-  // Set to state
-  current_state_.id = position_id;
-  current_state_.timestamp = timestamp;
+  // Erase all parameters in previous states
+  Graph::ParameterBlockCollection parameters = graph_->parameters();
+  for (auto parameter : parameters) {
+    if (BackendId(parameter.first).bundleId() == curState().id.bundleId()) continue;
+    graph_->removeParameterBlock(parameter.first);
+  }
 
-  // Add residual blocks
-  int num_residual_block = dd_pairs.size();
-  int num_satellites = 0;
-  std::string last_prn = "";
-  for (auto dd_pair : dd_pairs) 
+  return true;
+}
+
+// Solve current graph
+bool DgnssEstimator::estimate()
+{
+  // Optimize with FDE
+  if (gnss_base_options_.use_outlier_rejection)
+  while (1)
   {
-    GnssMeasurementIndex& index = dd_pair.rov;
-    auto& satellite = measurement_rov_.getSat(index);
-
-    std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
-      std::make_shared<PseudorangeErrorDD<3>>(measurement_rov_, measurement_ref_,
-      dd_pair.rov, dd_pair.ref, dd_pair.rov_base, dd_pair.ref_base, 
-      options_.error_parameter);
-    graph_->addResidualBlock(pseudorange_error, 
-      huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_->parameterBlockPtr(position_id.asInteger()));
-
-    // get number of satellites
-    if (last_prn != satellite.prn) {
-      num_satellites++;
-      last_prn = satellite.prn;
-    }
+    optimize();
+    // reject outlier
+    if (!rejectPseudorangeOutlier(curState(),
+        gnss_base_options_.reject_one_outlier_once)) break;
+  }
+  // Optimize without FDE
+  else {
+    optimize();
   }
 
-  // No observation added
-  if (num_residual_block == 0) {
-    LOG(WARNING) << "No satellite observed!";
-    return false;
-  }
+  curState().status = GnssSolutionStatus::DGNSS;
 
-  // Insufficient satellites
-  if (num_satellites < 3) {
-    LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites;
-    return false;
-  }
-  num_satellites_ = num_satellites;
+  // Shift memory
+  states_.push_back(State());
+  while (states_.size() > 2) states_.pop_front();
 
   return true;
 }
 
-// Apply ceres optimization
-void DgnssEstimator::optimize()
-{
-  graph_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-  graph_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-  graph_->options.num_threads = options_.num_threads;
-  graph_->options.max_num_iterations = options_.max_iteration;
-
-  if (options_.verbose) {
-    graph_->options.minimizer_progress_to_stdout = true;
-  }
-  else {
-    graph_->options.logging_type = ceres::LoggingType::SILENT;
-    graph_->options.minimizer_progress_to_stdout = false;
-  }
-
-  // call solver
-  graph_->solve();
-
-  if (options_.verbose) {
-    LOG(INFO) << graph_->summary.BriefReport();
-  }
-}
-
-// Get position in ECEF coordinate
-Eigen::Vector3d DgnssEstimator::getPositionEstimate()
-{
-  if (!graph_->parameterBlockExists(current_state_.id.asInteger())) {
-    return Eigen::Vector3d::Zero();
-  }
-
-  std::shared_ptr<ParameterBlock> base_ptr =
-      graph_->parameterBlockPtr(current_state_.id.asInteger());
-  if (base_ptr != nullptr) {
-    std::shared_ptr<PositionParameterBlock> block_ptr = 
-      std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr);
-    return block_ptr->estimate();
-  }
-
-  return Eigen::Vector3d::Zero();
-}
-
-// Get solution
-GnssSolution DgnssEstimator::getSolution()
-{
-  GnssSolution solution;
-  std::vector<uint64_t> parameter_block_ids;
-
-  // Position
-  solution.timestamp = current_state_.timestamp;
-  solution.id = current_state_.id.asInteger();
-  solution.status = GnssSolutionStatus::DGNSS;
-  solution.covariance.setZero();
-  solution.position.setZero();
-  solution.velocity.setZero();
-  solution.num_satellites = num_satellites_;
-  solution.differential_age = differential_age_;
-  if (!graph_->parameterBlockExists(current_state_.id.asInteger())) {
-    return solution;
-  }
-  else {
-    parameter_block_ids.push_back(current_state_.id.asInteger());
-
-    std::shared_ptr<ParameterBlock> base_ptr =
-        graph_->parameterBlockPtr(current_state_.id.asInteger());
-    if (base_ptr != nullptr) {
-      std::shared_ptr<PositionParameterBlock> block_ptr = 
-        std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-      CHECK(block_ptr != nullptr);
-      solution.position = block_ptr->estimate();
-    }
-  }
-
-  // velocity
-  BackendId velocity_id = changeIdType(current_state_.id, IdType::gVelocity);
-  if (!graph_->parameterBlockExists(velocity_id.asInteger())) {
-    // we did not estimate velocity
-    // get the position covariance and return
-    Eigen::MatrixXd position_covariance;
-    graph_->computeCovariance(parameter_block_ids, position_covariance);
-    CHECK(position_covariance.cols() == 3);
-    solution.covariance.topLeftCorner(3, 3) = position_covariance;
-  }
-  else {
-    parameter_block_ids.push_back(velocity_id.asInteger());
-
-    std::shared_ptr<ParameterBlock> base_ptr =
-        graph_->parameterBlockPtr(velocity_id.asInteger());
-    if (base_ptr != nullptr) {
-      std::shared_ptr<VelocityParameterBlock> block_ptr = 
-        std::dynamic_pointer_cast<VelocityParameterBlock>(base_ptr);
-      CHECK(block_ptr != nullptr);
-      solution.velocity = block_ptr->estimate();
-    }
-
-    Eigen::MatrixXd covariance;
-    graph_->computeCovariance(parameter_block_ids, covariance);
-    CHECK(covariance.cols() == 6);
-    solution.covariance = covariance;
-  }
-
-  return solution;
-}
-
-// Compute and set coarse position on measurement
-bool DgnssEstimator::setCoarsePosition(GnssMeasurement& measurement_rov,
-                              const GnssMeasurement& measurement_ref)
-{
-  // Already has a position
-  if (!checkZero(measurement_rov.position)) return true;
-
-  // no elevation mask  
-  DgnssEstimatorOptions options;
-  options.common.min_elevation = 0.0;
-  std::unique_ptr<DgnssEstimator> estimator = 
-    std::make_unique<DgnssEstimator>(options);
-
-  if (!estimator->addGnssMeasurementAndState(measurement_rov, measurement_ref)) {
-    return false;
-  }
-
-  estimator->optimize();
-  measurement_rov.position = estimator->getPositionEstimate();
-  return true;
-}
-
-}
+};

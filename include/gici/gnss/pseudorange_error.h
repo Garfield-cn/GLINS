@@ -25,8 +25,8 @@ namespace gici {
 // Group 1: P1. receiver position in ECEF (3), P2. receiver clock (1)
 // Group 2: P1. body pose in ENU (7), P2. relative position from body to receiver
 //          in body frame (3), P3. receiver clock (1)
-// Group 3: Group 1 + P3. troposphere delay (1), P4. ionosphere delay (1)
-// Group 4: Group 2 + P4. troposphere delay (1), P5. ionosphere delay (1)
+// Group 3: Group 1 + P3. IFB, P4. troposphere delay (1), P5. ionosphere delay (1)
+// Group 4: Group 2 + P4. IFB, P5. troposphere delay (1), P6. ionosphere delay (1)
 template<int... Ns>
 class PseudorangeError :
     public ceres::SizedCostFunction<
@@ -147,8 +147,8 @@ protected:
 // Explicitly instantiate template classes
 template class PseudorangeError<3, 1>;  // Group 1
 template class PseudorangeError<7, 3, 1>;  // Group 2
-template class PseudorangeError<3, 1, 1, 1>;  // Group 3
-template class PseudorangeError<7, 3, 1, 1, 1>;  // Group 4
+template class PseudorangeError<3, 1, 1, 1, 1>;  // Group 3
+template class PseudorangeError<7, 3, 1, 1, 1, 1>;  // Group 4
 
 }  
 

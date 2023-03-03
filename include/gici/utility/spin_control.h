@@ -8,6 +8,7 @@
 
 #include <iostream>
 #include <vikit/timer.h>
+#include <thread>
 
 namespace gici {
 
@@ -24,10 +25,19 @@ public:
   void setDuration(double duration) { duration_ = duration; }
 
   // Check global status
-  static bool ok() { return ok_; }
+  static bool ok() { 
+    while (wait_) std::this_thread::sleep_for(std::chrono::nanoseconds(int(1e5)));
+    return ok_; 
+  }
 
   // Shutdown all spin controllers
   static void kill() { ok_ = false; }
+
+  // All spin should wait
+  static void wait() { wait_ = true; }
+
+  // All spin end waiting
+  static void run() { wait_ = false; }
 
 private:
   // Tick controllers
@@ -36,6 +46,9 @@ private:
 
   // Whether enable spin in all objects
   static bool ok_;
+
+  // If all spin should wait
+  static bool wait_;
 };
 
 }

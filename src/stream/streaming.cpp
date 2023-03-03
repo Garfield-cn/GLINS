@@ -15,20 +15,13 @@ namespace gici {
 // Static variables for stream binding
 std::vector<Streaming *> Streaming::static_this_;
 
-Streaming::Streaming(YAML::Node& node, int istreamer) : 
+Streaming::Streaming(const NodeOptionHandlePtr& nodes, size_t i_streamer) : 
   valid_(false), opened_(false)
 {
   // Get streamer option
-  if (!node["streamers"][istreamer].IsDefined() ||
-    !node["streamers"][istreamer]["streamer"].IsDefined()) {
-    LOG(ERROR) << "Streamer " << istreamer << " not defined!";
-    return;
-  }
-  YAML::Node streamer_node = node["streamers"][istreamer]["streamer"];
-  if (!option_tools::safeGet(streamer_node, "tag", &tag_)) {
-    LOG(ERROR) << "Unable to load streamer tag!";
-    return;
-  }
+  const auto& node = nodes->streamers[i_streamer];
+  tag_ = node->tag;
+  YAML::Node streamer_node = node->this_node;
 
   // Initialize streamer
   streamer_ = makeStreamer(streamer_node);
@@ -37,58 +30,35 @@ Streaming::Streaming(YAML::Node& node, int istreamer) :
     return;
   }
 
-  std::vector<std::string> formator_tags;
-  std::vector<YAML::Node> formator_nodes; 
   bool any_option_got = false;
   // Get formator option
-  if (option_tools::safeGet(streamer_node, "formator_tags", &formator_tags)) {
+  std::vector<std::string> formator_tags;
+  const std::vector<std::string>& tags = node->tags();
+  for (const auto& tag : tags) {
+    if (tag.substr(0, 4) == "fmt_") formator_tags.push_back(tag);
+  }
+  if (formator_tags.size() > 0) {
     any_option_got = true;
-    if (!node["formators"].IsDefined()) {
-      LOG(ERROR) << "Unable to load formators!";
-      return;
-    }
-    for (size_t i = 0; i < formator_tags.size(); i++) {
-      bool found = false;
-      for (auto it : node["formators"]) {
-        if (!it["formator"].IsDefined()) {
-          LOG(ERROR) << "Unable to load formator!";
-          continue;
-        }
-        std::string formator_tag;
-        if (!option_tools::safeGet(it["formator"], "tag", &formator_tag)) {
-          LOG(ERROR) << "Unable to load formator tag!";
-          continue;
-        }
-        if (formator_tag == formator_tags[i]) {
-          formator_nodes.push_back(it["formator"]);
-          found = true; break;
-        }
-      }
-      if (!found) {
-        LOG(WARNING) << "Formator-tag " << formator_tags[i] << " not found!";
-      }
-    }
 
     // Initialize formators
-    for (auto it : formator_nodes) {
-      std::string type_str;
-      if (!option_tools::safeGet(it, "io", &type_str)) {
-        LOG(ERROR) << "Unable to load formator I/O type!";
-        continue;
-      }
+    for (auto& tag : formator_tags) {
+      NodeOptionHandle::FormatorNodeBasePtr formator_node = 
+        std::static_pointer_cast<NodeOptionHandle::FormatorNodeBase>
+        (nodes->tag_to_node.at(tag));
+      std::string type_str = formator_node->io;
       StreamIOType type;
       option_tools::convert(type_str, type);
 
-      std::shared_ptr<FormatorBase> formator = makeFormator(it);
+      std::shared_ptr<FormatorBase> formator = makeFormator(formator_node->this_node);
       FormatorCtrl formator_ctrl;
       formator_ctrl.formator = formator;
-      formator_ctrl.tag = it["tag"].as<std::string>();
+      formator_ctrl.tag = formator_node->tag;
       formator_ctrl.type = type;
-      // If logging stream, find and handle corresponding input stream as well
-      if (type == StreamIOType::Log) {
-        if (!option_tools::safeGet(it, "input-tag", &formator_ctrl.input_tag)) {
-          LOG(ERROR) << "Unable to load formator input-tag!";
-          continue;
+      // If log or output stream, find and handle corresponding input stream as well
+      if (type == StreamIOType::Log || type == StreamIOType::Output) {
+        if (formator_node->input_tags.size() > 0) {
+          CHECK(formator_node->input_tags.size() == 1);
+          formator_ctrl.input_tag = formator_node->input_tags.back();
         }
       }
       formators_.push_back(formator_ctrl);
@@ -100,14 +70,30 @@ Streaming::Streaming(YAML::Node& node, int istreamer) :
     }
   }
 
-  // Get input-tag option for direct logging
-  if (option_tools::safeGet(streamer_node, "input-tag", &input_tag_)) {
+  // Get output streamer for direct logging
+  std::vector<std::string> output_streamer_tags;
+  for (const auto& tag : node->output_tags) {
+    if (tag.substr(0, 4) == "str_") output_streamer_tags.push_back(tag);
+  }
+  if (output_streamer_tags.size() > 0) {
+    any_option_got = true;
+    has_input_ = true;
+  }
+
+  // Get input streamer for direct logging
+  std::vector<std::string> input_streamer_tags;
+  for (const auto& tag : node->input_tags) {
+    if (tag.substr(0, 4) == "str_") input_streamer_tags.push_back(tag);
+  }
+  CHECK(input_streamer_tags.size() <= 1);
+  if (input_streamer_tags.size() > 0) {
+    input_tag_ = input_streamer_tags.back();
     any_option_got = true;
     has_logging_ = true;
   }
 
   if (!any_option_got) {
-    LOG(ERROR) << "Unable to load either formator_tags nor input-tag!";
+    LOG(ERROR) << "Unable to load either output_tags nor input_tags!";
     return;
   }
 
@@ -129,22 +115,14 @@ Streaming::Streaming(YAML::Node& node, int istreamer) :
   // Get loop rate
   if (!option_tools::safeGet(streamer_node, "loop_duration", &loop_duration_)) {
     LOG(INFO) << "Unable to load loop duration! Using default instead.";
-    loop_duration_ = 0.001;
+    loop_duration_ = 0.005;
   }
 
   // Open streamer
-  int n_write = 0, n_read = 0;
-  for (auto it : formators_) {
-    if (it.type == StreamIOType::Input) n_read++;
-    if (it.type == StreamIOType::Output || 
-      it.type == StreamIOType::Log) n_write++;
-  }
   StreamerRWType rw;
-  if (has_logging_) rw = StreamerRWType::Write;
-  if (n_read) rw = StreamerRWType::Read;
-  if (n_write) rw = StreamerRWType::Write;
-  if (n_read && n_write) rw = StreamerRWType::ReadAndWrite;
-  if (has_logging_ && n_read) rw = StreamerRWType::ReadAndWrite;
+  if (has_logging_ || has_output_) rw = StreamerRWType::Write;
+  if (has_input_) rw = StreamerRWType::Read;
+  if ((has_logging_ || has_output_) && has_input_) rw = StreamerRWType::ReadAndWrite;
   if (!streamer_->open(rw)) {
     LOG(ERROR) << "Open streamer " << tag_ << " failed!";
   }
@@ -159,17 +137,15 @@ Streaming::Streaming(YAML::Node& node, int istreamer) :
 
 Streaming::~Streaming()
 {
+  if (!valid_) return;
+
   // Close streamer
-  if (opened_) streamer_->close();
+  if (streamer_ && opened_) streamer_->close();
 
   // Free buffer
-  free(buf_input_); free(buf_logging_); free(buf_output_);
-}
-
-// Set data callbacks
-void Streaming::setDataCallback(DataCallback& callback)
-{
-  data_callbacks_.push_back(callback);
+  if (has_input_) free(buf_input_); 
+  if (has_logging_) free(buf_logging_); 
+  if (has_output_) free(buf_output_);
 }
 
 // Start thread
@@ -205,6 +181,11 @@ void Streaming::pipelineDirectCallback(const uint8_t *buf, int size)
     copy_size = max_buf_size_;
   }
 
+  // Check pending
+  while (buf_size_logging_) {
+    std::this_thread::sleep_for(std::chrono::nanoseconds(int(1e5)));
+  }
+
   mutex_logging_.lock();
   memcpy(buf_logging_, buf, copy_size);
   buf_size_logging_ = copy_size;
@@ -220,12 +201,17 @@ void Streaming::pipelineConvertCallback(
   std::shared_ptr<FormatorBase> formator = nullptr;
   for (size_t i = 0; i < formators_.size(); i++) {
     if (formators_[i].type != StreamIOType::Log) continue;
-    if (formators_[i].tag != tag) continue;
+    if (formators_[i].input_tag != tag) continue;
     formator = formators_[i].formator;
   }
   if (!formator) {
     LOG(ERROR) << "Formator with tag " << tag << " not found!";
     return;
+  }
+
+  // Check pending
+  while (buf_size_logging_) {
+    std::this_thread::sleep_for(std::chrono::nanoseconds(int(1e5)));
   }
 
   // Encode
@@ -236,26 +222,38 @@ void Streaming::pipelineConvertCallback(
 }
 
 // Send solution data to output stream
-void Streaming::solutionOutputCallback(
-  std::string tag, SolutionRole role, Solution& solution)
+void Streaming::outputDataCallback(
+  const std::string tag, const std::shared_ptr<DataCluster>& data)
 {
   // Find formator
   std::shared_ptr<FormatorBase> formator = nullptr;
   for (size_t i = 0; i < formators_.size(); i++) {
     if (formators_[i].type != StreamIOType::Output) continue;
+    if (formators_[i].input_tag != tag) continue;
     formator = formators_[i].formator;
   }
   if (!formator) {
-    LOG(ERROR) << "No output formator was specified for this streamer!";
+    LOG(INFO) << "No output formator was specified for this streamer!";
     return;
+  }
+
+  // Check pending
+  while (buf_size_output_) {
+    std::this_thread::sleep_for(std::chrono::nanoseconds(int(1e5)));
   }
 
   // Encode
   mutex_output_.lock();
-  std::shared_ptr<DataCluster> data = std::make_shared<DataCluster>(FormatorType::NMEA);
-  *data->solution = solution;
-  buf_size_output_ = formator->encode(data, buf_output_);
-  need_output_ = true;
+  // Encode according to solution types
+  bool no_valid = false;
+  if (data->solution) {
+    buf_size_output_ = formator->encode(data, buf_output_);
+  }
+  else {
+    no_valid = true;
+  }
+
+  if (!no_valid) need_output_ = true;
   mutex_output_.unlock();
 }
 
@@ -335,9 +333,10 @@ void Streaming::processInput()
     std::shared_ptr<FormatorBase>& formator = formators_[i].formator;
     std::vector<std::shared_ptr<DataCluster>>& dataset = data_clusters_[i];
     int nobs = formator->decode(buf_input_, buf_size_input_, dataset);
-    
+
     // Call convertion callbacks
     for (int iobs = 0; iobs < nobs; iobs++) {
+      
       // Call data callback
       if (data_callbacks_.size() > 0) 
         for (auto it : data_callbacks_) {
@@ -352,8 +351,7 @@ void Streaming::processInput()
       auto& pipelines = it_i->second;
       for (auto it_j : pipelines) {
         auto& pipeline = it_j.second;
-        auto& log_tag = it_j.first;
-        pipeline(log_tag, dataset[iobs]);
+        pipeline(formators_[i].tag, dataset[iobs]);
       }
     }
   }
@@ -372,6 +370,7 @@ void Streaming::processLogging()
 
   streamer_->write(buf_logging_, buf_size_logging_);
 
+  buf_size_logging_ = 0;
   need_logging_ = false;
 }
 
@@ -382,6 +381,7 @@ void Streaming::processOutput()
 
   streamer_->write(buf_output_, buf_size_output_);
 
+  buf_size_output_ = 0;
   need_output_ = false;
 }
 
@@ -392,9 +392,7 @@ void Streaming::run()
   SpinControl spin(loop_duration_);
   while (!quit_thread_ && SpinControl::ok()) {
     if (has_input_) {
-      mutex_input_.lock();
       processInput();
-      mutex_input_.unlock();
     }
 
     if (has_logging_) {

@@ -6,17 +6,16 @@
 **/
 #include <ros/ros.h>
 
-#include "gici/ros_interface/ros_stream_handle.h"
-#include "gici/ros_interface/ros_estimate_handle.h"
+#include "gici/ros_interface/ros_node_handle.h"
 #include "gici/utility/signal_handle.h"
+#include "gici/utility/node_option_handle.h"
+#include "gici/utility/spin_control.h"
 
 using namespace gici;
 
 // Process streamers and estimators which defined in config.yaml file.
-// Usage: rosrun gici ros_gici_main <path-to-config> 
-//     or roslaunch gici gici.launch.
-// Instructions for basic setting is shown in ../../../../option/example.yaml,
-// Instructions for ROS specific settings is shown in option/ros_example.yaml
+// Usage: rosrun gici_ros ros_gici_main <path-to-config> 
+// For more details on how to configure your option.yaml file, see doc/configuration_instructions.md
 int main(int argc, char** argv)
 {
   // Initialize ROS
@@ -33,7 +32,7 @@ int main(int argc, char** argv)
   YAML::Node yaml_node;
   try {
      yaml_node = YAML::LoadFile(config_file_path);
-  } catch(YAML::BadFile &e) {
+  } catch (YAML::BadFile &e) {
     std::cerr << "Unable to load config file!" << std::endl;
     return -1;
   }
@@ -49,39 +48,41 @@ int main(int argc, char** argv)
     if (option_tools::safeGet(
         logging_node, "min_log_level", &min_log_level)) {
       FLAGS_minloglevel = min_log_level;
-      FLAGS_stderrthreshold = min_log_level;
     }
     option_tools::safeGet(logging_node, "log_to_stderr", &FLAGS_logtostderr);
     option_tools::safeGet(logging_node, "file_directory", &FLAGS_log_dir);
+    if (FLAGS_logtostderr) FLAGS_stderrthreshold = min_log_level;
+    else FLAGS_stderrthreshold = 5;
   }
 
   // Initialize signal handles to catch faults
   initializeSignalHandles();
 
-  // Initialize streamer threads
-  if (!yaml_node["stream"].IsDefined()) {
-    std::cerr << "Unable to load stream options!" << std::endl;
+  // Organize nodes
+  NodeOptionHandlePtr node_option_handle = 
+    std::make_shared<NodeOptionHandle>(yaml_node);
+  if (!node_option_handle->valid) {
+    std::cerr << "Invalid configurations!" << std::endl;
     return -1;
   }
-  YAML::Node stream_node = yaml_node["stream"];
-  std::shared_ptr<StreamHandle> stream_handle = std::make_shared<StreamHandle>(stream_node);
-  std::shared_ptr<RosStreamHandle> ros_stream_handle = 
-    std::make_shared<RosStreamHandle>(nh, stream_node);
 
-  // Initialize estimator threads
-  std::shared_ptr<RosEstimateHandle> estimate_handle;
-  if (!yaml_node["estimate"].IsDefined()) {
-    std::cerr << "Unable to load estimator options. Run in stream-only mode." << std::endl;
-  }
-  else {
-    estimate_handle = std::make_shared<RosEstimateHandle>(yaml_node);
-    // bind with streamers
-    estimate_handle->bindWithStreams(stream_handle);
-    // bind with estimators
-    estimate_handle->bindWithEstimators();
-    // bind with ROS streams
-    estimate_handle->bindWithRosStreams(ros_stream_handle);
-  }
+  // Initialize nodes
+  std::unique_ptr<RosNodeHandle> node_handle = 
+    std::make_unique<RosNodeHandle>(nh, node_option_handle);
+
+  // Show information
+  const std::vector<size_t> sizes = {
+    node_option_handle->streamers.size(),
+    node_option_handle->formators.size(), 
+    node_option_handle->estimators.size()};
+  std::cout << "Initialized " 
+    << sizes[0] << " streamer" << (sizes[0] > 1 ? "s" : "") << ", "
+    << sizes[1] << " formater" << (sizes[1] > 1 ? "s" : "") << ", and "
+    << sizes[2] << " estimator" << (sizes[2] > 1 ? "s" : "") << ". "
+    << "Running..." << std::endl;
+  
+  // Start running all threads
+  SpinControl::run();
   
   // Loop
   ros::spin();

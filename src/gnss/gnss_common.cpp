@@ -9,6 +9,7 @@
 #include <glog/logging.h>
 
 #include "gici/utility/common.h"
+#include "gici/gnss/code_phase_maps.h"
 
 namespace gici {
 
@@ -19,11 +20,11 @@ namespace gnss_common {
 int systemConvert(char sys)
 {
   switch (sys) {
-  case 'G': return SYS_GPS;
-  case 'R': return SYS_GLO;
-  case 'E': return SYS_GAL;
-  case 'C': return SYS_CMP;
-  default: return SYS_NONE;
+    case 'G': return SYS_GPS;
+    case 'R': return SYS_GLO;
+    case 'E': return SYS_GAL;
+    case 'C': return SYS_CMP;
+    default: return SYS_NONE;
   }
 }
 
@@ -31,11 +32,11 @@ int systemConvert(char sys)
 char systemConvert(int sys)
 {
   switch (sys) {
-  case SYS_GPS: return 'G';
-  case SYS_GLO: return 'R';
-  case SYS_GAL: return 'E';
-  case SYS_CMP: return 'C';
-  default: return 0x00;
+    case SYS_GPS: return 'G';
+    case SYS_GLO: return 'R';
+    case SYS_GAL: return 'E';
+    case SYS_CMP: return 'C';
+    default: return 0x00;
   }
 }
 
@@ -43,6 +44,7 @@ char systemConvert(int sys)
 int prnToSat(std::string prn)
 {
   int system = systemConvert(prn[0]);
+  if (system == SYS_NONE) return 0;
   int prnnum = atoi(prn.substr(1, 2).data());
   return satno(system, prnnum);
 }
@@ -52,9 +54,40 @@ std::string satToPrn(int sat)
 {
   int prnnum;
   char system = systemConvert(satsys(sat, &prnnum));
+  if (system == 0x00) return "";
   char prnbuf[10];
   sprintf(prnbuf, "%c%02d", system, prnnum);
   return std::string(prnbuf);
+}
+
+// Get frequency from code type, and channel
+double codeToFrequency(char system, int code, int channel)
+{
+  int sys = systemConvert(system);
+  return code2freq(sys, (uint8_t)code, channel);
+}
+
+// Get frequency from phase type, and channel 
+double phaseToFrequency(char system, int phase_id, int channel)
+{
+  double frequency = 0.0;
+#define MAP(S, P, F) \
+  if (system == S && phase_id == P) { frequency = F; }
+  PHASE_CHANNEL_TO_FREQUENCY_MAPS;
+#undef MAP
+
+  if (frequency == 0.0) {
+    LOG(FATAL) << "Invalid phase type: " << phase_id << "!";
+  }
+
+  if (system == 'R' && phase_id == PHASE_G1) {
+    frequency += DFRQ1_GLO * channel;
+  }
+  if (system == 'R' && phase_id == PHASE_G2) {
+    frequency += DFRQ2_GLO * channel;
+  }
+
+  return frequency;
 }
 
 // Convert gtime to double
@@ -80,73 +113,133 @@ gtime_t doubleToGtime(double time)
 }
 
 // Get a phase ID
-int getPhaseID(char system, int code, double wavelength)
+int getPhaseID(char system, int code_type)
 {
-  if (system == 'G') {
-    if (checkEqual(CLIGHT / wavelength, FREQ1)) return 0;
-    if (checkEqual(CLIGHT / wavelength, FREQ2) &&
-        code != CODE_L2C) return 1;
-    if (checkEqual(CLIGHT / wavelength, FREQ2) && 
-        code == CODE_L2C) return 2;
-    if (checkEqual(CLIGHT / wavelength, FREQ5)) return 3;
-  }
-  if (system == 'R') {
-    if (checkEqual(CLIGHT / wavelength, FREQ1_GLO, 8.2e6)) return 0;
-    if (checkEqual(CLIGHT / wavelength, FREQ2_GLO, 3.0e6)) return 1;
-    if (checkEqual(CLIGHT / wavelength, FREQ3_GLO)) return 2;
-    if (checkEqual(CLIGHT / wavelength, FREQ1a_GLO)) return 3;
-    if (checkEqual(CLIGHT / wavelength, FREQ2a_GLO)) return 4;
-  }
-  if (system == 'E') {
-    if (checkEqual(CLIGHT / wavelength, FREQ1)) return 0;
-    if (checkEqual(CLIGHT / wavelength, FREQ7)) return 1;
-    if (checkEqual(CLIGHT / wavelength, FREQ5)) return 2;
-    if (checkEqual(CLIGHT / wavelength, FREQ6)) return 3;
-    if (checkEqual(CLIGHT / wavelength, FREQ8)) return 4;
-  }
-  if (system == 'C') {
-    if (checkEqual(CLIGHT / wavelength, FREQ1)) return 0;
-    if (checkEqual(CLIGHT / wavelength, FREQ1_CMP)) return 1;
-    if (checkEqual(CLIGHT / wavelength, FREQ2_CMP)) return 2;
-    if (checkEqual(CLIGHT / wavelength, FREQ5)) return 3;
-    if (checkEqual(CLIGHT / wavelength, FREQ3_CMP)) return 4;
-    if (checkEqual(CLIGHT / wavelength, FREQ8)) return 5;
-  }
+#define MAP(S, C, P) \
+  if (system == S && code_type == C) { return P; }
+  CODE_TO_PHASE_CHANNEL_MAPS;
+#undef MAP
 
-  LOG(ERROR) << "Observation type invalid!";
-  return -1;
+  return PHASE_NONE;
+}
+
+// Convert rinex type string to code type
+int rinexTypeToCodeType(const char system, const std::string str)
+{
+  CHECK(str.size() == 2);
+  
+#define MAP(S, R, C) \
+  if (system == S && str == R) { return C; }
+  RINEX_TO_CODE_MAPS;
+#undef MAP
+
+  LOG(FATAL) << "Invalid rinex type for system " << system << ": " << str << "!";
+
+  return CODE_NONE;
+}
+
+// Convert code type to rinex type string
+std::string codeTypeToRinexType(const char system, const int code_type)
+{
+#define MAP(S, R, C) \
+  if (system == S && code_type == C) { return R; }
+  RINEX_TO_CODE_MAPS;
+#undef MAP
+
+  LOG(FATAL) << "Invalid code type for system " << system << ": " << code_type << "!";
+
+  return "";
+}
+
+// Convert phase string to phase type
+int phaseStringToPhaseType(const char system, const std::string str)
+{
+#define MAP(S, P, PS) \
+  if (system == S && str == PS) { return P; }
+  PHASE_CHANNEL_TO_STR_MAPS;
+#undef MAP
+
+  LOG(FATAL) << "Invalid phase type for system " << system << ": " << str << "!";
+
+  return PHASE_NONE;
+}
+
+// Convert phase type to phase string
+std::string phaseTypeToPhaseString(const char system, const int phase_type)
+{
+#define MAP(S, R, PS) \
+  if (system == S && phase_type == R) { return PS; }
+  PHASE_CHANNEL_TO_STR_MAPS;
+#undef MAP
+
+  LOG(FATAL) << "Invalid phase type for system " << system << ": " << phase_type << "!";
+
+  return "";
 }
 
 // ----------------------------------------------------------
 // Check whether the system is used
-bool useSystem(GnssCommonOptions options, const char system)
+bool useSystem(const GnssCommonOptions&  options, const char system)
 {
   auto it = std::find(options.system_exclude.begin(), 
     options.system_exclude.end(), system);
   if (it == options.system_exclude.end()) return true;
   else return false;
 }
+bool useSystem(const std::vector<char>& system_exclude, const char system)
+{
+  auto it = std::find(system_exclude.begin(), 
+    system_exclude.end(), system);
+  if (it == system_exclude.end()) return true;
+  else return false;
+}
 
 // Check whether the satellite is used
-bool useSatellite(GnssCommonOptions options, const std::string prn)
+bool useSatellite(const GnssCommonOptions&  options, const std::string prn)
 {
   auto it = std::find(options.satellite_exclude.begin(), 
     options.satellite_exclude.end(), prn);
   if (it == options.satellite_exclude.end()) return true;
   else return false;
 }
+bool useSatellite(const std::vector<std::string>& satellite_exclude, 
+                  const std::string prn)
+{
+  auto it = std::find(satellite_exclude.begin(), 
+    satellite_exclude.end(), prn);
+  if (it == satellite_exclude.end()) return true;
+  else return false;
+}
 
 // Check whether the code type is used
-bool useCode(GnssCommonOptions options, char system, const int code_type)
+bool useCode(const GnssCommonOptions&  options, char system, const int code_type)
 {
   auto it = std::find(options.code_exclude.begin(), 
     options.code_exclude.end(), std::make_pair(system, code_type));
   if (it == options.code_exclude.end()) return true;
   else return false;
 }
+bool useCode(const std::vector<std::pair<char, int>>& code_exclude, 
+             char system, const int code_type)
+{
+  auto it = std::find(code_exclude.begin(), 
+    code_exclude.end(), std::make_pair(system, code_type));
+  if (it == code_exclude.end()) return true;
+  else return false;
+}
+
+// Check whether the phase type is used
+bool usePhase(const std::vector<std::pair<char, int>>& phase_exclude, 
+              char system, const int phase_id)
+{
+  auto it = std::find(phase_exclude.begin(), 
+    phase_exclude.end(), std::make_pair(system, phase_id));
+  if (it == phase_exclude.end()) return true;
+  else return false;
+}
 
 // Check elevation threshold
-bool checkElevation(GnssCommonOptions options, 
+bool checkElevation(const GnssCommonOptions&  options, 
   const GnssMeasurement& measurement, std::string prn)
 {
   // no elevation mask
@@ -168,27 +261,42 @@ bool checkElevation(GnssCommonOptions options,
   else return false;
 }
 
+// Check SNR mask
+bool checkSNR(const GnssCommonOptions& options,
+  const GnssMeasurement& measurement, const GnssMeasurementIndex& index)
+{
+  const Observation& obs = measurement.getObs(index);
+  const double f = CLIGHT / obs.wavelength;
+  const double f1 = FREQ1, f2 = FREQ5;
+  const double m1 = options.min_SNR[0], m2 = options.min_SNR[1];
+  const double m = (m2 - m1) / (f2 - f1) * (f - f1) + m1;
+  if (obs.SNR < m) return false;
+  return true;
+}
+
 // One phase corresponds to muitiple code type, so we need to delete
 // duplicated phases
 void deleteDuplicatePhases(GnssMeasurement& measurement)
 {
+  std::vector<std::vector<GnssMeasurementIndex>> duplicates;
   for (auto& sat : measurement.satellites) {
-    std::map<double, int> wavelength_to_code;
+    std::map<int, int> phaseid_to_code;
     Satellite& satellite = sat.second;
     for (auto& obs : satellite.observations) {
       // Delete phase without pseudorange
-      if (obs.second.pseudorange == 0.0) obs.second.phaserange = 0.0;
-
-      double wavelength = obs.second.wavelength;
-      auto it = wavelength_to_code.find(wavelength);
-      if (it == wavelength_to_code.end()) {
-        wavelength_to_code.insert(std::make_pair(wavelength, obs.first));
+      if (obs.second.pseudorange == 0.0) {
+        obs.second.phaserange = 0.0;
+        obs.second.wavelength = 0.0;
         continue;
       }
 
-      // Check if it is GPS L2C (L2C and other L2 codes has same frequencies, 
-      // but they are different carrier phases)
-      if (satellite.getSystem() == 'G' && obs.first == CODE_L2C) {
+      char system = satellite.getSystem();
+      int code = obs.first;
+      double wavelength = obs.second.wavelength;
+      int phase_id = getPhaseID(system, code);
+      auto it = phaseid_to_code.find(phase_id);
+      if (it == phaseid_to_code.end()) {
+        phaseid_to_code.insert(std::make_pair(phase_id, code));
         continue;
       }
 
@@ -202,7 +310,8 @@ void deleteDuplicatePhases(GnssMeasurement& measurement)
 bool checkObservationValid(const GnssMeasurement& measurement,
                            const GnssMeasurementIndex& index,
                            const ObservationType type, 
-                           const GnssCommonOptions options)
+                           const GnssCommonOptions& options,
+                           const bool need_precise_ephemeris)
 {
   // Cannot find given satellite
   auto sat = measurement.satellites.find(index.prn);
@@ -223,8 +332,18 @@ bool checkObservationValid(const GnssMeasurement& measurement,
     return false;
   }
 
+  // Precise ephemeris
+  if (need_precise_ephemeris && satellite.sat_type != SatEphType::Precise) {
+    return false;
+  }
+
   // Elevation mask
   if (!gnss_common::checkElevation(options, measurement, index.prn)) {
+    return false;
+  }
+
+  // SNR mask
+  if (!gnss_common::checkSNR(options, measurement, index)) {
     return false;
   }
 
@@ -252,6 +371,12 @@ bool checkObservationValid(const GnssMeasurement& measurement,
       return false;
     }
   }
+  else if (type == ObservationType::Doppler) {
+    if (observation.wavelength == 0.0 || 
+        observation.doppler == 0.0) {
+      return false;
+    }
+  }
 
   return true;
 }
@@ -260,7 +385,7 @@ bool checkObservationValid(const GnssMeasurement& measurement,
 GnssMeasurementSDIndexPairs formPseudorangeSDPair(
                             const GnssMeasurement& measurement_rov, 
                             const GnssMeasurement& measurement_ref,
-                            const GnssCommonOptions options)
+                            const GnssCommonOptions& options)
 {
   GnssMeasurementSDIndexPairs index_pairs;
 
@@ -307,7 +432,7 @@ GnssMeasurementSDIndexPairs formPseudorangeSDPair(
 GnssMeasurementSDIndexPairs formPhaserangeSDPair(
                             const GnssMeasurement& measurement_rov, 
                             const GnssMeasurement& measurement_ref,
-                            const GnssCommonOptions options)
+                            const GnssCommonOptions& options)
 {
   GnssMeasurementSDIndexPairs index_pairs;
 
@@ -334,8 +459,7 @@ GnssMeasurementSDIndexPairs formPhaserangeSDPair(
   {
     auto& satellite = measurement_rov.satellites.at(index.prn);
     auto& observation = satellite.observations.at(index.code_type);
-    int phase_id = gnss_common::getPhaseID(
-      satellite.getSystem(), index.code_type, observation.wavelength);
+    int phase_id = gnss_common::getPhaseID(satellite.getSystem(), index.code_type);
 
     for (auto& sat : measurement_ref.satellites) {
       auto& satellite_2 = sat.second;
@@ -364,7 +488,7 @@ GnssMeasurementSDIndexPairs formPhaserangeSDPair(
 GnssMeasurementDDIndexPairs formPseudorangeDDPair(
                             const GnssMeasurement& measurement_rov, 
                             const GnssMeasurement& measurement_ref,
-                            const GnssCommonOptions options)
+                            const GnssCommonOptions& options)
 {
   // Form SD pair
   GnssMeasurementSDIndexPairs sd_pairs = formPseudorangeSDPair(
@@ -386,8 +510,8 @@ GnssMeasurementDDIndexPairs formPseudorangeDDPair(
     prn_to_indexes.insert(std::make_pair(prn, i));
     prn_to_codes.insert(std::make_pair(prn, sd_pairs[i].rov.code_type));
   }
-  for (size_t i = 0; i < GnssSystems.size(); i++) {
-    char system = GnssSystems[i];
+  for (size_t i = 0; i < getGnssSystemList().size(); i++) {
+    char system = getGnssSystemList()[i];
 
     system_to_num_codes.insert(std::make_pair(system, 0));
     for (auto it : prn_to_number_codes) {
@@ -415,28 +539,13 @@ GnssMeasurementDDIndexPairs formPseudorangeDDPair(
 
   // Find base satellites for each system and codes
   std::map<char, std::string> system_to_base_prn;
-  for (size_t i = 0; i < GnssSystems.size(); i++) {
-    char system = GnssSystems[i];
-
-    // check if we have a BDS-3 satellite
-    bool only_use_bds3 = false;
-    if (system == 'C') {
-      for (size_t j = 0; j < sd_pairs.size(); j++) {
-        if (sd_pairs[j].rov.prn[0] != 'C') continue;
-        if (!isBds1(sd_pairs[j].rov.prn) && !isBds2(sd_pairs[j].rov.prn)) {
-          only_use_bds3 = true; break;
-        }
-      }
-    }
+  for (size_t i = 0; i < getGnssSystemList().size(); i++) {
+    char system = getGnssSystemList()[i];
 
     // find satellite with maximum elevation angle
     double max_elevation = 0.0;
     for (size_t j = 0; j < sd_pairs.size(); j++) {
       if (sd_pairs[j].rov.prn[0] != system) continue;
-
-      // we try not to use BDS-1 or BDS-2 satellite
-      if (only_use_bds3 && (isBds1(sd_pairs[j].rov.prn) || 
-          isBds2(sd_pairs[j].rov.prn))) continue;
 
       // we only select satellites with max phase number
       if (prn_to_number_codes.at(sd_pairs[j].rov.prn) != 
@@ -479,7 +588,7 @@ GnssMeasurementDDIndexPairs formPseudorangeDDPair(
 GnssMeasurementDDIndexPairs formPhaserangeDDPair(
                             const GnssMeasurement& measurement_rov, 
                             const GnssMeasurement& measurement_ref,
-                            const GnssCommonOptions options)
+                            const GnssCommonOptions& options)
 {
   // Form SD pair
   GnssMeasurementSDIndexPairs sd_pairs = formPhaserangeSDPair(
@@ -502,11 +611,11 @@ GnssMeasurementDDIndexPairs formPhaserangeDDPair(
     prn_to_indexes.insert(std::make_pair(prn, i));
     int code = sd_pairs[i].rov.code_type;
     double wavelength = measurement_rov.getObs(sd_pairs[i].rov).wavelength;
-    int phase_id = getPhaseID(prn[0], code, wavelength);
+    int phase_id = getPhaseID(prn[0], code);
     prn_to_phases.insert(std::make_pair(prn, phase_id));
   }
-  for (size_t i = 0; i < GnssSystems.size(); i++) {
-    char system = GnssSystems[i];
+  for (size_t i = 0; i < getGnssSystemList().size(); i++) {
+    char system = getGnssSystemList()[i];
 
     system_to_num_phases.insert(std::make_pair(system, 0));
     for (auto it : prn_to_number_phases) {
@@ -534,27 +643,12 @@ GnssMeasurementDDIndexPairs formPhaserangeDDPair(
 
   // Find base satellites for each system and phases
   std::map<char, std::string> system_to_base_prn;
-  for (size_t i = 0; i < GnssSystems.size(); i++) {
-    char system = GnssSystems[i];
-
-    // check if we have a BDS-3 satellite
-    bool only_use_bds3 = false;
-    if (system == 'C') {
-      for (size_t j = 0; j < sd_pairs.size(); j++) {
-        if (sd_pairs[j].rov.prn[0] != 'C') continue;
-        if (!isBds1(sd_pairs[j].rov.prn) && !isBds2(sd_pairs[j].rov.prn)) {
-          only_use_bds3 = true; break;
-        }
-      }
-    }
+  for (size_t i = 0; i < getGnssSystemList().size(); i++) {
+    char system = getGnssSystemList()[i];
 
     double max_elevation = 0.0;
     for (size_t j = 0; j < sd_pairs.size(); j++) {
       if (sd_pairs[j].rov.prn[0] != system) continue;
-
-      // we try not to use BDS-1 or BDS-2 satellite
-      if (only_use_bds3 && (isBds1(sd_pairs[j].rov.prn) || 
-          isBds2(sd_pairs[j].rov.prn))) continue;
 
       // we only select satellites with max phase number
       if (prn_to_number_phases.at(sd_pairs[j].rov.prn) != 
@@ -582,10 +676,8 @@ GnssMeasurementDDIndexPairs formPhaserangeDDPair(
     for (auto it = prn_to_indexes.lower_bound(prn_base); 
          it != prn_to_indexes.upper_bound(prn_base); it++) {
       GnssMeasurementSDIndexPair& sd_pair_base = sd_pairs[it->second];
-      int phase_id_base = getPhaseID(system, sd_pair_base.rov.code_type, 
-        measurement_rov.getObs(sd_pair_base.rov).wavelength);
-      int phase_id = getPhaseID(system, sd_pairs[i].rov.code_type, 
-        measurement_rov.getObs(sd_pairs[i].rov).wavelength);
+      int phase_id_base = getPhaseID(system, sd_pair_base.rov.code_type);
+      int phase_id = getPhaseID(system, sd_pairs[i].rov.code_type);
       if (phase_id_base == phase_id) {
         dd_pairs.push_back(GnssMeasurementDDIndexPair(
           sd_pairs[i].rov, sd_pairs[i].ref, sd_pair_base.rov, sd_pair_base.ref));
@@ -652,9 +744,7 @@ void troposphereGMF(double time,
   zd = PI / 2.0 - elevation;
 
 
-  //double PI = 3.1415926535897932384626433;
   double TWOPI = 6.283185307179586476925287;
-
 
   //reference day is 28 January
   //this is taken from Niell(1996) to be consistent
@@ -920,8 +1010,9 @@ double ionosphereBroadcast(double time, const Eigen::Vector3d& ecef,
 double ionosphereDualFrequency(
   const Observation& obs_1, const Observation& obs_2)
 {
+  CHECK(obs_1.wavelength < obs_2.wavelength);
   return (obs_1.pseudorange - obs_2.pseudorange) / 
-         (1 - square(obs_2.wavelength / obs_1.wavelength));
+         (1.0 - square(obs_2.wavelength / obs_1.wavelength));
 }
 
 // Compute Receiver to satellite distance considering the earth rotation effect
@@ -972,6 +1063,41 @@ double satelliteAzimuth(
   return atan2(enu[0], enu[1]);
 }
 
+// Compute DOPs
+Eigen::Vector4d computeDops(
+  const GnssMeasurement& measurement,
+  const GnssCommonOptions& options)
+{
+  if (checkZero(measurement.position)) {
+    LOG(WARNING) << "Cannot compute DOPs: the receiver position should not be zero!";
+    return Eigen::Vector4d::Zero();
+  }
+
+  int ns = 0;
+  double azel[2 * MAXSAT];
+  Eigen::Vector4d Dops;
+  for (auto sat : measurement.satellites) {
+    int num_obs = 0;
+    for (auto obs : sat.second.observations) {
+      if (num_obs > 0) continue;
+      GnssMeasurementIndex index(sat.first, obs.first);
+      if (!checkObservationValid(measurement, index, 
+          ObservationType::Pseudorange, options)) continue;
+      double elevation = satelliteElevation(
+        sat.second.sat_position, measurement.position);
+      double azimuth = satelliteAzimuth(
+        sat.second.sat_position, measurement.position);
+      azel[2 * ns] = azimuth;
+      azel[2 * ns + 1] = elevation;
+      ns++;
+      num_obs++;
+    }
+  }
+  dops(ns, azel, degreeToRad(options.min_elevation), Dops.data());
+
+  return Dops;
+}
+
 // Melbourne-Wubbena (MW) combination
 double combinationMW(const Observation& observation_1,
                      const Observation& observation_2)
@@ -999,32 +1125,64 @@ double combinationGF(const Observation& observation_1,
   return gf;
 }
 
-// Solve integer ambiguity by LAMBDA
-bool solveAmbiguityLambda(const Eigen::VectorXd& float_ambiguities,
-                          const Eigen::MatrixXd& covariance, 
-                          const double ratio_threshold, 
-                          Eigen::VectorXd& fixed_ambiguities)
+// BDS satellite multipath correction
+double getBdsSatelliteMultipath(const std::string prn, 
+  const double elevation, const double code_type)
 {
-  CHECK(float_ambiguities.size() == covariance.cols());
-  CHECK(covariance.rows() == covariance.cols());
+  const static double igso_coef[3][10] = {	
+		{-0.55,-0.40,-0.34,-0.23,-0.15,-0.04,0.09,0.19,0.27,0.35},	// B1
+		{-0.71,-0.36,-0.33,-0.19,-0.14,-0.03,0.08,0.17,0.24,0.33},	// B2
+		{-0.27,-0.23,-0.21,-0.15,-0.11,-0.04,0.05,0.14,0.19,0.32},	// B3
+	};
+  const static double meo_coef[3][10] = {
+		{-0.47,-0.38,-0.32,-0.23,-0.11,0.06,0.34,0.69,0.97,1.05},	  // B1
+		{-0.40,-0.31,-0.26,-0.18,-0.06,0.09,0.28,0.48,0.64,0.69},	  // B2
+		{-0.22,-0.15,-0.13,-0.10,-0.04,0.05,0.14,0.27,0.36,0.47},	  // B3
+	};
 
-  const int length = float_ambiguities.size();
-  fixed_ambiguities.resize(length);
-  fixed_ambiguities.setZero();
-  Eigen::Matrix<double, Eigen::Dynamic, Eigen::Dynamic, Eigen::ColMajor> 
-    fixed_template = Eigen::MatrixXd::Zero(length, 2);
-  Eigen::Vector2d residuals;
-  // Lambda search
-  lambda(float_ambiguities.size(), 2, float_ambiguities.data(), 
-         covariance.data(), fixed_template.data(), residuals.data());
-  double ratio = residuals[0] > 0 ? (residuals[1] / residuals[0]) : 0.0;
-  
-  // Check ratio
-  if (ratio > ratio_threshold) {
-    fixed_ambiguities = fixed_template.leftCols(1);
-    return true;
+  // only for BDS
+  if (prn[0] != 'C') return 0.0;
+
+  int icoef = -1;
+  int phase_id = getPhaseID(prn[0], code_type);
+  if (phase_id == 0) icoef = 0;  // B1
+  if (phase_id == 3) icoef = 1;  // B2
+  if (phase_id == 5) icoef = 2;  // B3
+  // no need to correct the BDS-3 signals
+  if (icoef == -1) return 0.0;
+
+  double elevation_deg = elevation * R2D;
+  if (elevation_deg <= 0.0) return 0.0;
+  double a = elevation_deg * 0.1;
+  int b = static_cast<int>(a);
+  // IGSO
+  if (isBdsIgso(prn)) {
+    if (b < 0) return igso_coef[icoef][0];
+    else if (b >= 9) return igso_coef[icoef][9];
+    else {
+      return igso_coef[icoef][b] * (1.0 - a + b) + igso_coef[icoef][b + 1] * (a - b);
+    }
   }
-  else return false;
+  // MEO
+  else if (isBdsMeo(prn)) {
+    if (b < 0) return meo_coef[icoef][0];
+    else if (b >= 9) return meo_coef[icoef][9];
+    else {
+      return meo_coef[icoef][b] * (1.0 - a + b) + meo_coef[icoef][b + 1] * (a - b);
+    }
+  }
+
+  return 0.0;
+}
+
+// Solid earth tide
+Eigen::Vector3d solidEarthTide(
+  const double time, const Eigen::Vector3d receiver_ecef)
+{
+  Eigen::Vector3d tide = Eigen::Vector3d::Zero();
+  tidedisp(doubleToGtime(time), receiver_ecef.data(), 1, NULL, NULL, tide.data());
+  if (tide.norm() > 10.0 || isnan(tide.norm())) tide = Eigen::Vector3d::Zero();
+  return tide;
 }
 
 }

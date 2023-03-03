@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 2.8)
 project(rtklib)
 
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -std=c99 -Wall -O3 -ansi -pedantic")
-set(CMAKE_C_FLAGS "-Wno-unused-but-set-variable")
+set(CMAKE_C_FLAGS "-Wno-unused-but-set-variable -Wno-format-overflow -Wno-unused-result")
 
 include_directories(
     include

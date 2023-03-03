@@ -1,191 +1,154 @@
 /**
-* @Function: Single differenced pseudorange positioning implementation
+* @Function: Single-differenced pseudorange positioning implementation
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
 #include "gici/gnss/sdgnss_estimator.h"
 
-#include "gici/gnss/pseudorange_error_sd.h"
 #include "gici/gnss/gnss_parameter_blocks.h"
 #include "gici/gnss/gnss_common.h"
 
 namespace gici {
 
 // The default constructor
-SdgnssEstimator::SdgnssEstimator(const SdgnssEstimatorOptions& options) :
-  options_(options), graph_(std::make_shared<Graph>()),
-  cauchy_loss_function_ptr_(new ceres::CauchyLoss(1)),
-  huber_loss_function_ptr_(new ceres::HuberLoss(1))
-{}
+SdgnssEstimator::SdgnssEstimator(const SdgnssEstimatorOptions& options, 
+               const GnssEstimatorBaseOptions& gnss_base_options, 
+               const EstimatorBaseOptions& base_options) :
+  sdgnss_options_(options), 
+  GnssEstimatorBase(gnss_base_options, base_options),
+  EstimatorBase(base_options)
+{
+  type_ = EstimatorType::Sdgnss;
+  can_compute_covariance_ = true;
+
+  // SPP estimator for setting initial states
+  spp_estimator_.reset(new SppEstimator(gnss_base_options));
+
+  states_.push_back(State());
+  gnss_measurement_pairs_.push_back(
+    std::make_pair(GnssMeasurement(), GnssMeasurement()));
+}
 
 // The default destructor
 SdgnssEstimator::~SdgnssEstimator()
 {}
 
+// Add measurement
+bool SdgnssEstimator::addMeasurement(const EstimatorDataCluster& measurement)
+{
+  GnssMeasurement rov, ref;
+  meausrement_align_.add(measurement);
+  if (meausrement_align_.get(sdgnss_options_.max_age, rov, ref)) {
+    return addGnssMeasurementAndState(rov, ref);
+  }
+
+  return false;
+}
+
 // Add GNSS measurements and state
 bool SdgnssEstimator::addGnssMeasurementAndState(
-                    const GnssMeasurement& measurement_rov, 
-                    const GnssMeasurement& measurement_ref)
+  const GnssMeasurement& measurement_rov, 
+  const GnssMeasurement& measurement_ref)
 {
-  // Check timestamp
-  if (!checkEqual(measurement_rov.timestamp, measurement_ref.timestamp, 
-    options_.max_age)) {
-    LOG(WARNING) << "Max age between two measurements exceeded! "
-      << "age = " << fabs(measurement_rov.timestamp - measurement_ref.timestamp)
-      << "max_age = " << options_.max_age;
+  // Get prior states
+  if (!spp_estimator_->addGnssMeasurementAndState(measurement_rov)) {
     return false;
   }
-
-  measurement_rov_ = measurement_rov;
-  measurement_ref_ = measurement_ref;
-
-  // Get last estimate
-  Eigen::Vector3d last_position = getPositionEstimate();
-
-  // Add parameter blocks in current timestamp
-  double timestamp = measurement_rov_.timestamp;
-
-  // Erase all parameters
-  for (auto id : parameter_ids_) {
-    graph_->removeParameterBlock(id.asInteger());
-  }
-  parameter_ids_.clear();
-
-  // position block
-  BackendId position_id = createGnssPositionId(measurement_rov_.id);
-  Eigen::Vector3d position_prior = measurement_rov_.position;
-  if (!checkZero(last_position)) position_prior = last_position;
-  std::shared_ptr<PositionParameterBlock> position_parameter_block = 
-    std::make_shared<PositionParameterBlock>(position_prior, position_id.asInteger());
-  if (!graph_->addParameterBlock(position_parameter_block)) {
+  if (!spp_estimator_->estimate()) {
     return false;
   }
-  parameter_ids_.push_back(position_id);
+  Eigen::Vector3d position_prior = spp_estimator_->getPositionEstimate();
+  Eigen::Vector3d velocity_prior = spp_estimator_->getVelocityEstimate();
+  std::map<char, double> frequency_prior = spp_estimator_->getFrequencyEstimate();
+  curState().status = GnssSolutionStatus::Single;
 
+  // Set to local measurement handle
+  curGnssRov() = measurement_rov;
+  curGnssRov().position = position_prior;
+  curGnssRef() = measurement_ref;
+
+  // Form single difference pair
   // select single difference pairs
-  GnssMeasurementSDIndexPairs index_pairs = 
-    gnss_common::formPseudorangeSDPair(measurement_rov_, measurement_ref_, options_.common);
+  GnssMeasurementSDIndexPairs index_pairs = gnss_common::formPseudorangeSDPair(
+    curGnssRov(), curGnssRef(), gnss_base_options_.common);
 
-  // check if any system does not have vaild satellite
-  std::map<char, int> system_observation_cnt;
-  for (auto index_pair : index_pairs) 
-  {
-    GnssMeasurementIndex& index = index_pair.rov;
-    auto& satellite = measurement_rov_.getSat(index);
-    char system = satellite.getSystem();
-    if (system_observation_cnt.find(system) == system_observation_cnt.end()) 
-      system_observation_cnt.insert(std::make_pair(system, 0));
-    system_observation_cnt.at(system)++;
+  // Add parameter blocks
+  double timestamp = curGnssRov().timestamp;
+  curState().timestamp = timestamp;
+  // position block
+  BackendId position_id = addGnssPositionParameterBlock(curGnssRov().id, position_prior);
+  curState().id = position_id;
+  curState().id_in_graph = position_id;
+  // clock block
+  int num_valid_system = 0;
+  addSdClockParameterBlocks(curGnssRov(), curGnssRef(), 
+    index_pairs, curGnssRov().id, num_valid_system);
+  if (sdgnss_options_.estimate_velocity) {
+    // velocity block
+    addGnssVelocityParameterBlock(curGnssRov().id, velocity_prior);
+    // frequency block
+    int num_valid_doppler_system = 0;
+    addFrequencyParameterBlocks(curGnssRov(), curGnssRov().id, 
+      num_valid_doppler_system, frequency_prior);
   }
+  
+  // Add pseudorange residual blocks
+  int num_valid_satellite = 0;
+  addSdPseudorangeResidualBlocks(curGnssRov(), curGnssRef(), 
+    index_pairs, curState(), num_valid_satellite, sdgnss_options_.use_single_frequency);
 
-  // clock blocks
-  int num_clock_blocks = 0;
-  for (auto index_pair : index_pairs) 
-  {
-    GnssMeasurementIndex& index = index_pair.rov;
-    auto& satellite = measurement_rov_.getSat(index);
-    BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement_rov_.id);
-    if (system_observation_cnt.at(satellite.getSystem()) > 0 &&
-        !graph_->parameterBlockExists(clock_id.asInteger())) 
-    {
-      Eigen::Matrix<double, 1, 1> clock_init;
-      clock_init.setZero();
-      std::shared_ptr<ClockParameterBlock> clock_parameter_block = 
-        std::make_shared<ClockParameterBlock>(clock_init, clock_id.asInteger());
-      if (!graph_->addParameterBlock(clock_parameter_block)) {
-        return false;
-      }
-      num_clock_blocks++;
-      parameter_ids_.push_back(clock_id);
+  // Check if insufficient satellites
+  if (!checkSufficientSatellite(num_valid_satellite, num_valid_system)) {
+    return false;
+  }
+  num_satellites_ = num_valid_satellite;
+
+  // Add doppler residual blocks
+  if (sdgnss_options_.estimate_velocity) {
+    addDopplerResidualBlocks(curGnssRov(), curState(), num_valid_satellite);
+    if (checkSufficientSatellite(num_valid_satellite, num_valid_system, false)) {
+      has_velocity_estimate_ = true;
+    }
+    else {
+      has_velocity_estimate_ = false;
     }
   }
 
-  // Set to state
-  current_state_.id = position_id;
-  current_state_.timestamp = timestamp;
-
-  // Add residual blocks
-  int num_residual_block = index_pairs.size();
-  int num_satellites = 0;
-  std::string last_prn = "";
-  for (auto index_pair : index_pairs) 
-  {
-    GnssMeasurementIndex& index = index_pair.rov;
-    auto& satellite = measurement_rov_.getSat(index);
-
-    BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement_rov_.id);
-    std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
-      std::make_shared<PseudorangeErrorSD<3, 1>>(measurement_rov_, measurement_ref_,
-      index_pair.rov, index_pair.ref, options_.error_parameter);
-    graph_->addResidualBlock(pseudorange_error, 
-      huber_loss_function_ptr_ ? huber_loss_function_ptr_.get() : nullptr,
-      graph_->parameterBlockPtr(position_id.asInteger()),
-      graph_->parameterBlockPtr(clock_id.asInteger()));
-
-    // get number of satellites
-    if (last_prn != satellite.prn) {
-      num_satellites++;
-      last_prn = satellite.prn;
-    }
-  }
-
-  // No observation added
-  if (num_residual_block == 0) {
-    LOG(WARNING) << "No satellite observed!";
-    return false;
-  }
-
-  // Insufficient satellites
-  if (num_satellites < num_clock_blocks + 3) {
-    LOG(WARNING) << "Insufficient satellites! Num = " << num_satellites;
-    return false;
+  // Erase all parameters in previous states
+  Graph::ParameterBlockCollection parameters = graph_->parameters();
+  for (auto parameter : parameters) {
+    if (BackendId(parameter.first).bundleId() == curState().id.bundleId()) continue;
+    graph_->removeParameterBlock(parameter.first);
   }
 
   return true;
 }
 
-// Apply ceres optimization
-void SdgnssEstimator::optimize()
+// Solve current graph
+bool SdgnssEstimator::estimate()
 {
-  graph_->options.linear_solver_type = ceres::DENSE_NORMAL_CHOLESKY;
-  graph_->options.trust_region_strategy_type = ceres::LEVENBERG_MARQUARDT;
-  graph_->options.num_threads = options_.num_threads;
-  graph_->options.max_num_iterations = options_.max_iteration;
-
-  if (options_.verbose) {
-    graph_->options.minimizer_progress_to_stdout = true;
+  // Optimize with FDE
+  if (gnss_base_options_.use_outlier_rejection)
+  while (1)
+  {
+    optimize();
+    // reject outlier
+    if (!rejectPseudorangeOutlier(curState(),
+        gnss_base_options_.reject_one_outlier_once)) break;
   }
+  // Optimize without FDE
   else {
-    graph_->options.logging_type = ceres::LoggingType::SILENT;
-    graph_->options.minimizer_progress_to_stdout = false;
+    optimize();
   }
 
-  // call solver
-  graph_->solve();
+  curState().status = GnssSolutionStatus::DGNSS;
 
-  if (options_.verbose) {
-    LOG(INFO) << graph_->summary.BriefReport();
-  }
+  // Shift memory
+  states_.push_back(State());
+  while (states_.size() > 2) states_.pop_front();
+
+  return true;
 }
 
-// Get position in ECEF coordinate
-Eigen::Vector3d SdgnssEstimator::getPositionEstimate()
-{
-  if (!graph_->parameterBlockExists(current_state_.id.asInteger())) {
-    return Eigen::Vector3d::Zero();
-  }
-
-  std::shared_ptr<ParameterBlock> base_ptr =
-      graph_->parameterBlockPtr(current_state_.id.asInteger());
-  if (base_ptr != nullptr) {
-    std::shared_ptr<PositionParameterBlock> block_ptr = 
-      std::dynamic_pointer_cast<PositionParameterBlock>(base_ptr);
-    CHECK(block_ptr != nullptr);
-    return block_ptr->estimate();
-  }
-
-  return Eigen::Vector3d::Zero();
-}
-
-}
+};

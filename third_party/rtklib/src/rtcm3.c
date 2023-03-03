@@ -47,6 +47,8 @@
 *                           use API code2idx() to get freq-index
 *                           use API code2freq() to get carrier frequency
 *                           use integer types in stdint.h
+*
+* modified : Cheng Chi
 *-----------------------------------------------------------------------------*/
 #include "rtklib.h"
 
@@ -1552,7 +1554,7 @@ static int decode_ssr1(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GAL: np=6; ni=10; nj= 0; offp=  0; break;
         case SYS_QZS: np=4; ni= 8; nj= 0; offp=192; break;
         /* case SYS_CMP: np=6; ni=10; nj=24; offp=  1; break; */
-        case SYS_CMP: np=6; ni=10; nj=8;  offp = 1; break;
+        case SYS_CMP: np=6; ni=10; nj=8;  offp = 0; break;
         case SYS_SBS: np=6; ni= 9; nj=24; offp=120; break;
         default: return sync?0:10;
     }
@@ -1608,7 +1610,8 @@ static int decode_ssr2(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GLO: np=5; offp=  0; break;
         case SYS_GAL: np=6; offp=  0; break;
         case SYS_QZS: np=4; offp=192; break;
-        case SYS_CMP: np=6; offp=  1; break;
+        /*case SYS_CMP: np=6; offp=  1; break;*/
+        case SYS_CMP: np=6; offp=  0; break;
         case SYS_SBS: np=6; offp=120; break;
         default: return sync?0:10;
     }
@@ -1656,7 +1659,8 @@ static int decode_ssr3(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GLO: np=5; offp=  0; sigs=ssr_sig_glo; break;
         case SYS_GAL: np=6; offp=  0; sigs=ssr_sig_gal; break;
         case SYS_QZS: np=4; offp=192; sigs=ssr_sig_qzs; break;
-        case SYS_CMP: np=6; offp=  1; sigs=ssr_sig_cmp; break;
+        /*case SYS_CMP: np=6; offp=  1; sigs=ssr_sig_cmp; break;*/
+        case SYS_CMP: np=6; offp=  0; sigs=ssr_sig_cmp; break;
         case SYS_SBS: np=6; offp=120; sigs=ssr_sig_sbs; break;
         default: return sync?0:10;
     }
@@ -1712,8 +1716,8 @@ static int decode_ssr4(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GLO: np=5; ni= 8; nj= 0; offp=  0; break;
         case SYS_GAL: np=6; ni=10; nj= 0; offp=  0; break;
         case SYS_QZS: np=4; ni= 8; nj= 0; offp=192; break;
-            /* case SYS_CMP: np=6; ni=10; nj=24; offp=  1; break; */
-        case SYS_CMP: np=6; ni=10; nj=8;  offp = 1; break;
+        /* case SYS_CMP: np=6; ni=10; nj=24; offp=  1; break; */
+        case SYS_CMP: np=6; ni=10; nj=8;  offp = 0; break;
         case SYS_SBS: np=6; ni= 9; nj=24; offp=120; break;
         default: return sync?0:10;
     }
@@ -1747,6 +1751,10 @@ static int decode_ssr4(rtcm_t *rtcm, int sys, int subtype)
         rtcm->ssr[sat-1].iode=iode;
         rtcm->ssr[sat-1].iodcrc=iodcrc;
         rtcm->ssr[sat-1].refd=refd;
+
+        if (sys == SYS_CMP) {
+            int a = 0;
+        }
         
         for (k=0;k<3;k++) {
             rtcm->ssr[sat-1].deph [k]=deph [k];
@@ -1774,7 +1782,8 @@ static int decode_ssr5(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GLO: np=5; offp=  0; break;
         case SYS_GAL: np=6; offp=  0; break;
         case SYS_QZS: np=4; offp=192; break;
-        case SYS_CMP: np=6; offp=  1; break;
+        /*case SYS_CMP: np=6; offp=  1; break;*/
+        case SYS_CMP: np=6; offp=  0; break;
         case SYS_SBS: np=6; offp=120; break;
         default: return sync?0:10;
     }
@@ -1816,7 +1825,8 @@ static int decode_ssr6(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GLO: np=5; offp=  0; break;
         case SYS_GAL: np=6; offp=  0; break;
         case SYS_QZS: np=4; offp=192; break;
-        case SYS_CMP: np=6; offp=  1; break;
+        /*case SYS_CMP: np=6; offp=  1; break;*/
+        case SYS_CMP: np=6; offp=  0; break;
         case SYS_SBS: np=6; offp=120; break;
         default: return sync?0:10;
     }
@@ -1900,7 +1910,8 @@ static int decode_ssr7(rtcm_t *rtcm, int sys, int subtype)
         case SYS_GLO: np=5; offp=  0; sigs=ssr_sig_glo; break;
         case SYS_GAL: np=6; offp=  0; sigs=ssr_sig_gal; break;
         case SYS_QZS: np=4; offp=192; sigs=ssr_sig_qzs; break;
-        case SYS_CMP: np=6; offp=  1; sigs=ssr_sig_cmp; break;
+        /*case SYS_CMP: np=6; offp=  1; sigs=ssr_sig_cmp; break;*/
+        case SYS_CMP: np=6; offp=  0; sigs=ssr_sig_cmp; break;
         default: return sync?0:10;
     }
     if (subtype>0) { /* IGS SSR */
@@ -1922,7 +1933,8 @@ static int decode_ssr7(rtcm_t *rtcm, int sys, int subtype)
             sdc =getbitu(rtcm->buff,i, 4); i+= 4; /* discontinuity counter */
             bias=getbits(rtcm->buff,i,20); i+=20; /* phase bias (m) */
             if (subtype==0) {
-                std=getbitu(rtcm->buff,i,17); i+=17; /* phase bias std-dev (m) */
+                /* not consistant with BNC */
+                /* std=getbitu(rtcm->buff,i,17); i+=17; */ /* phase bias std-dev (m) */
             }
             if (sigs[mode]) {
                 pbias[sigs[mode]-1]=bias*0.0001; /* (m) */
@@ -2683,6 +2695,9 @@ extern int decode_rtcm3(rtcm_t *rtcm)
         case   12: ret=decode_ssr7(rtcm,SYS_GAL,0); break; /* tentative */
         case   13: ret=decode_ssr7(rtcm,SYS_QZS,0); break; /* tentative */
         case   14: ret=decode_ssr7(rtcm,SYS_CMP,0); break; /* tentative */
+        case 1265: ret=decode_ssr7(rtcm,SYS_GPS,0); break; /* cnes phase bias */
+        case 1267: ret=decode_ssr7(rtcm,SYS_GAL,0); break; /* cnes phase bias */
+        case 1270: ret=decode_ssr7(rtcm,SYS_CMP,0); break; /* cnes phase bias */
         case 4073: ret=decode_type4073(rtcm); break;
         case 4076: ret=decode_type4076(rtcm); break;
     }

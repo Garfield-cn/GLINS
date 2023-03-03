@@ -50,7 +50,8 @@ struct VisualInitializationOptions
   size_t init_min_inliers = 20;
 
   // Initial map average depth
-  double init_map_scale = 50.0;
+  // Only used for homography init
+  double init_map_scale = 100.0;
 
   // Reprojection threshold in pixels
   double reproj_error_thresh = 2.0;
@@ -102,6 +103,9 @@ public:
   // Name a reference frame and detect features
   void newRefFrames(const FrameBundlePtr& frames);
 
+  // Clear frames to make sure it can be freed properly
+  void clearFrames() { ref_frames_ = nullptr; }
+
   virtual VisualInitResult addFrameBundle(const FrameBundlePtr& frames_cur) = 0;
 
   virtual void reset();
@@ -112,9 +116,9 @@ public:
       const FramePtr& frame_ref,
       const Transformation& T_cur_ref,
       const double reprojection_threshold,
-      const double depth_at_current_frame,
       const size_t min_inliers_threshold,
-      std::vector<std::pair<size_t, size_t>>& matches_cur_ref);
+      std::vector<std::pair<size_t, size_t>>& matches_cur_ref, 
+      const double depth_at_current_frame = 0.0);
 
   static void triangulatePoints(
       const Frame& frame_cur,
@@ -130,7 +134,7 @@ public:
       const std::vector<std::pair<size_t, size_t>>& matches_cur_ref,
       const Positions& points_in_cur,
       const Transformation& T_cur_ref,
-      const double depth_at_current_frame);
+      const double depth_at_current_frame = 0.0);
 
   static int estimateFundamental(
       const Bearings& f_cur,

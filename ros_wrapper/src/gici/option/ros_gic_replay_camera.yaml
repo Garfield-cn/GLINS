@@ -1,301 +1,298 @@
 # Gici board configurations
 stream:
   streamers:
-#   - streamer:
-#       tag: str-rov
-#       type: file
-#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/rov.rtcm3
-#       enable_time_tag: true
-#       swap_interval: 0
-#       buffer_length: 32768
-#       loop_duration: 1e-2
-#       formator_tags: [gnss-rov]
-
-#   - streamer:
-#       tag: str-rov
-#       type: file
-#       path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref_copy.rtcm3
-#       enable_time_tag: true
-#       swap_interval: 0
-#       buffer_length: 32768
-#       loop_duration: 1e-2
-#       formator_tags: [gnss-rov]
-
+# 用这个数据记得改streamer的tag比特位！！！！！！！！
   - streamer:
-      tag: str-ref
+      tag: str_gnss_ref
+      output_tags: [fmt_gnss_ref]
       type: file
-      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/ref.rtcm3
-      enable_time_tag: true
-      swap_interval: 0
-      buffer_length: 32768
-      loop_duration: 1e-2
-      formator_tags: [gnss-ref]
-
+      path: /media/cc/T72/ubuntu/datasets/gici_board/raw/store/22.1.30 校园路测/ref.rtcm3
   - streamer:
-      tag: str-head
+      tag: str_gnss
+      output_tags: [fmt_gnss]
       type: file
-      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/head.rtcm3
-      enable_time_tag: true
-      swap_interval: 0
-      buffer_length: 32768
-      loop_duration: 1e-2
-      formator_tags: [gnss-head]
-
+      path: /media/cc/T72/ubuntu/datasets/gici_board/raw/store/22.1.30 校园路测/head.rtcm3
   - streamer:
-      tag: str-imu
+      tag: str_imu
+      output_tags: [fmt_imu]
       type: file
-      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/imu.bin
-      enable_time_tag: true
-      swap_interval: 0
-      buffer_length: 32768
-      loop_duration: 1e-3
-      formator_tags: [imu]
-
+      path: /media/cc/T72/ubuntu/datasets/gici_board/raw/store/22.1.30 校园路测/imu.bin
   - streamer:
-      tag: str-camera
+      tag: str_camera
+      output_tags: [fmt_camera]
       type: file
-      path: /home/cc/datasets/msf_board/raw/store/22.1.30 校园路测/camera.bin
-      enable_time_tag: true
-      swap_interval: 0
+      path: /media/cc/T72/ubuntu/datasets/gici_board/raw/store/22.1.30 校园路测/camera.bin
       buffer_length: 361472  # 752 * 480 + 512
-      loop_duration: 1e-2
-      formator_tags: [camera]
-
   - streamer:
-      tag: solution_lc
+      tag: str_dcb_file
+      output_tags: [fmt_dcb_file]
+      type: file
+      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      enable_time_tag: false
+  - streamer:
+      tag: str_solution
       type: ros
-      formator_tag: solution_lc
-      topic_name: solution_lc
-      queue_size: 10
+      topic_name: solution
+      queue_size: 5
       io: output
       format: pose_stamped
-      subframe_id: Body
-
   - streamer:
-      tag: path_lc
+      tag: str_solution_odometry
       type: ros
-      formator_tag: path_lc
-      topic_name: path_lc
+      topic_name: solution_odometry
+      queue_size: 10
+      io: output
+      format: odometry
+      subframe_id: Body
+  - streamer:
+      tag: str_solution_path
+      type: ros
+      topic_name: solution_path
       queue_size: 100
       io: output
       format: path
-
   - streamer:
-      tag: solution_gic_stc
+      tag: str_featured_image
       type: ros
-      formator_tag: solution_gic_stc
-      topic_name: solution_gic_stc
-      subframe_id: Body
-      queue_size: 10
-      io: output
-      format: pose_stamped
-
-  - streamer:
-      tag: path_gic_stc
-      type: ros
-      formator_tag: path_gic_stc
-      topic_name: path_gic_stc
-      queue_size: 100
-      io: output
-      format: path
-
-  - streamer:
-      tag: feature
-      type: ros
-      formator_tag: feature
       topic_name: featured_image
-      queue_size: 10
+      queue_size: 3
       io: output
       format: image
-
   - streamer:
-      tag: map
+      tag: str_landmarks
       type: ros
-      formator_tag: map
       topic_name: landmarks
-      queue_size: 100
+      queue_size: 3
       io: output
       format: marker
-      
-  - streamer:
-      tag: solution_rtk
-      type: file
-      path: /home/cc/datasets/tmp/solution_rtk.txt
-      enable_time_tag: false
-      swap_interval: 0
-      buffer_length: 4096
-      loop_duration: 1e-3
-      formator_tags: [solution_rtk]
-
 
   formators:
-#   - formator:
-#       io: input
-#       tag: gnss-rov
-#       type: gnss-rtcm-3
-#       start_time: 1643508393
-#       role: [rover, ephemeris]
-
   - formator:
       io: input
-      tag: gnss-ref
+      tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 1643508393
-      role: [reference]
-
-#   - formator:
-#       io: input
-#       tag: gnss-head
-#       type: gnss-rtcm-3
-#       start_time: 1643508393
-#       role: [heading]
-
+      start_time: 2022.01.30.06
   - formator:
       io: input
-      tag: gnss-head
+      tag: fmt_gnss
       type: gnss-rtcm-3
-      start_time: 1643508393
-      role: [rover, ephemeris]
-
+      start_time: 2022.01.30.06
   - formator:
       io: input
-      tag: imu
+      tag: fmt_dcb_file
+      type: dcb-file
+  - formator:
+      io: input
+      tag: fmt_imu
       type: imu-pack
-      role: [major]
-
   - formator:
       io: input
-      tag: camera
+      tag: fmt_camera
       width: 752
       height: 480
       type: image-pack
-      role: [mono]
-
-  - formator:
-      io: output
-      tag: solution_rtk
-      type: nmea
-      talker_id: GP
-      use_gga: true
-      use_rmc: true
-      use_esa: true
 
   replay:
     enable: true
     speed: 1.0
-    start_offset: 5.0
+    start_offset: 15.0
 
 estimate:
-- estimator:
-    tag: rtk
-    type: rtk
-    input_formator_tags: [gnss-head, gnss-ref]
-    input_estimator_tags: []
-    output_formator_tags: [solution_rtk]
-    loop_duration: 0  # if set as 0, we align the process rate to the "loop_duration-align" stream
-    loop_duration_align_tag: gnss-head
-    role: position
-    estimator_options:
-      window_length: 3
-      max_iteration: 10
-      verbose: false
-      use_ambiguity_resolution: true
-      gnss_common:
-        min_elevation: 7.0
-        period: 1.0
-      gnss_error_parameter:
-        code_to_phase_ratio: 100.0
-        phase_error_factor: [0.003, 0.003, 0]
-        system_error_ratio: [1.0, 3.0, 1.0, 1.0]
-      ambiguity_resolution:
-        system_exclude: [R, C]
-        min_percentage_fixation_nl: 0.8
-        ratio: 2.0
-        min_consistant_fix_as_stable: 5
-
 # - estimator:
-#     tag: gnss-imu-lc
-#     type: gnss_imu_lc
-#     input_formator_tags: [imu]
-#     input_estimator_tags: [rtk]
-#     output_formator_tags: [solution_lc, path_lc]
-#     loop_duration: 0
-#     loop_duration_align_tag: imu
-#     estimator_options:
-#       window_length: 3
-#       max_iteration: 5
-#       verbose: true
-#       imu_parameters:
-#         sigma_g_c: 2.7e-3
-#         sigma_a_c: 4.0e-2
-#         sigma_gw_c: 2.1e-5
-#         sigma_aw_c: 8.4e-4
-#       initialize:
-#         verbose: true
-#         max_iteration: 30
-#         gnss_extrinsic: [0.0, -0.37, -0.43]
-#         gnss_extrinsic_initial_std: 0.05
-#         time_window_length_zero_motion: 0.1
-#         min_window_length: 5
-#         min_velocity: 3.0
-
-# - estimator:
-#     tag: rtk-imu-tc
-#     type: rtk_imu_tc
-#     input_formator_tags: [gnss-head, gnss-ref, imu]
-#     input_estimator_tags: []
-#     output_formator_tags: [solution_lc, path_lc]
+#     tag: est_spp
+#     type: spp
+#     input_tags: [fmt_gnss, fmt_dcb_file]
+#     fmt_gnss_roles: [rover, ephemeris]
+#     fmt_dcb_file_roles: [code_bias]
+#     output_tags: [str_solution, str_solution_odometry, str_solution_path]
 #     loop_duration: 0 
-#     loop_duration_align_tag: imu
-#     estimator_options:
-#       window_length: 3
+#     output_align_tag: fmt_gnss
+#     compute_covariance: true
+#     estimator_base_options:
 #       max_iteration: 10
-#       verbose: false
-#       use_ambiguity_resolution: true
+#       num_threads: 2
+#       max_solver_time: 0.05
+#       verbose_output: true
+#       solver_type: dense_normal_cholesky
+#       trust_region_strategy_type: levenberg_marquardt
+#     gnss_estimator_base_options:
 #       gnss_common:
 #         min_elevation: 7.0
-#         period: 1.0
-#       gnss_error_parameter:
-#         code_to_phase_ratio: 100.0
-#         phase_error_factor: [0.003, 0.003, 0]
-#         system_error_ratio: [1.0, 3.0, 1.0, 1.0]
-#       ambiguity_resolution:
-#         system_exclude: [R, C]
-#         min_percentage_fixation_nl: 0.8
-#         ratio: 2.0
-#         min_consistant_fix_as_stable: 5
-#       imu_parameters:
-#         sigma_g_c: 2.7e-3
-#         sigma_a_c: 4.0e-2
-#         sigma_gw_c: 2.1e-5
-#         sigma_aw_c: 8.4e-4
-#       initialize:
-#         verbose: true
-#         max_iteration: 30
-#         gnss_extrinsic: [0.0, -0.37, -0.43]
-#         gnss_extrinsic_initial_std: 0.05
-#         time_window_length_zero_motion: 0.1
-#         min_window_length: 5
-#         min_velocity: 3.0
+#         max_gdop: 10.0
+#         system_exclude: [R, E, C]
 
 - estimator:
-    tag: gnss-imu-camera-stc
+    tag: est_rtk
+    type: rtk
+    input_tags: [fmt_gnss, fmt_gnss_ref, fmt_dcb_file]
+    fmt_gnss_roles: [rover, ephemeris]
+    fmt_gnss_ref_roles: [reference]
+    fmt_dcb_file_roles: [code_bias]
+    # output_tags: [str_solution, str_solution_odometry, str_solution_path]
+    loop_duration: 0  
+    output_align_tag: fmt_gnss
+    compute_covariance: true
+    rtk_options:
+      max_window_length: 10
+      use_ambiguity_resolution: true
+      estimate_velocity: false
+    gnss_estimator_base_options:
+      use_outlier_rejection: true
+      reject_one_outlier_once: false
+    estimator_base_options:
+      max_iteration: 10
+      num_threads: 2
+      max_solver_time: 0.05
+      verbose_output: false
+      solver_type: dense_schur
+      trust_region_strategy_type: dogleg
+    ambiguity_resolution_options:
+      system_exclude: [R, C]
+      min_percentage_fixation_nl: 0.8
+      ratio: 2.0
+      min_consistant_fix_as_stable: 5
+
+# - estimator:
+#     tag: est_gnss_imu_lc
+#     type: gnss_imu_lc
+#     input_tags: [fmt_imu, est_rtk]
+#     fmt_imu_roles: [major]
+#     est_rtk_roles: [position]
+#     output_tags: [str_solution, str_solution_odometry, str_solution_path]
+#     loop_duration: 0
+#     output_align_tag: fmt_imu
+#     gnss_imu_lc_options:
+#       max_window_length: 3
+#     gnss_loose_estimator_base_options:
+#     imu_estimator_base_options:
+#       imu_parameters:
+#         sigma_bg: 1.0e-3
+#         sigma_ba: 1.0e-2
+#         sigma_g_c: 2.6700e-04
+#         sigma_a_c: 0.0112
+#         sigma_gw_c: 2.0881e-06
+#         sigma_aw_c: 2.7361e-04
+#     estimator_base_options:
+#       max_iteration: 5
+#       num_threads: 4
+#       max_solver_time: 0.05
+#       verbose_output: true
+#       solver_type: sparse_normal_cholesky
+#       trust_region_strategy_type: dogleg
+#     gnss_imu_initializer_options:
+#       max_iteration: 30
+#       num_threads: 4
+#       max_solver_time: 0.5
+#       gnss_extrinsics: [0.0, -0.37, -0.43]
+#       gnss_extrinsics_initial_std: [0.0, 0.0, 0.0]
+#       time_window_length_slow_motion: 0.05
+#       time_window_length_dynamic_motion: 5.0
+#       min_acceleration: 0.3
+
+# - estimator:
+#     tag: est_rtk_imu_tc
+#     type: rtk_imu_tc
+#     input_tags: [fmt_gnss, fmt_gnss_ref, fmt_dcb_file, fmt_imu]
+#     fmt_gnss_roles: [rover, ephemeris]
+#     fmt_gnss_ref_roles: [reference]
+#     fmt_dcb_file_roles: [code_bias]
+#     fmt_imu_roles: [major]
+#     output_tags: [str_solution, str_solution_odometry, str_solution_path]
+#     loop_duration: 0 
+#     output_align_tag: fmt_gnss
+#     rtk_imu_tc_options:
+#       max_window_length: 3
+#     rtk_options:
+#       max_window_length: 3
+#       use_ambiguity_resolution: true
+#       estimate_velocity: false
+#     gnss_estimator_base_options:
+#       use_outlier_rejection: true
+#       reject_one_outlier_once: false
+#     imu_estimator_base_options:
+#       imu_parameters:
+#         sigma_bg: 1.0e-3
+#         sigma_ba: 1.0e-2
+#         sigma_g_c: 2.6700e-04
+#         sigma_a_c: 0.0112
+#         sigma_gw_c: 2.0881e-06
+#         sigma_aw_c: 2.7361e-04
+#     estimator_base_options:
+#       max_iteration: 5
+#       num_threads: 4
+#       max_solver_time: 0.05
+#       verbose_output: true
+#       solver_type: dense_schur
+#       trust_region_strategy_type: dogleg
+#     ambiguity_resolution_options:
+#       system_exclude: [R, C]
+#       min_percentage_fixation_nl: 0.8
+#       ratio: 2.0
+#       min_consistant_fix_as_stable: 5
+#     gnss_imu_initializer_options:
+#       max_iteration: 30
+#       num_threads: 4
+#       max_solver_time: 0.5
+#       gnss_extrinsics: [0.0, -0.37, -0.43]
+#       gnss_extrinsics_initial_std: [0.0, 0.0, 0.0]
+#       time_window_length_slow_motion: 0.05
+#       time_window_length_dynamic_motion: 5.0
+#       min_acceleration: 0.3
+
+- estimator:
+    tag: est_gnss_imu_camera_srr
     type: gnss_imu_camera_srr
-    input_formator_tags: [imu, camera]
-    input_estimator_tags: [rtk]
-    output_formator_tags: [solution_gic_stc, path_gic_stc, feature, map]
+    input_tags: [fmt_camera, fmt_imu, est_rtk]
+    fmt_camera_roles: [mono]
+    fmt_imu_roles: [major]
+    est_rtk_roles: [position]
+    output_tags: [str_solution, str_solution_odometry, str_solution_path, str_featured_image, str_landmarks]
     loop_duration: 0 
-    loop_duration_align_tag: camera
+    output_align_tag: fmt_camera
+    compute_covariance: false
+    gnss_imu_camera_srr:
+      max_keyframes: 5
+    gnss_loose_estimator_base_options:
+    visual_estimator_base_options:
+      feature_error_std: 1.0
+      landmark_outlier_rejection_threshold: 4.0
+    imu_estimator_base_options:
+      imu_parameters:
+        sigma_bg: 1.0e-3
+        sigma_ba: 1.0e-2
+        sigma_g_c: 2.6700e-04
+        sigma_a_c: 0.0112
+        sigma_gw_c: 2.0881e-06
+        sigma_aw_c: 2.7361e-04
+    estimator_base_options:
+      max_iteration: 5
+      num_threads: 4
+      max_solver_time: 0.02
+      verbose_output: true
+      solver_type: dense_schur
+      trust_region_strategy_type: dogleg
+    gnss_imu_camera_initializer_options:
+      max_iteration: 30
+      num_threads: 6
+      max_solver_time: 0.5
+      gnss_extrinsics: [0.0, -0.37, -0.43]
+      gnss_extrinsics_initial_std: [0.0, 0.0, 0.0]
+      time_window_length_slow_motion: 0.05
+      time_window_length_gnss_dynamic_motion: 5.0
+      min_acceleration: 0.3
+      min_keyframe_window_length: 5
     feature_handler_options:
       max_features_per_frame: 120
       max_n_kfs: 30
-      min_disparity_init_landmark: 10.0
+      min_disparity_init_landmark: 15.0
       kfselect_min_numkfs: 30
-      kfselect_min_disparity: 10.0
+      kfselect_min_disparity: 30.0
       kfselect_min_dist_metric: 3.0
       kfselect_min_angle: 10.0
       detector:
         cell_size: 30
+      initialization:
+        init_map_scale: 1000
       camera_parameters:
         label: "gici-board"
         cameras:
@@ -319,37 +316,14 @@ estimate:
           T_B_C:
             cols: 4
             rows: 4
-            data: [0.0134381210697455122,   -0.999901594987671172, -0.00402706384669154413,  -0.0229793554058591656,
-                  0.999907681540912807,   0.0134460859659659704, -0.00195733688253543802,   0.0110786309679912626,
-                  0.00201129251744842832, -0.00400038914436078377,     0.99998997574430859,    0.025008868367930974,
-                                      0,                       0,                       0,                       1]
-            # data: [1,0,0,0,
-            #        0,1,0,0,
-            #        0,0,1,0,
-            #        0,0,0,1]
-    estimator_options:
-      max_keyframes: 10
-      max_iteration: 6
-      feature_error_std: 1
-      verbose: false
-      imu_parameters:
-        sigma_g_c: 2.7e-3
-        sigma_a_c: 4.0e-2
-        sigma_gw_c: 2.1e-5
-        sigma_aw_c: 8.4e-4
-      initialize:
-        verbose: false
-        max_iteration: 30
-        gnss_extrinsic: [0.0, -0.37, -0.43]
-        gnss_extrinsic_initial_std: 0.02
-        time_window_length_zero_motion: 0.1
-        min_gnss_window_length: 5
-        min_keyframe_window_length: 5
-        min_velocity: 2.0
+            data: [0.00827345712871924, -0.999961292459325, 0.00299390885206964,  -0.023387232408056,
+                  0.999952608445414, 0.00825794726467827, -0.00515627483607444,   0.012743048092898,
+                  0.00513135170794084, 0.00303642718487501, 0.999982224511816,    0.017968806326901,
+                                    0,                   0,                 0,                    1]
 
 
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: true
   file_directory: /home/cc/datasets/log
+  log_to_stderr: false

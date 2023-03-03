@@ -39,6 +39,9 @@ void GeoCoordinate::setZero(const Eigen::Vector3d& position,
 Eigen::Vector3d GeoCoordinate::convert(const Eigen::Vector3d& position,
             const GeoType in_type, const GeoType out_type)
 {
+  // Check if do not need convertion
+  if (in_type == out_type) return position;
+
   // Convert input coordinate to LLA
   Eigen::Vector3d lla;
   if (in_type == GeoType::ECEF) {
@@ -100,6 +103,22 @@ Eigen::Vector3d GeoCoordinate::convert(const Eigen::Vector3d& position,
   return Eigen::Vector3d::Zero();
 }
 
+// Rotate coordinate
+Eigen::Vector3d GeoCoordinate::rotate(const Eigen::Vector3d& position,
+            const GeoType in_type, const GeoType out_type)
+{
+  return (rotationMatrix(in_type, out_type) * position);
+}
+
+// Convert covariance
+Eigen::Matrix3d GeoCoordinate::convertCovariance(const Eigen::Matrix3d& cov,
+            const GeoType in_type, const GeoType out_type)
+{
+  Eigen::Matrix3d R = rotationMatrix(in_type, out_type);
+  Eigen::Matrix3d rot_cov = R * cov * R.transpose();
+  return ((rot_cov + rot_cov.transpose()) / 2.0);
+}
+
 // Rotation matrices
 Eigen::Matrix3d GeoCoordinate::rotationMatrix(GeoType from, GeoType to)
 {
@@ -147,6 +166,12 @@ Eigen::Matrix3d GeoCoordinate::rotationMatrix(GeoType from, GeoType to)
 
   LOG(ERROR) << "Invalid rotation matrix type!";
   return Eigen::Matrix3d::Identity();
+}
+
+// Get coordinate zero
+Eigen::Vector3d GeoCoordinate::getZero(const GeoType type)
+{
+  return convert(Eigen::Vector3d::Zero(), GeoType::ENU, type);
 }
 
 }

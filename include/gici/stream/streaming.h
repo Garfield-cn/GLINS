@@ -16,6 +16,7 @@
 #include "gici/stream/formator.h"
 #include "gici/stream/streamer.h"
 #include "gici/estimate/estimator_types.h"
+#include "gici/utility/node_option_handle.h"
 
 namespace gici {
 
@@ -34,20 +35,27 @@ public:
   using DataClusters = std::vector<std::vector<std::shared_ptr<DataCluster>>>;
   using DataCallback = std::function<void(const std::string&, const std::shared_ptr<DataCluster>&)>;
   struct FormatorCtrl {
-    std::string tag, input_tag;
+    std::string tag; 
+    std::string input_tag; // tag of input formator 
     StreamIOType type;
     std::shared_ptr<FormatorBase> formator;
   };
 
 
-  Streaming(YAML::Node& node, int istreamer);
+  Streaming(const NodeOptionHandlePtr& nodes, size_t i_streamer);
+  Streaming() : valid_(false), opened_(false) { }
   ~Streaming();
 
   // Get formators
   std::vector<FormatorCtrl>& getFormators() { return formators_; }
 
-  // Set data callbacks from outside
-  void setDataCallback(DataCallback& callback);
+  // Set estimator data callback
+  virtual void setDataCallback(const DataCallback& callback) {
+    data_callbacks_.push_back(callback);
+  }
+
+  // Clear data callbacks
+  void clearDataCallbacks() { data_callbacks_.clear(); }
 
   // Start thread
   void start();
@@ -63,8 +71,8 @@ public:
     const std::string& tag, const std::shared_ptr<DataCluster>& data);
 
   // Send solution data to output stream
-  void solutionOutputCallback(
-    std::string tag, SolutionRole role, Solution& solution);
+  virtual void outputDataCallback(
+    const std::string tag, const std::shared_ptr<DataCluster>& data);
 
   // Check if has formator tag
   inline bool hasFormatorTag(std::string tag) {
@@ -77,12 +85,24 @@ public:
   // Check if valid
   inline bool valid() { return valid_; }
 
+  // Set PipelineConvert from ROS input
+  void setPipelineConvert(const std::string& input_tag,
+    const std::string& log_tag, const PipelineConvert& pipeline) {
+    pipelines_convert_[input_tag].insert(std::make_pair(log_tag, pipeline));
+  }
+
+  // Get teg
+  std::string getTag() { return tag_; }
+
   // Bind input and logging streams
   static void bindLogWithInput();
 
   // Enable replay
   // This function should be called after all the streamers are opened
   static void enableReplay(StreamerReplayOptions option);
+
+  // Get instantiated objects
+  static std::vector<Streaming *>& getObjects() { return static_this_; }
 
 private:
   // Stream input processing
@@ -97,15 +117,16 @@ private:
 	// Loop processing
 	void run();
 
-protected:
+private:
 	// Thread handles
 	std::unique_ptr<std::thread> thread_;
-	std::mutex mutex_input_, mutex_logging_, mutex_output_;
+	std::mutex mutex_logging_, mutex_output_;
 	bool quit_thread_ = false;
   double loop_duration_;
 
   // Stream control
-  std::string tag_, input_tag_;  // streamer tags
+  std::string tag_;
+  std::string input_tag_;  // tag of input streamer
   bool valid_, opened_;
   std::shared_ptr<StreamerBase> streamer_;
   std::vector<FormatorCtrl> formators_;
@@ -117,7 +138,7 @@ protected:
   using PipelinesConvert = std::map<std::string, std::map<std::string, PipelineConvert>>;
   PipelinesConvert pipelines_convert_; // sending decoded data to logging streams
   uint8_t *buf_input_, *buf_logging_, *buf_output_;
-  int buf_size_input_, buf_size_logging_, buf_size_output_;
+  int buf_size_input_ = 0, buf_size_logging_ = 0, buf_size_output_ = 0;
   int max_buf_size_;
   bool has_input_ = false;
   bool has_logging_ = false;
