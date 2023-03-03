@@ -18,7 +18,7 @@ using namespace gici;
 // For more details on how to configure your option.yaml file, see doc/configuration_instructions.md
 int main(int argc, char** argv)
 {
-  // Initialize ROS
+  // Initialize ROS a
   ros::init(argc, argv, "gici");
   ros::NodeHandle nh("~");
 
