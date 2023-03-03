@@ -47,6 +47,7 @@ devel/
 
 # others
 trash/
+test/
 third_party/eigen/
 third_party/fast/
 third_party/glog/
