@@ -54,6 +54,7 @@ third_party/glog/
 third_party/opencv/
 third_party/yaml-cpp/
 ros_wrapper/src/CMakeLists.txt
+*_with_passward.yaml
 data*/
 bin/
 lib/
