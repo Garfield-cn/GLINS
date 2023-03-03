@@ -53,6 +53,7 @@ third_party/fast/
 third_party/glog/
 third_party/opencv/
 third_party/yaml-cpp/
+ros_wrapper/src/CMakeList.txt
 data*/
 bin/
 lib/
