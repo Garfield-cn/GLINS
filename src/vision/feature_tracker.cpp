@@ -117,9 +117,6 @@ void FeatureTracker::track(const FramePtr& ref_frame,
       cur_frame->grad_vec_.col(index) = ref_frame->grad_vec_.col(j);
       cur_frame->score_vec_[index] = ref_frame->score_vec_[j];
       cur_frame->level_vec_[index] = ref_frame->level_vec_[j];
-      cur_frame->type_vec_[index] = ref_frame->type_vec_[j];
-      cur_frame->landmark_vec_[index] = ref_frame->landmark_vec_[j];
-      cur_frame->landmark_vec_[index]->addObservation(cur_frame, index);
       cur_frame->num_features_++;
       grid.setOccupied(grid_index);
     }

@@ -252,6 +252,7 @@ void FeatureHandler::detectFeatures(const FramePtr& frame)
   frame_utils::computeNormalizedBearingVectors(new_px, *frame->cam(), &new_f);
 
   // Add features to frame.
+  mutex_.lock();
   const size_t n_old = frame->num_features_;
   const size_t n_new = new_px.cols();
   frame->resizeFeatureStorage(n_old + n_new);
@@ -269,6 +270,7 @@ void FeatureHandler::detectFeatures(const FramePtr& frame)
 
     frame->num_features_++;
   }
+  mutex_.unlock();
 }
 
 // Track featuers using LK optical flow
@@ -291,6 +293,9 @@ void FeatureHandler::trackFeatures()
     tracker_->track(getLast(frame_bundles_)->at(0), 
       getCurrent(frame_bundles_)->at(0), detector_->grid_);
   }
+
+  // Add landmark observations
+  addObservation(getCurrent(frame_bundles_)->at(0));
 }
 
 // Optimize pose of new frame using tracked (and initialized) landmarks
@@ -442,6 +447,7 @@ void FeatureHandler::addObservation(const FramePtr& frame)
     PointPtr& landmark = ref_frame->landmark_vec_[matches[i].first];
     CHECK(landmark != nullptr);
 
+    frame->type_vec_[matches[i].second] = ref_frame->type_vec_[matches[i].first];
     frame->landmark_vec_[matches[i].second] = landmark;
     landmark->addObservation(frame, matches[i].second);
   }

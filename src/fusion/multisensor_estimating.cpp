@@ -373,14 +373,14 @@ bool MultiSensorEstimating::updateSolution()
   }
 
   // Get solution
-  const double timestmap = output_timestamps_.front();
+  const double timestamp = output_timestamps_.front();
   mutex_output_.unlock();
-  solution_.timestamp = timestmap;
+  solution_.timestamp = timestamp;
   solution_.covariance.setZero();
-  if (!estimator_->getPoseEstimateAt(timestmap, solution_.pose) || 
-      !estimator_->getSpeedAndBiasEstimateAt(timestmap, solution_.speed_and_bias) || 
+  if (!estimator_->getPoseEstimateAt(timestamp, solution_.pose) || 
+      !estimator_->getSpeedAndBiasEstimateAt(timestamp, solution_.speed_and_bias) || 
       (compute_covariance_ && 
-      !estimator_->getCovarianceAt(timestmap, solution_.covariance))) {
+      !estimator_->getCovarianceAt(timestamp, solution_.covariance))) {
     return false;
   }
 

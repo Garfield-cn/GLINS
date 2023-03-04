@@ -138,7 +138,7 @@ bool ImuEstimatorBase::getPoseEstimateAt(
   const double timestamp, Transformation& T_WS)
 {
   // Check if we have already applied integration
-  if (timestamp == last_timestamp_) {
+  if (checkEqual(timestamp, last_timestamp_)) {
     T_WS = last_T_WS_; return true;
   }
 
@@ -166,7 +166,7 @@ bool ImuEstimatorBase::getPoseEstimateAt(
 
   // check duration
   double dt = timestamp - base_state.timestamp;
-  if (dt > 2.0) {
+  if (dt > 1.0) {
     LOG(WARNING) << "Large integration duration, " 
                  << dt << "s. The result maybe incorrect!";
   }
@@ -175,8 +175,9 @@ bool ImuEstimatorBase::getPoseEstimateAt(
   bool ret;
   SpeedAndBias speed_and_bias;
   Eigen::Matrix<double, 15, 15> covariance; covariance.setZero();
-  // start from new base state
-  if (!checkEqual(last_base_state_.timestamp, base_state.timestamp)) {
+  // start from base state
+  if (!checkEqual(last_base_state_.timestamp, base_state.timestamp) || 
+      !checkLessEqual(last_timestamp_, timestamp)) {
     if (need_covariance_) {
       ret = getMotionFromEstimateAndImuIntegration(
         base_state, timestamp, T_WS, speed_and_bias, covariance);
@@ -218,7 +219,7 @@ bool ImuEstimatorBase::getSpeedAndBiasEstimateAt(
   const double timestamp, SpeedAndBias& speed_and_bias)
 {
   // Check if we have already applied integration
-  if (timestamp == last_timestamp_) {
+  if (checkEqual(timestamp, last_timestamp_)) {
     speed_and_bias = last_speed_and_bias_; return true;
   }
 
@@ -235,7 +236,7 @@ bool ImuEstimatorBase::getCovarianceAt(
   const double timestamp, Eigen::Matrix<double, 15, 15>& covariance)
 {
   // Check if we have already applied integration
-  if (timestamp == last_timestamp_ && need_covariance_) {
+  if (checkEqual(timestamp, last_timestamp_) && need_covariance_) {
     covariance = last_covariance_; return true;
   }
 

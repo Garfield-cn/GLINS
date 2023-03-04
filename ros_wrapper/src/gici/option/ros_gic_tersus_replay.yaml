@@ -307,7 +307,7 @@ estimate:
 #     enable_input_align: true
 #     input_align_latency: 0.2
 #     enable_backend_data_spasify: true
-#     pending_num_threshold: 3
+#     pending_num_threshold: 5
 #     gnss_imu_camera_srr_options:
 #       max_keyframes: 10
 #     gnss_loose_estimator_base_options:
@@ -395,10 +395,10 @@ estimate:
     output_align_tag: fmt_imu
     output_downsample_rate: 40
     compute_covariance: false
-    enable_input_align: false
+    enable_input_align: true
     input_align_latency: 0.2
     enable_backend_data_spasify: true
-    pending_num_threshold: 3
+    pending_num_threshold: 5
     rtk_imu_camera_rrr_options:
       max_keyframes: 5
       min_yaw_std_init_visual: 0.5
@@ -493,5 +493,5 @@ estimate:
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: true
+  log_to_stderr: false
   file_directory: /home/cc/datasets/log
