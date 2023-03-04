@@ -166,7 +166,7 @@ bool ImuEstimatorBase::getPoseEstimateAt(
 
   // check duration
   double dt = timestamp - base_state.timestamp;
-  if (dt > 1.0) {
+  if (dt > 2.0) {
     LOG(WARNING) << "Large integration duration, " 
                  << dt << "s. The result maybe incorrect!";
   }
