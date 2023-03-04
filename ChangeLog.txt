@@ -2,7 +2,9 @@
 gici version 1.0.0 (2023.02.18)
 Initial version.
 --------------------------------------------------------------------------------
-gici version 1.0.1 (2023.03.02)
+gici version 1.0.1 (2023.03.04)
   ADDED   : Measurement data realignment to ensure measurement timestamp ascending.
   ADDED   : Backend pending check and measurement data sparsifying.
   FIXED   : Jamming on image frontend thread.
+  FIXED   : Rank deficiency when computing yaw STD before the visual estimator has been initialized.
+  FIXED   : Unstable output when aligning output tag to non-propagation sensors.
