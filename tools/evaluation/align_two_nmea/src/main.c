@@ -29,7 +29,7 @@ int main(int argc, char ** argv)
   double freq_high = (double)sols_high.n / timediff(sols_high.data[sols_high.n - 1].time, sols_high.data[0].time);
   double freq_low = (double)sols_low.n / timediff(sols_low.data[sols_low.n - 1].time, sols_low.data[0].time);
   if (freq_high < freq_low - 0.5) {
-    printf("The frequency of the first input file should be larger than or equal to the sencond one!");
+    printf("The frequency of the first input file should be larger than or equal to the sencond one!\r\n");
     printf("The frequencies of the two files are: %.3f and %.3f.\r\n", freq_high, freq_low);
     return -1;
   }
