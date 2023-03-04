@@ -12,7 +12,7 @@ link_libraries(m dl rt)
 find_package(Eigen3 REQUIRED NO_MODULE)
 # Glog
 find_package(glog REQUIRED)
-# RTKLIb
+# RTKLIB
 add_definitions(-DENAGLO -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 add_subdirectory(../../../third_party/rtklib rtklib.out)
 

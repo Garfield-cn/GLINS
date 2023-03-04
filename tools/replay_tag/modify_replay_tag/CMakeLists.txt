@@ -6,7 +6,7 @@ set(CMAKE_CXX_FLAGS "-std=c++11" )
 set(CMAKE_CXX_FLAGS "-fpermissive")
 
 # Add third-party libraries
-# RTKLIb
+# RTKLIB
 add_definitions(-DENAGLO -DENAQZS -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 add_subdirectory(../../../third_party/rtklib rtklib.out)
 

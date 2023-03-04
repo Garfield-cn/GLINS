@@ -30,7 +30,7 @@ add_subdirectory(third_party/fast)
 add_subdirectory(third_party/rpg_vikit/vikit_common)
 # SVO libraries
 add_subdirectory(third_party/rpg_svo)
-# RTKLIb
+# RTKLIB
 add_definitions(-DENAGLO -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 add_subdirectory(third_party/rtklib)
 
