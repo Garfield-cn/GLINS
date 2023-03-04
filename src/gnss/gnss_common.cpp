@@ -342,15 +342,15 @@ bool checkObservationValid(const GnssMeasurement& measurement,
     return false;
   }
 
-  // SNR mask
-  if (!gnss_common::checkSNR(options, measurement, index)) {
-    return false;
-  }
-
   auto obs = satellite.observations.find(index.code_type);
 
   // Cannot find given code type
   if(obs == satellite.observations.end()) return false;
+
+  // SNR mask
+  if (!gnss_common::checkSNR(options, measurement, index)) {
+    return false;
+  }
 
   // Code type not used
   if (!gnss_common::useCode(options, satellite.getSystem(), obs->first)) 
