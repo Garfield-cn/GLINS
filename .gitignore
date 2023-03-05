@@ -49,7 +49,6 @@ devel/
 trash/
 test/
 third_party/eigen/
-third_party/fast/
 third_party/glog/
 third_party/opencv/
 third_party/yaml-cpp/
