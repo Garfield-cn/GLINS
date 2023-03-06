@@ -86,20 +86,6 @@ bool PppEstimator::addGnssMeasurementAndState(
   std::map<char, double> frequency_prior = spp_estimator_->getFrequencyEstimate();
   curState().status = GnssSolutionStatus::Single;
 
-  // std::map<char, int> n0, n1;
-  // for (int i = 0; i < 4; i++) {
-  //   n0[getGnssSystemList()[i]] = 0;
-  //   n1[getGnssSystemList()[i]] = 0;
-  // }
-  // for (auto satellite : measurement.satellites)
-  // {
-  //   n0[satellite.second.getSystem()]++;
-  //   if (satellite.second.sat_type == SatEphType::Precise) n1[satellite.second.getSystem()]++;
-  // }
-  // for (int i = 0; i < 4; i++) {
-  //   LOG(INFO) << getGnssSystemList()[i] << ": " << n0[getGnssSystemList()[i]] << " " << n1[getGnssSystemList()[i]];
-  // }
-
   // Set to local measurement handle
   curGnss() = measurement;
   curGnss().position = position_prior;
@@ -254,6 +240,9 @@ bool PppEstimator::estimate()
       << ", Sat number: " << std::setw(2) << num_satellites_
       << ", Fix status: " << std::setw(1) << static_cast<int>(curState().status);
   }
+
+  std::cout << "n_state = " << states_.size() << ", n_parameter = " 
+    << graph_->parameters().size() << ", n_residual = " << graph_->residuals().size() << std::endl;
 
   // Apply marginalization
   marginalization();

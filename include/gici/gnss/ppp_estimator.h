@@ -18,7 +18,7 @@ struct PppEstimatorOptions {
   size_t max_window_length = 10;
 
   // Use ambiguity resolution
-  bool use_ambiguity_resolution = true;
+  bool use_ambiguity_resolution = false;
 
   // Estimate velocity or not
   bool estimate_velocity = true;

@@ -22,11 +22,13 @@ RosNodeHandle::RosNodeHandle(ros::NodeHandle& nh, const NodeOptionHandlePtr& nod
     int n_io = nodes->streamers[i]->input_tags.size() + 
                nodes->streamers[i]->output_tags.size();
     if (n_io == 0) {
-      LOG(ERROR) << "At least one I/O port should be specified for a ROS stream!";
+      LOG(ERROR) << nodes->streamers[i]->tag << ": "
+        << "At least one I/O port should be specified for a ROS stream!";
       continue;
     }
     if (n_io > 1) {
-      LOG(ERROR) << "A ROS stream has only one I/O port.";
+      LOG(ERROR) << nodes->streamers[i]->tag << ": "
+        << "A ROS stream should has only one I/O port.";
       continue;
     }
 

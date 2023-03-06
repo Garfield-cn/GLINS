@@ -279,7 +279,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
       observation.wavelength = CLIGHT / freq;
       observation.pseudorange = obs->data[i].P[j];
       observation.phaserange = obs->data[i].L[j] * observation.wavelength;
-      observation.doppler = -obs->data[i].D[j] * observation.wavelength;
+      observation.doppler = obs->data[i].D[j] * observation.wavelength;
       observation.SNR = obs->data[i].SNR[j] * 1.0e-3;
       observation.LLI = obs->data[i].LLI[j];
       observation.slip = false;

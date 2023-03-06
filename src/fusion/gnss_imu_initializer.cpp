@@ -216,8 +216,6 @@ bool GnssImuInitializer::addGnssSolutionMeasurement(
       rpy.z() = init_yaw * D2R;
       Eigen::Quaterniond q_WS = eulerAngleToQuaternion(rpy);
 
-      LOG(INFO) << quaternionToEulerAngle(q_WS).transpose() * R2D;
-
       // fill graph
       putMeasurementAndStateToGraph(q_WS, speed_and_bias_0_);
 

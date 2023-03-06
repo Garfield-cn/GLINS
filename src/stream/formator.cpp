@@ -649,6 +649,16 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
         break;
       }
       is_observation = true;
+
+      // modify some values
+      if (format_ == GnssRawFormats::Tersus) {
+        obs_t *obs = gnss->observation;
+        for (int i = 0; i < obs->n; i++) {
+          for (int j = 0; j < NFREQ+NEXOBS; j++) {
+            obs->data[i].D[j] = -obs->data[i].D[j];
+          }
+        }
+      }
     }
     else {
       has_others = true;

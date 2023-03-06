@@ -144,6 +144,16 @@ bool SdgnssEstimator::estimate()
 
   curState().status = GnssSolutionStatus::DGNSS;
 
+  // Log information
+  if (base_options_.verbose_output) {
+    LOG(INFO) << estimatorTypeToString(type_) << ": " 
+      << "Iterations: " << graph_->summary.iterations.size() << ", "
+      << std::scientific << std::setprecision(3) 
+      << "Initial cost: " << graph_->summary.initial_cost << ", "
+      << "Final cost: " << graph_->summary.final_cost
+      << ", Sat number: " << std::setw(2) << num_satellites_;
+  }
+
   // Shift memory
   states_.push_back(State());
   while (states_.size() > 2) states_.pop_front();

@@ -319,9 +319,9 @@ struct GnssErrorParameter {
   // Relative position error in m/sqrt(Hz) in ENU used in GNSS-only positioning
   Eigen::Vector3d relative_position = Eigen::Vector3d(100.0, 100.0, 100.0);
 
-  // Relative velocity error in m/sqrt(Hz) in ENU used in GNSS-only positioning 
+  // Relative velocity error in m/s/sqrt(Hz) in ENU used in GNSS-only positioning 
   // if we estimate receiver velocity, specify this parameter, or, specify the above parameter.
-  Eigen::Vector3d relative_velocity = Eigen::Vector3d(10.0, 10.0, 1.0);
+  Eigen::Vector3d relative_velocity = Eigen::Vector3d(10.0, 10.0, 10.0);
 
   // Relative troposphere delay error in m/sqrt(Hz)
   double relative_troposphere = 3.0e-4;
