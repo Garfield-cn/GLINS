@@ -690,7 +690,6 @@ void MultiSensorEstimating::runImageFrontend()
       }
       last_image_pending_num_ = image_frontend_measurements_.size();
     }
-    CHECK(image_frontend_measurements_.size() < 20);
 
     // Process feature detecting and tracking
     std::shared_ptr<cv::Mat>& image = front_measurement.image;

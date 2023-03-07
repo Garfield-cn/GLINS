@@ -40,7 +40,7 @@ void publishFeaturedImage(ros::Publisher& pub,
 // Publish landmarks
 void publishLandmarks(ros::Publisher& pub, 
   const MapPtr& map, const ros::Time time, 
-  std::string frame_id);
+  std::string frame_id, double marker_scale = 0.1);
 
 // Publish pose
 void publishPoseStamped(ros::Publisher& pub, 

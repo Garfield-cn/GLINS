@@ -19,6 +19,9 @@ struct VisualEstimatorBaseOptions {
 
   // Landmark outliter rejection threshold (n sigma)
   double landmark_outlier_rejection_threshold = 3.0;
+
+  // Maximum frequency of visual backend processing (Hz)
+  double max_frequency = 10.0;
 };
 
 // Estimator

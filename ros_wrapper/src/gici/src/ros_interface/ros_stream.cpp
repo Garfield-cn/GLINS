@@ -239,6 +239,7 @@ RosStream::RosStream(
       return;
     }
     else {
+      option_tools::safeGet(streamer_node->this_node, "marker_scale", &marker_scale_);
       publishers_.push_back(nh_.advertise<visualization_msgs::Marker>(topic_name_, queue_size_));
     }
   }
@@ -364,7 +365,7 @@ void RosStream::mapPointOutputCallback(MapPtr& map)
   if (data_format_ == RosDataFormat::Marker) {
     if (map->numKeyframes() == 0) return;
     publishLandmarks(publishers_[0], map, 
-      ros::Time(map->getLastKeyframe()->getTimestampSec()), frame_id_);
+      ros::Time(map->getLastKeyframe()->getTimestampSec()), frame_id_, marker_scale_);
   }
 }
 

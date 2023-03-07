@@ -138,6 +138,7 @@ protected:
   std::string frame_id_;
   std::string subframe_id_;
   std::string topic_name_;
+  double marker_scale_ = 0.1;
   RosDataFormat data_format_;
   int queue_size_;
   std::unique_ptr<PathPublisher> path_publisher_;

@@ -124,9 +124,8 @@ void publishFeaturedImage(ros::Publisher& pub,
 // Publish landmarks
 void publishLandmarks(ros::Publisher& pub, 
   const MapPtr& map, const ros::Time time, 
-  std::string frame_id)
+  std::string frame_id, double marker_scale)
 {
-  double marker_scale = 0.2;
   marker_scale *= position_scale;
   visualization_msgs::Marker m;
   m.header.frame_id = frame_id;

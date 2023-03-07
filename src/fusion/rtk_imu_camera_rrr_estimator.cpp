@@ -211,6 +211,13 @@ bool RtkImuCameraRrrEstimator::addImageMeasurementAndState(
   // If initialized, we are supposed not at the first epoch
   CHECK(!isFirstEpoch());
 
+  // Check frequency
+  if (!frame_bundle->isKeyframe() && frame_bundles_.size() > 1) {
+    const double t_last = lastFrameBundle()->getMinTimestampSeconds();
+    const double t_cur = frame_bundle->getMinTimestampSeconds();
+    if (t_cur - t_last < 1.0 / visual_base_options_.max_frequency) return false;
+  }
+
   // Set to local measurement handle
   curFrameBundle() = frame_bundle;
 
