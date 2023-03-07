@@ -124,5 +124,5 @@ estimate:
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: false
+  log_to_stderr: true
   file_directory: /home/cc/datasets/log

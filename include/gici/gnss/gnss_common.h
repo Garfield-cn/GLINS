@@ -151,6 +151,9 @@ bool checkSNR(const GnssCommonOptions& options,
 // duplicated phases
 void deleteDuplicatePhases(GnssMeasurement& measurement);
 
+// Erase duplicated phases, correct code bias and arrange to one observation per phase
+void rearrangePhasesAndCodes(GnssMeasurement& measurement);
+
 // Check observation valid
 bool checkObservationValid(const GnssMeasurement& measurement,
                            const GnssMeasurementIndex& index,

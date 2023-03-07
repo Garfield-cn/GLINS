@@ -39,13 +39,14 @@ public:
   CodeBias() : biases_initialized_(false) { setDefaultBase(); }
   CodeBias(const BaseFrequencies& bases) : 
     bases_(bases), biases_initialized_(false)
-  { setDefaultBase(); }
+  { setDefaultBase(); setDefaultDcbs(); }
   ~CodeBias() { }
 
-  // DCB storage
+  // DCB storage (DCB = code2 - code1)
   struct Dcb {
     int code1, code2;
     double value;
+    double std;
   };
 
   // TGD and ISC storage
@@ -62,6 +63,9 @@ public:
 
   // Set default base frequencies if not setted
   void setDefaultBase();
+
+  // Set default DCBs
+  void setDefaultDcbs();
 
   // Set Differential Code Bias (DCB)
   void setDcb(const std::string prn, 
@@ -93,43 +97,47 @@ public:
   // Galileo: E1/E5a IF combination
   // BDS: B1I/B3I IF combination
   double getCodeBias(const std::string prn, 
-    const int code, const bool use_tgd = true);
+    const int code, const bool accept_coarse = true);
 
   // Get base frequencies
   const BaseFrequencies& getBase() const { return bases_; }
 
 private: 
-  // Arrange DCBs to base frequencies
-  void arrangeDcb();
+  // Arrange DCBs, ZDCBs and TGDs to base frequencies
+  void arrange();
 
-  // Arrange TGDs and ISCs to base frequencies
-  void arrangeTgd();
+  // Arrange all source DCBs to biases
+  void arrangeAllSourceDcbs(BiasMap& biases);
 
-  // Arrange ZDCBs to base frequencies
-  void arrangeZdcb();
+  // Put DCBs to all source DCBs
+  void putDcbsToAllSourceDcbs();
+
+  // Put ZDCBs to all source DCBs
+  void putZdcbsToAllSourceDcbs();
+
+  // Put default DCBs to all source DCBs
+  void putDefaultDcbsToAllSourceDcbs();
+
+  // Put TGDs to all source DCBs
+  void putTgdsToAllSourceDcbs();
 
   // Check if a code exists in biases_
   bool checkExist(const std::string prn, const int code, BiasMap& biases);
-
-  // Try to set two code biases as the same
-  void tryBindCodes(const std::string prn, 
-    const int code1, const int code2, BiasMap& biases);
-
-  // Try to set some default code relations
-  void trySetDefaultCodes(BiasMap& biases);
 
 private:
   // we always prefer to use DCB other than TGD if redundant
   std::multimap<std::string, Dcb> dcbs_;
   std::multimap<std::string, TgdIsc> tgds_;
   std::multimap<std::string, Zdcb> zdcbs_;
+  std::multimap<std::string, Dcb> default_dcbs_;
+  std::multimap<std::string, Dcb> all_source_dcbs_;
 
   // Base frequency 
   BaseFrequencies bases_;
 
   // Code biases in relative with base frequencies
   BiasMap biases_;
-  BiasMap biases_with_tgds_;
+  BiasMap biases_coarse_;
   bool biases_initialized_;
 
   // Locker
