@@ -94,8 +94,8 @@ bool PppEstimator::addGnssMeasurementAndState(
   // Correct code bias
   correctCodeBias(curGnss(), false);
 
-  // Delete duplicated phase observations
-  gnss_common::deleteDuplicatePhases(curGnss());
+  // Erase duplicated phases, arrange to one observation per phase
+  gnss_common::rearrangePhasesAndCodes(curGnss(), false);
 
   // Correct phase bias
   // correctPhaseBias(curGnss());

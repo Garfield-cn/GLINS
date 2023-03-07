@@ -92,7 +92,6 @@ estimate:
     gnss_estimator_base_options:
       gnss_common:
         system_exclude: [R, E, C]
-        code_exclude: [G|5Q]
         min_elevation: 7.0
         min_SNR: [35.0, 30.0]
       use_outlier_rejection: true

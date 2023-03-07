@@ -162,7 +162,7 @@ void CodeBias::setDefaultDcbs()
   default_dcbs_.insert(std::make_pair("Cxx", default_dcb));
   default_dcb.code2 = CODE_L1Z;
   default_dcbs_.insert(std::make_pair("Cxx", default_dcb));
-  // BDS B1
+  // BDS B2A
   default_dcb.code1 = CODE_L5P;
   default_dcb.code2 = CODE_L5D;
   default_dcbs_.insert(std::make_pair("Cxx", default_dcb));

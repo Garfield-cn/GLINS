@@ -283,6 +283,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
       observation.SNR = obs->data[i].SNR[j] * 1.0e-3;
       observation.LLI = obs->data[i].LLI[j];
       observation.slip = false;
+      observation.raw_code = code_type;
       satellite.observations.insert(std::make_pair(code_type, observation));
     }
 

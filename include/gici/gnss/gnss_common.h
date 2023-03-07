@@ -147,12 +147,8 @@ bool checkElevation(const GnssCommonOptions& options,
 bool checkSNR(const GnssCommonOptions& options,
   const GnssMeasurement& measurement, const GnssMeasurementIndex& index);
 
-// One phase corresponds to muitiple code type, so we need to delete
-// duplicated phases
-void deleteDuplicatePhases(GnssMeasurement& measurement);
-
-// Erase duplicated phases, correct code bias and arrange to one observation per phase
-void rearrangePhasesAndCodes(GnssMeasurement& measurement);
+// Erase duplicated phases, arrange to one observation per phase
+void rearrangePhasesAndCodes(GnssMeasurement& measurement, bool accept_coarse = true);
 
 // Check observation valid
 bool checkObservationValid(const GnssMeasurement& measurement,

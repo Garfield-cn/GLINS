@@ -106,9 +106,7 @@ estimate:
       max_phaserange_norm_error: 3.0
       gnss_common:
         min_elevation: 7.0
-        system_exclude: [R, E, C]
-        code_exclude: [G|5Q, E|7Q]
-        satellite_exclude: [G03]
+        system_exclude: [R]
         # mw_slip_thres: 3.0  
         # gf_slip_thres: 0.05
     estimator_base_options:

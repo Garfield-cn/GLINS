@@ -194,6 +194,31 @@
   MAP('C', CODE_L6X, PHASE_B3); \
   MAP('C', CODE_L6Z, PHASE_B3A);
   
+// Phase channel to default code 
+#define PHASE_CHANNEL_TO_DEFAULT_CODE \
+  MAP('G', PHASE_L1, CODE_L1W); \
+  MAP('G', PHASE_L2, CODE_L2W); \
+  MAP('G', PHASE_L5, CODE_L5Q); \
+  MAP('R', PHASE_G1, CODE_L1P); \
+  MAP('R', PHASE_G1A, CODE_L4A); \
+  MAP('R', PHASE_G2, CODE_L2P); \
+  MAP('R', PHASE_G2A, CODE_L6A); \
+  MAP('R', PHASE_G3, CODE_L3I); \
+  MAP('E', PHASE_E1, CODE_L1C); \
+  MAP('E', PHASE_E5A, CODE_L5Q); \
+  MAP('E', PHASE_E5B, CODE_L7Q); \
+  MAP('E', PHASE_E5, CODE_L8Q); \
+  MAP('E', PHASE_E6, CODE_L6C); \
+  MAP('C', PHASE_B1, CODE_L2I); \
+  MAP('C', PHASE_B1C, CODE_L1P); \
+  MAP('C', PHASE_B1A, CODE_L1L); \
+  MAP('C', PHASE_B2A, CODE_L5P); \
+  MAP('C', PHASE_B2, CODE_L7I); \
+  MAP('C', PHASE_B2B, CODE_L7P); \
+  MAP('C', PHASE_B2AB, CODE_L8P); \
+  MAP('C', PHASE_B3, CODE_L6I); \
+  MAP('C', PHASE_B3A, CODE_L6Z); 
+
 // Phase channel to phase frequency maps
 #define PHASE_CHANNEL_TO_FREQUENCY_MAPS \
   MAP('G', PHASE_L1, FREQ1); \

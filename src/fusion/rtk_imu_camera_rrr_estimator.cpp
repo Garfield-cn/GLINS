@@ -137,8 +137,9 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
   curGnssRov().position = position_prior;
   curGnssRef() = measurement_ref;
 
-  // Delete duplicated phase observations
-  gnss_common::deleteDuplicatePhases(curGnssRov());
+  // Erase duplicated phases, arrange to one observation per phase
+  gnss_common::rearrangePhasesAndCodes(curGnssRov());
+  gnss_common::rearrangePhasesAndCodes(curGnssRef());
 
   // Form double difference pair
   GnssMeasurementDDIndexPairs index_pairs = gnss_common::formPhaserangeDDPair(

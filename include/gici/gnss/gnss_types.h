@@ -66,6 +66,7 @@ struct Observation {
   double SNR; // Sigal-to-Noise Ratio
   uint8_t LLI; // Loss of Lock Indicator
   bool slip; // Cycle-slip flag
+  int raw_code; // raw code type
 };
 
 // One satellite data

@@ -274,42 +274,61 @@ bool checkSNR(const GnssCommonOptions& options,
   return true;
 }
 
-// One phase corresponds to muitiple code type, so we need to delete
-// duplicated phases
-void deleteDuplicatePhases(GnssMeasurement& measurement)
+// Erase duplicated phases, arrange to one observation per phase
+void rearrangePhasesAndCodes(GnssMeasurement& measurement, bool accept_coarse)
 {
-  std::vector<std::vector<GnssMeasurementIndex>> duplicates;
+  CodeBiasPtr code_bias = measurement.code_bias;
   for (auto& sat : measurement.satellites) {
-    std::map<int, int> phaseid_to_code;
+    std::string prn = sat.first;
+    char system = prn[0];
     Satellite& satellite = sat.second;
-    for (auto& obs : satellite.observations) {
-      // Delete phase without pseudorange
-      if (obs.second.pseudorange == 0.0) {
-        obs.second.phaserange = 0.0;
-        obs.second.wavelength = 0.0;
-        continue;
-      }
-
-      char system = satellite.getSystem();
-      int code = obs.first;
-      double wavelength = obs.second.wavelength;
+    std::unordered_map<int, Observation>& observations = satellite.observations;
+    std::unordered_map<int, Observation> arranged_observations;
+    for (auto it = observations.begin(); it != observations.end(); it++) {
+      std::pair<int, Observation> arranged_observation;
+      int code = it->first;
+      Observation observation = it->second;
       int phase_id = getPhaseID(system, code);
-      auto it = phaseid_to_code.find(phase_id);
-      if (it == phaseid_to_code.end()) {
-        phaseid_to_code.insert(std::make_pair(phase_id, code));
-        continue;
+      int default_code = 0;
+#define MAP(S, P, C) \
+  if (system == S && phase_id == P) { default_code = C; }
+  PHASE_CHANNEL_TO_DEFAULT_CODE;
+#undef MAP
+      bool can_add = true;
+      // do not need to arrange
+      if (default_code == code) arranged_observation = *it;
+      // arrange to default code
+      else {
+        double bias = code_bias->getCodeBias(prn, code, accept_coarse);
+        double default_bias = 
+          code_bias->getCodeBias(prn, default_code, accept_coarse);
+        // do not have code bias
+        if (bias == 0.0 || default_code == 0.0) {
+          // consider DCBs in the same frequency are zeros
+          if (accept_coarse) {
+            arranged_observation = std::make_pair(default_code, observation);
+          } 
+          // cannot arrange
+          else {
+            // pass
+            can_add = false;
+          }
+        }
+        // use code bias to arrange
+        else {
+          observation.pseudorange += bias - default_bias;
+          arranged_observation = std::make_pair(default_code, observation);
+        }
       }
-
-      // Delete phase
-      obs.second.phaserange = 0.0;
+      // add to observations
+      if (can_add) {
+        if (arranged_observations.find(default_code) == arranged_observations.end()) {
+          arranged_observations.insert(arranged_observation);
+        }
+      }
     }
+    satellite.observations = arranged_observations;
   }
-}
-
-// Erase duplicated phases, correct code bias and arrange to one observation per phase
-void rearrangePhasesAndCodes(GnssMeasurement& measurement)
-{
-  
 }
 
 // Check observation valid
@@ -359,7 +378,7 @@ bool checkObservationValid(const GnssMeasurement& measurement,
   }
 
   // Code type not used
-  if (!gnss_common::useCode(options, satellite.getSystem(), obs->first)) 
+  if (!gnss_common::useCode(options, satellite.getSystem(), obs->second.raw_code)) 
     return false;
 
   auto& observation = obs->second;
