@@ -39,7 +39,11 @@ target_link_libraries(ie_gnssins_to_gnss
                       glog::glog)
 
 add_executable(imupack_to_imr src/imupack_to_imr.cpp 
-                              ../../../src/stream/format_imu.c)
+                      ../../../src/stream/format_imu.c)
 target_link_libraries(imupack_to_imr
                       rtklib
                       glog::glog)
+
+add_executable(imr_to_text src/imr_to_text.cpp)
+target_link_libraries(imr_to_text
+              rtklib)

@@ -1,5 +1,5 @@
 /**
-* @Function: Convert file from IE output format to NMEA format
+* @Function: Convert file from GICI IMU pack to IE IMR
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
