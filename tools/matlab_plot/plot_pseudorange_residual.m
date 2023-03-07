@@ -1,7 +1,7 @@
 clear; clc;
 
 %% Read
-path = '/home/cc/datasets/log_estimator/pseudorange_residual-20230103-084345.log';
+path = '/home/cc/datasets/log_estimator/pseudorange_residual-20230307-082110.log';
 fp = fopen(path, 'r');
 max_channel = 200;
 length_channel = 0;
@@ -55,7 +55,7 @@ fclose(fp);
 
 %% Plot
 plot_system = "G";
-plot_code = "2W";
+plot_code = "2S";
 plot_y_range = 1.5;
 % plot_prn = "G01";
 

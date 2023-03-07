@@ -93,8 +93,7 @@
 #define PHASE_NONE 0
 #define PHASE_L1   1
 #define PHASE_L2   2
-#define PHASE_L2C  3
-#define PHASE_L5   4
+#define PHASE_L5   3
 #define PHASE_G1   1
 #define PHASE_G1A  2
 #define PHASE_G2   3
@@ -127,9 +126,9 @@
   MAP('G', CODE_L1M, PHASE_L1); \
   MAP('G', CODE_L2C, PHASE_L2); \
   MAP('G', CODE_L2D, PHASE_L2); \
-  MAP('G', CODE_L2S, PHASE_L2C); \
-  MAP('G', CODE_L2L, PHASE_L2C); \
-  MAP('G', CODE_L2X, PHASE_L2C); \
+  MAP('G', CODE_L2S, PHASE_L2); \
+  MAP('G', CODE_L2L, PHASE_L2); \
+  MAP('G', CODE_L2X, PHASE_L2); \
   MAP('G', CODE_L2P, PHASE_L2); \
   MAP('G', CODE_L2W, PHASE_L2); \
   MAP('G', CODE_L2Y, PHASE_L2); \
@@ -199,7 +198,7 @@
 #define PHASE_CHANNEL_TO_FREQUENCY_MAPS \
   MAP('G', PHASE_L1, FREQ1); \
   MAP('G', PHASE_L2, FREQ2); \
-  MAP('G', PHASE_L2C, FREQ2); \
+  MAP('G', PHASE_L2, FREQ2); \
   MAP('G', PHASE_L5, FREQ5); \
   MAP('R', PHASE_G1, FREQ1_GLO); \
   MAP('R', PHASE_G1A, FREQ1a_GLO); \
@@ -225,7 +224,6 @@
 #define PHASE_CHANNEL_TO_STR_MAPS \
   MAP('G', PHASE_L1, "L1"); \
   MAP('G', PHASE_L2, "L2"); \
-  MAP('G', PHASE_L2C, "L2C"); \
   MAP('G', PHASE_L5, "L5"); \
   MAP('R', PHASE_G1, "G1"); \
   MAP('R', PHASE_G1A, "G1A"); \

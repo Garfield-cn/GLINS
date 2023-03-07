@@ -189,6 +189,8 @@ void GnssEstimatorBase::addIfbParameterBlocks(
           gnss_common::ionosphereConvertFromBase(ionosphere, wavelength) +
           gnss_common::ionosphereConvertFromBase(ionosphere, wavelength_base);
       }
+
+      init_ifb = 0.0;
         
       BackendId ifb_id = createGnssIfbId(satellite.getSystem(), obs.first);
       if (!graph_->parameterBlockExists(ifb_id.asInteger())) {

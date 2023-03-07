@@ -59,9 +59,6 @@ inline double radToDegree(double rad) {
 }
 
 // Get a phase ID
-// Note that we use "phase" to represent phase channels, which is not one-to-one 
-// correspondence to "wavelength" or "frequency", because the signal chanel like 
-// GPS L2C and L2W has the same frequency, but are two different phase channels.
 int getPhaseID(char system, int code_type);
 
 // Check BDS constellation types (http://www.csno-tarc.cn/en/system/constellation)

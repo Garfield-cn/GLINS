@@ -1,5 +1,5 @@
 %% Read
-path = '/home/cc/datasets/log_estimator/phaserange_residual-20230305-031236.log';
+path = '/home/cc/datasets/log_estimator/phaserange_residual-20230307-072641.log';
 fp = fopen(path, 'r');
 max_channel = 100;
 length_channel = 0;
@@ -53,8 +53,8 @@ fclose(fp);
 
 %% Plot
 plot_system = "G";
-plot_phase = "L1";
-plot_y_range = 0.1;
+plot_phase = "L2C";
+plot_y_range = 0.03;
 % plot_prn = "G01";
 
 figure;
