@@ -183,9 +183,9 @@ void GnssEstimatorBase::logPseudorangeResidual()
     const std::string& prn = i.first;
     pseudorange_residual_logger_ << prn << " ";
     for (auto j : i.second) {
-      const std::string& phase_str = j.first;
+      const std::string& code_str = j.first;
       const double& value = j.second;
-      pseudorange_residual_logger_ << phase_str << " "
+      pseudorange_residual_logger_ << code_str << " "
         << std::fixed << std::setprecision(4) << value << " ";
     }
     pseudorange_residual_logger_ << std::endl;

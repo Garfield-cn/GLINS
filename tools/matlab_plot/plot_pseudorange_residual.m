@@ -1,11 +1,13 @@
+clear; clc;
+
 %% Read
-path = '/home/cc/datasets/log_estimator/phaserange_residual-20230305-031236.log';
+path = '/home/cc/datasets/log_estimator/pseudorange_residual-20230103-084345.log';
 fp = fopen(path, 'r');
-max_channel = 100;
+max_channel = 200;
 length_channel = 0;
 data = cell(max_channel, 1);
 prns = strings(max_channel, 1);
-phases = strings(max_channel, 1);
+codes = strings(max_channel, 1);
 data_lengths = zeros(max_channel, 1);
 initial_time = 0;
 end_time = 0;
@@ -26,12 +28,12 @@ while ~feof(fp)
         prn = splitLine(1); prn = prn{1};
         for i = 2 : size(splitLine, 2)
             if mod(i, 2) == 0
-                phase = splitLine(i); phase = phase{1};
+                code = splitLine(i); code = code{1};
             else
                 value = str2double(splitLine(i));
                 index = 0;
                 for j = 1 : max_channel
-                    if prn == prns(j) && phase == phases(j)
+                    if prn == prns(j) && code == codes(j)
                         index = j;
                         break;
                     end
@@ -39,7 +41,7 @@ while ~feof(fp)
                 if (index == 0)
                     length_channel = length_channel + 1;
                     prns(length_channel) = prn;
-                    phases(length_channel) = phase;
+                    codes(length_channel) = code;
                     index = length_channel;
                 end
                 data_lengths(index) = data_lengths(index) + 1;
@@ -53,8 +55,8 @@ fclose(fp);
 
 %% Plot
 plot_system = "G";
-plot_phase = "L1";
-plot_y_range = 0.1;
+plot_code = "2W";
+plot_y_range = 1.5;
 % plot_prn = "G01";
 
 figure;
@@ -62,8 +64,8 @@ legends = cell(1, 1);
 num_plotted = 0;
 for i = 1 : length_channel
     prn = prns(i);
-    phase = phases(i);
-    if (contains(prn, plot_system) == 0 || strcmp(phase, plot_phase) == 0) 
+    code = codes(i);
+    if (contains(prn, plot_system) == 0 || strcmp(code, plot_code) == 0) 
         continue;
     end
 %     if (strcmp(plot_prn, prn) == 0)
