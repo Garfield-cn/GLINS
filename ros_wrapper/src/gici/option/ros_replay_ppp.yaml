@@ -116,7 +116,7 @@ estimate:
       verbose_output: true
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
-      log_intermediate_data: true
+      log_intermediate_data: false
       log_intermediate_data_directory: /home/cc/datasets/log_estimator
 
 logging:

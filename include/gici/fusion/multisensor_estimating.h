@@ -145,6 +145,7 @@ protected:
 
   // Data buffers
   std::deque<EstimatorDataCluster> measurements_;  // non propagate measurements
+  int last_backend_pending_num_ = 0;
   // the frontend measurements should be processd by frontend, and the output of frontend will 
   // be inserted into measurements_.
   std::deque<EstimatorDataCluster> image_frontend_measurements_; 

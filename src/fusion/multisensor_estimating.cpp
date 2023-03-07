@@ -565,6 +565,15 @@ bool MultiSensorEstimating::processEstimator()
   measurements_.pop_front();
   mutex_input_.unlock();
 
+  // Check pending
+  if (measurements_.size() > 5) {
+    if (last_backend_pending_num_ != measurements_.size()) {
+      LOG(WARNING) << "Large backend pending: " << measurements_.size()
+                  << " measurements are waiting!";
+    }
+    last_backend_pending_num_ = measurements_.size();
+  }
+
   // Set coordinate and gravity
   if (solution_.coordinate == nullptr) 
   {
@@ -685,8 +694,9 @@ void MultiSensorEstimating::runImageFrontend()
     // Check pending
     if (image_frontend_measurements_.size() > 5) {
       if (last_image_pending_num_ != image_frontend_measurements_.size()) {
-        LOG(WARNING) << "Large pending: " << image_frontend_measurements_.size()
-                    << " frames are waiting!";
+        LOG(WARNING) << "Large image frontend pending: " 
+                     << image_frontend_measurements_.size()
+                     << " frames are waiting!";
       }
       last_image_pending_num_ = image_frontend_measurements_.size();
     }
