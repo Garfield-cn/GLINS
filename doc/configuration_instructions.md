@@ -394,7 +394,7 @@ Other formator types do not have specific options.
 | output_tags | See section 2.2. |  | [] | O | 
 | input_tags | See section 2.2. |  | [] | O |
 | xxx_roles | See section 2.2. |  | [] | N$^*$ |
-| output_align_tag_ | Align the output rate to the data from this input formator. |  | "" | N |
+| output_align_tag | Align the output rate to the data rate of an input formator or streamer. |  | "" | N |
 | output_downsample_rate | Downsample rate of output solutions. Set as 1 if you do not want to downsample this data stream. |  | [1, ...] | O | 
 | compute_covariance | Whether to compute covariance. |  | true | O |
 
