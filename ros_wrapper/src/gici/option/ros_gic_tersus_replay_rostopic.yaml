@@ -33,7 +33,7 @@ stream:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/ljh/gici_v1.0.0_20230218/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: /home/ljh/gici_fork/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution
