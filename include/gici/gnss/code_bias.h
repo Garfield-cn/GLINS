@@ -36,9 +36,8 @@ public:
   // Map from PRN and code type to bias
   using BiasMap = std::unordered_map<std::string, std::unordered_map<int, double>>;
 
-  CodeBias() : biases_initialized_(false) { setDefaultBase(); }
-  CodeBias(const BaseFrequencies& bases) : 
-    bases_(bases), biases_initialized_(false)
+  CodeBias() { setDefaultBase(); }
+  CodeBias(const BaseFrequencies& bases) : bases_(bases)
   { setDefaultBase(); setDefaultDcbs(); }
   ~CodeBias() { }
 
@@ -107,7 +106,9 @@ private:
   void arrange();
 
   // Arrange all source DCBs to biases
-  void arrangeAllSourceDcbs(BiasMap& biases);
+  void arrangeAllSourceDcbs(
+    std::multimap<std::string, Dcb>& all_source_dcbs, BiasMap& biases, 
+    bool clear_update_flag);
 
   // Put DCBs to all source DCBs
   void putDcbsToAllSourceDcbs();
@@ -131,6 +132,8 @@ private:
   std::multimap<std::string, Zdcb> zdcbs_;
   std::multimap<std::string, Dcb> default_dcbs_;
   std::multimap<std::string, Dcb> all_source_dcbs_;
+  std::multimap<std::string, Dcb> all_source_dcbs_coarse_;
+  std::unordered_map<std::string, bool> biases_updated_;
 
   // Base frequency 
   BaseFrequencies bases_;
@@ -138,7 +141,7 @@ private:
   // Code biases in relative with base frequencies
   BiasMap biases_;
   BiasMap biases_coarse_;
-  bool biases_initialized_;
+  bool biases_initialized_ = false;
 
   // Locker
   std::mutex mutex_;

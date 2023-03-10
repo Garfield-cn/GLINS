@@ -140,7 +140,7 @@ protected:
     AmbiguityState& state);
 
   // Correct code biases
-  void correctCodeBias(GnssMeasurement& measurement, const bool use_tgd = true);
+  void correctCodeBias(GnssMeasurement& measurement, const bool accept_coarse = true);
 
   // Correct phase biases
   void correctPhaseBias(GnssMeasurement& measurement);

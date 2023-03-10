@@ -23,6 +23,12 @@ stream:
       path: /home/cc/datasets/gnss_common/igs14.atx
       enable_time_tag: false
   - streamer:
+      tag: str_dcb_file
+      output_tags: [fmt_dcb_file]
+      type: file
+      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      enable_time_tag: false
+  - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
@@ -73,6 +79,10 @@ stream:
       tag: fmt_gnss_atx
       type: atx-file
   - formator:
+      io: input
+      tag: fmt_dcb_file
+      type: dcb-file
+  - formator:
       io: output
       tag: fmt_solution_file
       type: nmea 
@@ -88,10 +98,11 @@ estimate:
 - estimator:
     tag: est_spp
     type: spp
-    input_tags: [fmt_gnss_ref, fmt_gnss_ssr, fmt_gnss_atx]
+    input_tags: [fmt_gnss_ref, fmt_gnss_ssr, fmt_gnss_atx, fmt_dcb_file]
     fmt_gnss_rov_roles: []
     fmt_gnss_ref_roles: [rover, ephemeris]
-    fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias, phase_bias]
+    fmt_gnss_ssr_roles: [phase_bias]
+    fmt_dcb_file_roles: [code_bias]
     fmt_gnss_atx_roles: [phase_center]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_ref
@@ -105,7 +116,7 @@ estimate:
       gnss_common:
         min_elevation: 7.0
         system_exclude: [R, E, C]
-        # code_exclude: [G|5Q, G|2S]
+        code_exclude: [G|5Q]
     estimator_base_options:
       max_iteration: 5
       num_threads: 2

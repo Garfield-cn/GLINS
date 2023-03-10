@@ -385,7 +385,7 @@ void GnssEstimatorBase::addAmbiguityParameterBlocks(
 
 // Correct code biases
 void GnssEstimatorBase::correctCodeBias(
-  GnssMeasurement& measurement, const bool use_tgd)
+  GnssMeasurement& measurement, const bool accept_coarse)
 {
   CodeBiasPtr code_bias = measurement.code_bias;
   for (auto& sat : measurement.satellites) {
@@ -395,7 +395,7 @@ void GnssEstimatorBase::correctCodeBias(
       int code = obs.first;
       Observation& observation = obs.second;
       if (observation.pseudorange == 0.0) continue;
-      double bias = code_bias->getCodeBias(prn, code, use_tgd);
+      double bias = code_bias->getCodeBias(prn, code, accept_coarse);
       if (bias == 0.0) {
         // code bias not availible
         observation.pseudorange = 0.0;
