@@ -18,3 +18,6 @@ include_directories(
 # library
 add_executable(ecef_to_lla src/ecef_to_lla.c)
 target_link_libraries(ecef_to_lla rtklib)
+
+add_executable(deg_to_dms src/deg_to_dms.c)
+target_link_libraries(deg_to_dms rtklib)
