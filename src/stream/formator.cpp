@@ -651,7 +651,7 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
       is_observation = true;
 
       // modify some values
-      if (format_ == GnssRawFormats::Tersus) {
+      if (format_ == GnssRawFormats::Tersus || format_ == GnssRawFormats::Novatel) {
         obs_t *obs = gnss->observation;
         for (int i = 0; i < obs->n; i++) {
           for (int j = 0; j < NFREQ+NEXOBS; j++) {
