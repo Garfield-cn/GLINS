@@ -261,7 +261,6 @@ void PppEstimator::logIntermediateData()
   logIonosphereEstimate();
   logPseudorangeResidual();
   logPhaserangeResidual();
-  residual_id_to_gnss_index_.clear();
 }
 
 // Marginalization

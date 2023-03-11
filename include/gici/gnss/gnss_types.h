@@ -96,7 +96,7 @@ using Satellites = std::map<std::string, Satellite, std::less<std::string>,
 
 // Index of observation 
 struct GnssMeasurementIndex {
-  GnssMeasurementIndex() {}
+  GnssMeasurementIndex() : prn(""), code_type(0) {}
   GnssMeasurementIndex(std::string prn, int code_type) : 
     prn(prn), code_type(code_type) {}
   std::string prn;
@@ -112,6 +112,8 @@ struct GnssMeasurementIndex {
 // Pairs
 // single difference pair
 struct GnssMeasurementSDIndexPair {
+  GnssMeasurementSDIndexPair() : 
+    rov(GnssMeasurementIndex()), ref(GnssMeasurementIndex()) {}
   GnssMeasurementSDIndexPair(
     GnssMeasurementIndex rov, GnssMeasurementIndex ref) : 
     rov(rov), ref(ref) { }
@@ -121,6 +123,9 @@ struct GnssMeasurementSDIndexPair {
 using GnssMeasurementSDIndexPairs = std::vector<GnssMeasurementSDIndexPair>;
 // double difference pair
 struct GnssMeasurementDDIndexPair {
+  GnssMeasurementDDIndexPair() : 
+    rov(GnssMeasurementIndex()), ref(GnssMeasurementIndex()),
+    rov_base(GnssMeasurementIndex()), ref_base(GnssMeasurementIndex()) {}
   GnssMeasurementDDIndexPair(
     GnssMeasurementIndex rov, GnssMeasurementIndex ref, 
     GnssMeasurementIndex rov_base, GnssMeasurementIndex ref_base) : 

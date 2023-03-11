@@ -322,6 +322,18 @@ protected:
   // Get extrinsics estimate
   Eigen::Vector3d getGnssExtrinsicsEstimate();
 
+  // Get GNSS measurement index from error interface
+  GnssMeasurementIndex getGnssMeasurementIndexFromErrorInterface(
+    const std::shared_ptr<ErrorInterface>& error_interface);
+
+  // Get GNSS measurement index from error interface
+  GnssMeasurementSDIndexPair getGnssMeasurementSDIndexPairFromErrorInterface(
+    const std::shared_ptr<ErrorInterface>& error_interface);
+
+  // Get GNSS measurement index from error interface
+  GnssMeasurementDDIndexPair getGnssMeasurementDDIndexPairFromErrorInterface(
+    const std::shared_ptr<ErrorInterface>& error_interface);
+
   // Create ambiguity logger
   void createAmbiguityLogger(const std::string& directory);
 
@@ -562,6 +574,7 @@ protected:
   std::unique_ptr<AmbiguityResolution> ambiguity_resolution_;
 
   // Flags
+  bool is_state_pose_ = false;
   bool is_verbose_model_ = false;  // if estimate atmosphere, IFB, etc...
   bool is_ppp_ = false; 
   bool is_use_phase_ = false;
@@ -572,7 +585,6 @@ protected:
   std::ofstream ionosphere_logger_;
   std::ofstream pseudorange_residual_logger_;
   std::ofstream phaserange_residual_logger_;
-  std::map<ceres::ResidualBlockId, GnssMeasurementIndex> residual_id_to_gnss_index_;
 };
 
 }

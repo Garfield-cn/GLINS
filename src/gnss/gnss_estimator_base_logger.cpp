@@ -157,7 +157,9 @@ void GnssEstimatorBase::logPseudorangeResidual()
     const ceres::ResidualBlockId id = residual.residual_block_id;
     const std::shared_ptr<ErrorInterface>& interface = residual.error_interface_ptr;
     if (interface->typeInfo() != ErrorType::kPseudorangeError) continue;
-    GnssMeasurementIndex& index = residual_id_to_gnss_index_.at(id);
+
+    GnssMeasurementIndex index = 
+      getGnssMeasurementIndexFromErrorInterface(interface);
     std::string prn = index.prn;
     std::string code_str = gnss_common::codeTypeToRinexType(prn[0], index.code_type);
     double residual_evaluate[1];
@@ -204,7 +206,9 @@ void GnssEstimatorBase::logPhaserangeResidual()
     const ceres::ResidualBlockId id = residual.residual_block_id;
     const std::shared_ptr<ErrorInterface>& interface = residual.error_interface_ptr;
     if (interface->typeInfo() != ErrorType::kPhaserangeError) continue;
-    GnssMeasurementIndex& index = residual_id_to_gnss_index_.at(id);
+
+    GnssMeasurementIndex index = 
+      getGnssMeasurementIndexFromErrorInterface(interface);
     std::string prn = index.prn;
     char system = prn[0];
     int phase_id = gnss_common::getPhaseID(system, index.code_type);
