@@ -29,7 +29,7 @@
 namespace gici {
 
 // Configures
-const double position_scale = 10.0;
+const double position_scale = 1.0;
 
 // Draw features on image
 static void drawFeatures(
