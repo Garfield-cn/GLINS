@@ -508,8 +508,8 @@ protected:
     if (num_valid_satellite < num_valid_system + base) {
       if (!log) return false;
       LOG(INFO) << "Insufficient satellites! We need at least " 
-                   << num_valid_system + base << " satellites, but we only have "
-                   << num_valid_satellite << "!";
+                   << num_valid_system + base << " satellites (or satellite pairs), "
+                   << "but we only have " << num_valid_satellite << "!";
       return false;
     }
     return true;
