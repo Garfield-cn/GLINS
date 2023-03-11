@@ -199,6 +199,7 @@ void GnssEstimatorBase::addSdPseudorangeResidualBlocks(
 
       // position in ECEF for standalone 
       if (parameter_id.type() == IdType::gPosition) {
+        is_state_pose_ = false;
         std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
           std::make_shared<PseudorangeErrorSD<3, 1>>(
           measurement_rov, measurement_ref, 
@@ -210,6 +211,7 @@ void GnssEstimatorBase::addSdPseudorangeResidualBlocks(
       }
       // pose in ENU for fusion
       else {
+        is_state_pose_ = true;
         BackendId pose_id = state.id_in_graph;
         std::shared_ptr<PseudorangeErrorSD<7, 3, 1>> pseudorange_error = 
           std::make_shared<PseudorangeErrorSD<7, 3, 1>>(
@@ -267,6 +269,7 @@ void GnssEstimatorBase::addDdPseudorangeResidualBlocks(
 
       // position in ECEF for standalone 
       if (parameter_id.type() == IdType::gPosition) {
+        is_state_pose_ = false;
         std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
           std::make_shared<PseudorangeErrorDD<3>>(
           measurement_rov, measurement_ref, 
@@ -278,6 +281,7 @@ void GnssEstimatorBase::addDdPseudorangeResidualBlocks(
       }
       // pose in ENU for fusion
       else {
+        is_state_pose_ = true;
         BackendId pose_id = state.id_in_graph;
         std::shared_ptr<PseudorangeErrorDD<7, 3>> pseudorange_error = 
           std::make_shared<PseudorangeErrorDD<7, 3>>(
@@ -333,6 +337,7 @@ void GnssEstimatorBase::addDdPhaserangeResidualBlocks(
 
       // position in ECEF for standalone 
       if (parameter_id.type() == IdType::gPosition) {
+        is_state_pose_ = false;
         std::shared_ptr<PhaserangeErrorDD<3, 1, 1>> phaserange_error = 
           std::make_shared<PhaserangeErrorDD<3, 1, 1>>(
           measurement_rov, measurement_ref, 
@@ -346,6 +351,7 @@ void GnssEstimatorBase::addDdPhaserangeResidualBlocks(
       }
       // pose in ENU for fusion
       else {
+        is_state_pose_ = true;
         BackendId pose_id = state.id_in_graph;
         std::shared_ptr<PhaserangeErrorDD<7, 3, 1, 1>> phaserange_error = 
           std::make_shared<PhaserangeErrorDD<7, 3, 1, 1>>(
@@ -367,6 +373,69 @@ void GnssEstimatorBase::addDdPhaserangeResidualBlocks(
   {
     LOG(FATAL) << "Not supported yet!";
   }
+}
+
+// Get GNSS measurement index from error interface
+GnssMeasurementSDIndexPair GnssEstimatorBase::getGnssMeasurementSDIndexPairFromErrorInterface(
+  const std::shared_ptr<ErrorInterface>& error_interface)
+{
+  GnssMeasurementSDIndexPair index;
+  if (error_interface->typeInfo() == ErrorType::kPseudorangeErrorSD) 
+  {
+    if (!is_verbose_model_) {
+      if (!is_state_pose_) {
+        const std::shared_ptr<PseudorangeErrorSD<3, 1>> pseudorange_error = 
+          std::static_pointer_cast<PseudorangeErrorSD<3, 1>>(error_interface);
+        index = pseudorange_error->getGnssMeasurementIndex();
+      }
+      else {
+        const std::shared_ptr<PseudorangeErrorSD<7, 3, 1>> pseudorange_error = 
+          std::static_pointer_cast<PseudorangeErrorSD<7, 3, 1>>(error_interface);
+        index = pseudorange_error->getGnssMeasurementIndex();
+      }
+    }
+  }
+
+  return index;
+}
+
+// Get GNSS measurement index from error interface
+GnssMeasurementDDIndexPair GnssEstimatorBase::getGnssMeasurementDDIndexPairFromErrorInterface(
+  const std::shared_ptr<ErrorInterface>& error_interface)
+{
+  GnssMeasurementDDIndexPair index;
+  if (error_interface->typeInfo() == ErrorType::kPseudorangeErrorDD) 
+  {
+    if (!is_verbose_model_) {
+      if (!is_state_pose_) {
+        const std::shared_ptr<PseudorangeErrorDD<3>> pseudorange_error = 
+          std::static_pointer_cast<PseudorangeErrorDD<3>>(error_interface);
+        index = pseudorange_error->getGnssMeasurementIndex();
+      }
+      else {
+        const std::shared_ptr<PseudorangeErrorDD<7, 3>> pseudorange_error = 
+          std::static_pointer_cast<PseudorangeErrorDD<7, 3>>(error_interface);
+        index = pseudorange_error->getGnssMeasurementIndex();
+      }
+    }
+  }
+  if (error_interface->typeInfo() == ErrorType::kPhaserangeErrorDD) 
+  {
+    if (!is_verbose_model_) {
+      if (!is_state_pose_) {
+        const std::shared_ptr<PhaserangeErrorDD<3, 1, 1>> phaserange_error = 
+          std::static_pointer_cast<PhaserangeErrorDD<3, 1, 1>>(error_interface);
+        index = phaserange_error->getGnssMeasurementIndex();
+      }
+      else {
+        const std::shared_ptr<PhaserangeErrorDD<7, 3, 1, 1>> phaserange_error = 
+          std::static_pointer_cast<PhaserangeErrorDD<7, 3, 1, 1>>(error_interface);
+        index = phaserange_error->getGnssMeasurementIndex();
+      }
+    }
+  }
+
+  return index;
 }
 
 }

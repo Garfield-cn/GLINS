@@ -129,6 +129,15 @@ public:
     return ErrorType::kPseudorangeErrorDD;
   }
 
+  // Get GNSS index
+  inline GnssMeasurementDDIndexPair getGnssMeasurementIndex() { 
+    return GnssMeasurementDDIndexPair(
+      GnssMeasurementIndex(satellite_rov_.prn, observation_rov_.raw_code),
+      GnssMeasurementIndex(satellite_ref_.prn, observation_ref_.raw_code),
+      GnssMeasurementIndex(satellite_rov_base_.prn, observation_rov_base_.raw_code),
+      GnssMeasurementIndex(satellite_ref_base_.prn, observation_ref_base_.raw_code));
+  }
+
 protected:
   GnssMeasurement measurement_rov_, measurement_ref_; 
   Satellite satellite_rov_, satellite_ref_,

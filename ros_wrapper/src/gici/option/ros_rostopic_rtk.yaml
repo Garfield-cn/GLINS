@@ -2,20 +2,21 @@
 stream:
   streamers:
   - streamer:
-      tag: str_gnss_rov_file
-      output_tags: [fmt_gnss_rov]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_rover.bin
+      tag: str_ros_gnss_rov
+      type: ros
+      topic_name: /gici/gnss_rover
+      io: input
+      format: gnss_raw
+      enable_observation: true
   - streamer:
-      tag: str_gnss_ref
-      output_tags: [fmt_gnss_ref]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_reference.bin
-  - streamer:
-      tag: str_gnss_eph
-      output_tags: [fmt_gnss_eph]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_ephemeris.bin
+      tag: str_ros_gnss_ref
+      type: ros
+      topic_name: /gici/gnss_reference
+      io: input
+      format: gnss_raw
+      enable_observation: true
+      enable_antenna_position: true
+      enable_ephemeris: true
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
@@ -26,7 +27,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Desktop/current_interest/20230310/solution.txt
+      path: /home/cc/datasets/tmp/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -54,22 +55,6 @@ stream:
   formators:
   - formator:
       io: input
-      tag: fmt_gnss_rov
-      type: gnss-raw
-      sub_type: tersus
-      start_time: 2023.03.10.15
-  - formator:
-      io: input
-      tag: fmt_gnss_ref
-      type: gnss-rtcm-3
-      start_time: 2023.03.10.15
-  - formator:
-      io: input
-      tag: fmt_gnss_eph
-      type: gnss-rtcm-3
-      start_time: 2023.03.10.15
-  - formator:
-      io: input
       tag: fmt_dcb_file
       type: dcb-file
   - formator:
@@ -79,27 +64,21 @@ stream:
       use_esa: true
       talker_id: GP
 
-  replay:
-    enable: true
-    speed: 3.0
-    start_offset: 0.0
-
 estimate:
 - estimator:
     tag: est_gnss
     type: rtk
-    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
-    fmt_gnss_rov_roles: [rover]
-    fmt_gnss_ref_roles: [reference]
-    fmt_gnss_eph_roles: [ephemeris]
+    input_tags: [str_ros_gnss_rov, str_ros_gnss_ref, fmt_dcb_file]
+    str_ros_gnss_rov_roles: [rover]
+    str_ros_gnss_ref_roles: [reference, ephemeris]
     fmt_dcb_file_roles: [code_bias]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
-    output_align_tag: fmt_gnss_rov
+    output_align_tag: str_ros_gnss_rov
     compute_covariance: true
     rtk_options:
       max_window_length: 3
       use_ambiguity_resolution: true
-      estimate_velocity: true
+      estimate_velocity: false
     gnss_estimator_base_options:
       gnss_common:
         # system_exclude: [R, E, C]

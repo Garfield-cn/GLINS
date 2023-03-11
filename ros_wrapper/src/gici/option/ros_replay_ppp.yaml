@@ -23,6 +23,12 @@ stream:
       path: /home/cc/datasets/gnss_common/igs14.atx
       enable_time_tag: false
   - streamer:
+      tag: str_dcb_file
+      output_tags: [fmt_dcb_file]
+      type: file
+      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      enable_time_tag: false
+  - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
@@ -73,6 +79,10 @@ stream:
       tag: fmt_gnss_atx
       type: atx-file
   - formator:
+      io: input
+      tag: fmt_dcb_file
+      type: dcb-file
+  - formator:
       io: output
       tag: fmt_solution_file
       type: nmea 
@@ -86,29 +96,27 @@ stream:
 
 estimate:
 - estimator:
-    tag: est_ppp
-    type: ppp
-    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_ssr, fmt_gnss_atx]
-    fmt_gnss_rov_roles: [rover]
-    fmt_gnss_ref_roles: [reference, ephemeris]
-    fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias, phase_bias]
+    tag: est_spp
+    type: spp
+    input_tags: [fmt_gnss_ref, fmt_gnss_ssr, fmt_gnss_atx, fmt_dcb_file]
+    fmt_gnss_rov_roles: []
+    fmt_gnss_ref_roles: [rover, ephemeris]
+    fmt_gnss_ssr_roles: [phase_bias]
+    fmt_dcb_file_roles: [code_bias]
     fmt_gnss_atx_roles: [phase_center]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
-    output_align_tag: fmt_gnss_rov
+    output_align_tag: fmt_gnss_ref
     compute_covariance: false
-    ppp_options:
-      max_window_length: 2
-      use_ambiguity_resolution: false
+    spp_options:
+      use_single_frequency: false
       estimate_velocity: true
     gnss_estimator_base_options:
       use_outlier_rejection: true
       max_pesudorange_norm_error: 3.0
-      max_phaserange_norm_error: 3.0
       gnss_common:
         min_elevation: 7.0
-        system_exclude: [R]
-        # mw_slip_thres: 3.0  
-        # gf_slip_thres: 0.05
+        system_exclude: [R, E, C]
+        code_exclude: [G|5Q]
     estimator_base_options:
       max_iteration: 5
       num_threads: 2
@@ -116,8 +124,39 @@ estimate:
       verbose_output: true
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
-      log_intermediate_data: false
-      log_intermediate_data_directory: /home/cc/datasets/log_estimator
+# - estimator:
+#     tag: est_ppp
+#     type: ppp
+#     input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_ssr, fmt_gnss_atx]
+#     fmt_gnss_rov_roles: [rover]
+#     fmt_gnss_ref_roles: [ephemeris]
+#     fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias, phase_bias]
+#     fmt_gnss_atx_roles: [phase_center]
+#     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
+#     output_align_tag: fmt_gnss_rov
+#     compute_covariance: false
+#     ppp_options:
+#       max_window_length: 2
+#       use_ambiguity_resolution: false
+#       estimate_velocity: true
+#     gnss_estimator_base_options:
+#       use_outlier_rejection: true
+#       max_pesudorange_norm_error: 3.0
+#       max_phaserange_norm_error: 3.0
+#       gnss_common:
+#         min_elevation: 7.0
+#         system_exclude: [R, E, C]
+#         # mw_slip_thres: 3.0  
+#         # gf_slip_thres: 0.05
+#     estimator_base_options:
+#       max_iteration: 5
+#       num_threads: 2
+#       max_solver_time: 0.02
+#       verbose_output: true
+#       solver_type: dense_schur
+#       trust_region_strategy_type: dogleg
+#       log_intermediate_data: false
+#       log_intermediate_data_directory: /home/cc/datasets/log_estimator
 
 logging:
   enable: true

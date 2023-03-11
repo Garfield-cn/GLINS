@@ -216,7 +216,10 @@ void CodeBias::setDcb(const std::string prn,
   
   // Add to handle
   if (found) {
-    it_dcb->second.value = value;
+    if (!checkEqual(it_dcb->second.value, value, 0.01)) {
+      it_dcb->second.value = value;
+      biases_updated_.at(prn) = true;
+    }
   }
   else {
     Dcb dcb;
@@ -225,6 +228,7 @@ void CodeBias::setDcb(const std::string prn,
     dcb.value = value;
     dcb.std = 0.01;
     dcbs_.insert(std::make_pair(prn, dcb));
+    biases_updated_.insert(std::make_pair(prn, true));
   }
 }
 
@@ -244,13 +248,17 @@ void CodeBias::setTgdIsc(const std::string prn,
   
   // Add to handle
   if (found) {
-    it_tgd->second.value = value * CLIGHT;
-  }
+    if (!checkEqual(it_tgd->second.value, value * CLIGHT, 0.01)) {
+      it_tgd->second.value = value * CLIGHT;
+      biases_updated_.at(prn) = true;
+    }
+  } 
   else {
     TgdIsc tgd;
     tgd.type = type;
     tgd.value = value * CLIGHT;
     tgds_.insert(std::make_pair(prn, tgd));
+    biases_updated_.insert(std::make_pair(prn, true));
   }
 }
 
@@ -272,13 +280,17 @@ void CodeBias::setZdcb(const std::string prn,
   
   // Add to handle
   if (found) {
-    it_zdcb->second.value = value;
+    if (!checkEqual(it_zdcb->second.value, value, 0.01)) {
+      it_zdcb->second.value = value;
+      biases_updated_.at(prn) = true;
+    }
   }
   else {
     Zdcb zdcb;
     zdcb.code = code;
     zdcb.value = value;
     zdcbs_.insert(std::make_pair(prn, zdcb));
+    biases_updated_.insert(std::make_pair(prn, true));
   }
 }
 
@@ -286,10 +298,6 @@ void CodeBias::setZdcb(const std::string prn,
 void CodeBias::arrangeToBases()
 {
   mutex_.lock();
-  
-  // Clear
-  biases_.clear();
-  biases_coarse_.clear();
 
   // Arrange to code biases
   arrange();
@@ -344,41 +352,57 @@ double CodeBias::getCodeBias(const std::string prn,
 // Arrange DCBs, ZDCBs and TGDs to base frequencies
 void CodeBias::arrange()
 {
-  // Clear all source DCBs storage
-  all_source_dcbs_.clear();
+  // Clear all source updated DCBs storage
+  for (auto it = all_source_dcbs_.begin(); it != all_source_dcbs_.end(); ) {
+    if (biases_updated_.at(it->first)) {
+      it = all_source_dcbs_.erase(it);
+    }
+    else it++;
+  }
+  for (auto it = all_source_dcbs_coarse_.begin(); 
+            it != all_source_dcbs_coarse_.end(); ) {
+    if (biases_updated_.at(it->first)) {
+      it = all_source_dcbs_coarse_.erase(it);
+    }
+    else it++;
+  }
 
-  // Put ZDCBs and DCBs to DCBs
+  // Put all source biases to DCBs
   putDcbsToAllSourceDcbs();
   putZdcbsToAllSourceDcbs();
-
-  // Arrange precise biases
-  arrangeAllSourceDcbs(biases_);
-
-  // Put all other sources to DCBs
   putTgdsToAllSourceDcbs();
   putDefaultDcbsToAllSourceDcbs();
 
+  // Arrange precise biases
+  arrangeAllSourceDcbs(all_source_dcbs_, biases_, false);
+
   // Arrange coarse biases
-  arrangeAllSourceDcbs(biases_coarse_);
+  arrangeAllSourceDcbs(all_source_dcbs_coarse_, biases_coarse_, true);
 }
 
 // Arrange all source DCBs to biases
-void CodeBias::arrangeAllSourceDcbs(BiasMap& biases)
+void CodeBias::arrangeAllSourceDcbs(
+  std::multimap<std::string, Dcb>& all_source_dcbs, BiasMap& biases,
+  bool clear_update_flag)
 {
   // get all PRNs
   std::vector<std::string> prns;
-  for (auto dcb : all_source_dcbs_) {
+  for (auto dcb : all_source_dcbs) {
+    if (!biases_updated_.at(dcb.first)) continue;
+
     if (prns.size() == 0 || prns.back() != dcb.first) {
       prns.push_back(dcb.first);
     }
+
+    if (clear_update_flag) biases_updated_.at(dcb.first) = false;
   }
 
   // fill DCBs of every satellites
   for (auto prn : prns) {
     std::vector<int> codes;
     std::vector<Dcb> dcbs;
-    for (auto dcb = all_source_dcbs_.lower_bound(prn); 
-        dcb != all_source_dcbs_.upper_bound(prn); dcb++) {
+    for (auto dcb = all_source_dcbs.lower_bound(prn); 
+        dcb != all_source_dcbs.upper_bound(prn); dcb++) {
       if (std::find(codes.begin(), codes.end(), dcb->second.code1) 
           == codes.end()) { 
         codes.push_back(dcb->second.code1);
@@ -421,7 +445,7 @@ void CodeBias::arrangeAllSourceDcbs(BiasMap& biases)
       if (!found) {
         LOG(INFO) << "Input DCBs for " << prn << " does not contain base code " 
           << gnss_common::codeTypeToRinexType(prn[0], base.first) << "!";
-        return;
+        continue;
       }
     }
     // ionosphere-free combination base
@@ -442,12 +466,12 @@ void CodeBias::arrangeAllSourceDcbs(BiasMap& biases)
       if (!found_first) {
         LOG(INFO) << "Input DCBs for " << prn << " does not contain base code " 
           << gnss_common::codeTypeToRinexType(prn[0], base.first) << "!";
-        return;
+        continue;
       }
       if (!found_second) {
         LOG(INFO) << "Input DCBs for " << prn << " does not contain base code " 
           << gnss_common::codeTypeToRinexType(prn[0], base.second) << "!";
-        return;
+        continue;
       }
     }
 
@@ -455,7 +479,7 @@ void CodeBias::arrangeAllSourceDcbs(BiasMap& biases)
     if (checkZero((H.transpose() * H).determinant())) {
       LOG(INFO) << "Input DCBs are not closed for " << prn 
                  << "! H = " << std::endl << H;
-      return;
+      continue;
     }
 
     // solve
@@ -475,7 +499,11 @@ void CodeBias::arrangeAllSourceDcbs(BiasMap& biases)
 // Put DCBs to all source DCBs
 void CodeBias::putDcbsToAllSourceDcbs()
 {
-  for (auto dcb : dcbs_) all_source_dcbs_.insert(dcb);
+  for (auto dcb : dcbs_) {
+    if (!biases_updated_.at(dcb.first)) continue;
+    all_source_dcbs_.insert(dcb);
+    all_source_dcbs_coarse_.insert(dcb);
+  }
 }
 
 // Put ZDCBs to all source DCBs
@@ -486,6 +514,8 @@ void CodeBias::putZdcbsToAllSourceDcbs()
   for (auto it = zdcbs_.begin(); it != zdcbs_.end(); it++) {
     std::string prn = it->first;
     Zdcb zdcb = it->second;
+
+    if (!biases_updated_.at(prn)) continue;
 
     zdcbs.push_back(zdcb);
     if (current_prn.empty()) current_prn = prn;
@@ -501,6 +531,7 @@ void CodeBias::putZdcbsToAllSourceDcbs()
         dcb.value = zdcbs[i].value - zdcbs[0].value;
         dcb.std = 0.01 + 1.0e-6;  // add 1e-6 to make sure it differs from raw DCBs
         all_source_dcbs_.insert(std::make_pair(current_prn, dcb));
+        all_source_dcbs_coarse_.insert(std::make_pair(current_prn, dcb));
       }
 
       zdcbs.clear();
@@ -515,7 +546,9 @@ void CodeBias::putDefaultDcbsToAllSourceDcbs()
 {
   // get all PRNs
   std::vector<std::string> prns;
-  for (auto dcb : all_source_dcbs_) {
+  for (auto dcb : all_source_dcbs_coarse_) {
+    if (!biases_updated_.at(dcb.first)) continue;
+    
     if (prns.size() == 0 || prns.back() != dcb.first) {
       prns.push_back(dcb.first);
     }
@@ -525,8 +558,8 @@ void CodeBias::putDefaultDcbsToAllSourceDcbs()
   for (auto prn : prns) {
     const char system = prn[0];
     std::vector<int> phases;
-    for (auto dcb = all_source_dcbs_.lower_bound(prn); 
-        dcb != all_source_dcbs_.upper_bound(prn); dcb++) {
+    for (auto dcb = all_source_dcbs_coarse_.lower_bound(prn); 
+        dcb != all_source_dcbs_coarse_.upper_bound(prn); dcb++) {
       int phase1 = gnss_common::getPhaseID(system, dcb->second.code1);
       int phase2 = gnss_common::getPhaseID(system, dcb->second.code2);
       if (std::find(phases.begin(), phases.end(), phase1) == phases.end()) { 
@@ -545,7 +578,7 @@ void CodeBias::putDefaultDcbsToAllSourceDcbs()
       int phase2 = gnss_common::getPhaseID(system, default_dcb.second.code2);
       if ((std::find(phases.begin(), phases.end(), phase1) == phases.end()) && 
           (std::find(phases.begin(), phases.end(), phase2) == phases.end())) continue;
-      all_source_dcbs_.insert(std::make_pair(prn, default_dcb.second));
+      all_source_dcbs_coarse_.insert(std::make_pair(prn, default_dcb.second));
     }
   }
 }
@@ -556,6 +589,8 @@ void CodeBias::putTgdsToAllSourceDcbs()
   for (auto it = tgds_.begin(); it != tgds_.end(); it++) {
     std::string prn = it->first;
     TgdIsc tgd = it->second;
+
+    if (!biases_updated_.at(prn)) continue;
 
     Dcb dcb;
     if (tgd.type == TgdIscType::None) continue;
@@ -586,7 +621,7 @@ void CodeBias::putTgdsToAllSourceDcbs()
     dcb.value = tgd.value;
     dcb.std = 0.3;
 
-    all_source_dcbs_.insert(std::make_pair(prn, dcb));
+    all_source_dcbs_coarse_.insert(std::make_pair(prn, dcb));
   }
 }
 

@@ -2,20 +2,23 @@
 stream:
   streamers:
   - streamer:
-      tag: str_gnss_rov_file
+      tag: str_gnss_rov
       output_tags: [fmt_gnss_rov]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_rover.bin
+      type: ntrip-client
+      ip: 101.132.190.162
+      port: 8001
+      username: sjtugnc
+      passward: gnc2021
+      mountpoint: Channel_3
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_reference.bin
-  - streamer:
-      tag: str_gnss_eph
-      output_tags: [fmt_gnss_eph]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_ephemeris.bin
+      type: ntrip-client
+      ip: 101.132.190.162
+      port: 8001
+      username: sjtugnc
+      passward: gnc2021
+      mountpoint: Channel_1
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
@@ -23,10 +26,38 @@ stream:
       path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
+      tag: str_ros_gnss_rov
+      input_tags: [fmt_gnss_rov]
+      type: ros
+      topic_name: gnss_rover
+      io: log
+      format: gnss_raw
+      enable_observation: true
+  - streamer:
+      tag: str_ros_gnss_ref
+      input_tags: [fmt_gnss_ref]
+      type: ros
+      topic_name: gnss_reference
+      io: log
+      format: gnss_raw
+      enable_observation: true
+      enable_antenna_position: true
+      enable_ephemeris: true
+  - streamer:
+      tag: str_gnss_rov_file
+      input_tags: [str_gnss_rov]
+      type: file
+      path: /home/cc/datasets/tmp/gnss_rover.bin
+  - streamer:
+      tag: str_gnss_ref_file
+      input_tags: [str_gnss_ref]
+      type: file
+      path: /home/cc/datasets/tmp/gnss_reference.bin
+  - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Desktop/current_interest/20230310/solution.txt
+      path: /home/cc/datasets/tmp/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -56,18 +87,11 @@ stream:
       io: input
       tag: fmt_gnss_rov
       type: gnss-raw
-      sub_type: tersus
-      start_time: 2023.03.10.15
+      sub_type: novatel
   - formator:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.10.15
-  - formator:
-      io: input
-      tag: fmt_gnss_eph
-      type: gnss-rtcm-3
-      start_time: 2023.03.10.15
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -79,19 +103,13 @@ stream:
       use_esa: true
       talker_id: GP
 
-  replay:
-    enable: true
-    speed: 3.0
-    start_offset: 0.0
-
 estimate:
 - estimator:
     tag: est_gnss
     type: rtk
-    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
+    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_dcb_file]
     fmt_gnss_rov_roles: [rover]
-    fmt_gnss_ref_roles: [reference]
-    fmt_gnss_eph_roles: [ephemeris]
+    fmt_gnss_ref_roles: [reference, ephemeris]
     fmt_dcb_file_roles: [code_bias]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_rov
