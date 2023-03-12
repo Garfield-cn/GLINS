@@ -91,14 +91,14 @@ bool PppEstimator::addGnssMeasurementAndState(
   curGnss().position = position_prior;
   curGnss().phase_windup = phase_windup_;
 
-  // Correct code bias
-  correctCodeBias(curGnss(), false);
-
   // Erase duplicated phases, arrange to one observation per phase
   gnss_common::rearrangePhasesAndCodes(curGnss(), false);
 
+  // Correct code bias
+  correctCodeBias(curGnss(), false);
+
   // Correct phase bias
-  // correctPhaseBias(curGnss());
+  if (curGnss().phase_bias->valid()) correctPhaseBias(curGnss());
 
   // Correct BDS satellite multipath
   correctBdsSatelliteMultipath(curGnss());
