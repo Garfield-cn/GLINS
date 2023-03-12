@@ -644,9 +644,9 @@ void loadOptions<GnssEstimatorBaseOptions>(
 {
   LOAD_COMMON(use_outlier_rejection);
   LOAD_COMMON(reject_one_outlier_once);
-  LOAD_COMMON(max_pesudorange_norm_error);
-  LOAD_COMMON(max_phaserange_norm_error);
-  LOAD_COMMON(max_doppler_norm_error);
+  LOAD_COMMON(max_pesudorange_error);
+  LOAD_COMMON(max_phaserange_error);
+  LOAD_COMMON(max_doppler_error);
 
   if (checkSubOption(node, "gnss_common")) {
     YAML::Node subnode = node["gnss_common"];
@@ -697,7 +697,6 @@ template <>
 void loadOptions<SppEstimatorOptions>(
     YAML::Node& node, SppEstimatorOptions& options)
 {
-  LOAD_COMMON(use_single_frequency);
   LOAD_COMMON(estimate_velocity);
 }
 
@@ -724,7 +723,6 @@ template <>
 void loadOptions<SdgnssEstimatorOptions>(
     YAML::Node& node, SdgnssEstimatorOptions& options)
 {
-  LOAD_COMMON(use_single_frequency);
   LOAD_COMMON(estimate_velocity);
   LOAD_COMMON(max_age);
 }
@@ -733,7 +731,6 @@ template <>
 void loadOptions<DgnssEstimatorOptions>(
     YAML::Node& node, DgnssEstimatorOptions& options)
 {
-  LOAD_COMMON(use_single_frequency);
   LOAD_COMMON(estimate_velocity);
   LOAD_COMMON(max_age);
 }

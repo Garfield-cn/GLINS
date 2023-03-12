@@ -27,14 +27,14 @@ struct GnssEstimatorBaseOptions {
   // Reject one outlier at a time or reject all 
   bool reject_one_outlier_once = false;
 
-  // Maximum pseudorange normalized error to exclude
-  double max_pesudorange_norm_error = 4.0;
+  // Maximum pseudorange error to exclude (m)
+  double max_pesudorange_error = 4.0;
 
-  // Maximum phaserange normalized error to exclude
-  double max_phaserange_norm_error = 4.0;
+  // Maximum phaserange error to exclude (m)
+  double max_phaserange_error = 0.03;
 
-  // Maximum doppler normalized error to exclude
-  double max_doppler_norm_error = 4.0;
+  // Maximum doppler error to exclude (m/s)
+  double max_doppler_error = 0.5;
 };
 
 // Estimator

@@ -103,11 +103,11 @@ estimate:
     gnss_estimator_base_options:
       gnss_common:
         # system_exclude: [R, E, C]
-        min_elevation: 7.0
+        min_elevation: 12.0
         min_SNR: [35.0, 30.0]
       use_outlier_rejection: true
-      max_pesudorange_norm_error: 3.0
-      max_phaserange_norm_error: 3.0
+      max_pesudorange_error: 4.0
+      max_phaserange_error: 0.03
     estimator_base_options:
       max_iteration: 10
       num_threads: 2

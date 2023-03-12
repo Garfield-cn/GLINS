@@ -30,6 +30,7 @@ void RollAndPitchError::setInformation(const information_t& information)
   // perform the Cholesky decomposition on order to obtain the correct error weighting
   Eigen::LLT<information_t> lltOfInformation(information_);
   square_root_information_ = lltOfInformation.matrixL().transpose();
+  square_root_information_inverse_ = square_root_information_.inverse();
 }
 
 // This evaluates the error term and additionally computes the Jacobians.

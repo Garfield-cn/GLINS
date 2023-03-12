@@ -72,9 +72,11 @@ public:
   /// @param[in] information The information (weight) matrix.
   void setInformation(const information_t& information) {
     information_ = information;
+    covariance_ = information.inverse();
     // perform the Cholesky decomposition on order to obtain the correct error weighting
     Eigen::LLT<information_t> lltOfInformation(information_);
     square_root_information_ = lltOfInformation.matrixL().transpose();
+    square_root_information_inverse_ = square_root_information_.inverse();
   } 
 
   // Set coordinate for ENU to ECEF convertion
@@ -125,12 +127,21 @@ public:
     return ErrorType::kPositionError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 3, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
   Eigen::Vector3d measurement_; ///< The measurement.
 
   // weighting related
   Eigen::Matrix3d information_;
   Eigen::Matrix3d square_root_information_;
+  information_t square_root_information_inverse_;
+  covariance_t covariance_; ///< The DimxDim covariance matrix.
 
   // Parameter dimensions
   ceres::internal::StaticParameterDims<Ns...> dims_;

@@ -32,8 +32,6 @@ PseudorangeErrorSD<Ns ...>::PseudorangeErrorSD(
   observation_rov_ = measurement_rov_.getObs(index_rov);
   observation_ref_ = measurement_ref_.getObs(index_ref);
 
-  error_parameter_ = error_parameter;
-
   // Check parameter block types
   // Group 1
   if (dims_.kNumParameterBlocks == 2 && 
@@ -71,6 +69,31 @@ PseudorangeErrorSD<Ns ...>::PseudorangeErrorSD(
   else {
     LOG(FATAL) << "PseudorangeErrorSD parameter blocks setup invalid!";
   }
+
+  setInformation(error_parameter);
+}
+
+// Set the information.
+template<int... Ns>
+void PseudorangeErrorSD<Ns ...>::setInformation(const GnssErrorParameter& error_parameter)
+{
+  // compute variance
+  error_parameter_ = error_parameter;
+  Eigen::Vector3d factor;
+  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
+  double ratio = square(error_parameter_.code_to_phase_ratio);
+  double elevation_rov = gnss_common::satelliteElevation(
+    satellite_rov_.sat_position, measurement_rov_.position);
+  covariance_ = covariance_t(
+    (square(factor(0)) + square(factor(1) / sin(elevation_rov))) * ratio * 2.0);
+  char system = satellite_rov_.getSystem();
+  covariance_ *= square(error_parameter_.system_error_ratio.at(system));
+
+  information_ = covariance_.inverse();
+  // perform the Cholesky decomposition on order to obtain the correct error weighting
+  Eigen::LLT<information_t> lltOfInformation(information_);
+  square_root_information_ = lltOfInformation.matrixL().transpose();
+  square_root_information_inverse_ = square_root_information_.inverse();
 }
 
 // This evaluates the error term and additionally computes the Jacobians.
@@ -187,14 +210,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
-  Eigen::Vector3d factor;
-  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
-  double ratio = square(error_parameter_.code_to_phase_ratio);
-  double variance = (square(factor(0)) + square(factor(1) / sin(elevation_rov))) * ratio * 2.0;
-  char system = satellite_rov_.getSystem();
-  variance *= square(error_parameter_.system_error_ratio.at(system));
-  double square_root_information = sqrt(1.0 / variance);
-  weighted_error = square_root_information * error;
+  weighted_error = square_root_information_ * error;
 
   // compute Jacobian
   if (jacobians != nullptr)
@@ -243,7 +259,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Position
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J0(jacobians[0]);
-        J0 = square_root_information * J_t_ECEF;
+        J0 = square_root_information_ * J_t_ECEF;
         
         if (jacobians_minimal != nullptr && jacobians_minimal[0] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -254,7 +270,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_clock;
+        J1 = square_root_information_ * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -265,7 +281,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere at rov
       if (is_estimate_atmosphere_ && jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_trop_rov;
+        J2 = square_root_information_ * J_trop_rov;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -276,7 +292,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere at ref
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_trop_ref;
+        J3 = square_root_information_ * J_trop_ref;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -287,7 +303,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Ionosphere
       if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_iono;
+        J4 = square_root_information_ * J_iono;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -303,7 +319,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 7, Eigen::RowMajor>> J0(jacobians[0]);
         Eigen::Matrix<double, 1, 6, Eigen::RowMajor> J0_minimal;
-        J0_minimal = square_root_information * J_T_WS;
+        J0_minimal = square_root_information_ * J_T_WS;
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -320,7 +336,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Relative position
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_t_SR_S;
+        J1 = square_root_information_ * J_t_SR_S;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -331,7 +347,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_clock;
+        J2 = square_root_information_ * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -342,7 +358,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere at rov
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_trop_rov;
+        J3 = square_root_information_ * J_trop_rov;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -353,7 +369,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere at ref
       if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_trop_ref;
+        J4 = square_root_information_ * J_trop_ref;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -364,7 +380,7 @@ bool PseudorangeErrorSD<Ns ...>::EvaluateWithMinimalJacobians(
       // Ionosphere
       if (is_estimate_atmosphere_ && jacobians[5] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J5(jacobians[5]);
-        J5 = square_root_information * J_iono;
+        J5 = square_root_information_ * J_iono;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[5] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >

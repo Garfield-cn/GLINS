@@ -22,7 +22,7 @@ AmbiguityError<Ns ...>::AmbiguityError(
   CHECK(coefficients.size() == parameterBlocks());
 
   setMeasurement(measurement);
-  information_ = information;
+  setInformation(Eigen::Matrix<double, 1, 1>(information));
   coefficients_ = coefficients;
 }
 
@@ -59,8 +59,7 @@ bool AmbiguityError<Ns ...>::EvaluateWithMinimalJacobians(
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
-  double square_root_information = sqrt(information_);
-  weighted_error = square_root_information * error;
+  weighted_error = square_root_information_ * error;
 
   // compute Jacobian
   if (jacobians != nullptr)
@@ -68,7 +67,7 @@ bool AmbiguityError<Ns ...>::EvaluateWithMinimalJacobians(
     for (size_t i = 0; i < parameterBlocks(); i++) {
       if (jacobians[i] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> Ji(jacobians[i]);
-        Ji = -square_root_information * 
+        Ji = -square_root_information_ * 
               Eigen::MatrixXd::Identity(1, 1) * coefficients_[i];
 
         if (jacobians_minimal != nullptr && jacobians_minimal[i] != nullptr) {

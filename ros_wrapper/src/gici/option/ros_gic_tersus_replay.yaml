@@ -148,11 +148,11 @@ estimate:
         # mw_slip_thres: 0.5
         # gf_slip_thres: 0.05
         # gf_sd_slip_thres: 0.05
-        min_elevation: 7.0
+        min_elevation: 12.0
         min_SNR: [35.0, 30.0]
       use_outlier_rejection: true
-      max_pesudorange_norm_error: 3.0
-      max_phaserange_norm_error: 3.0
+      max_pesudorange_error: 4.0
+      max_phaserange_error: 4.0
     estimator_base_options:
       max_iteration: 10
       num_threads: 2
@@ -177,15 +177,14 @@ estimate:
 #     output_align_tag: fmt_gnss_rov
 #     compute_covariance: true
 #     dgnss_options:
-#       use_single_frequency: false
 #       estimate_velocity: true
 #     gnss_estimator_base_options:
 #       gnss_common:
-#         min_elevation: 7.0
+#         min_elevation: 12.0
 #         min_SNR: [35.0, 30.0]
 #       use_outlier_rejection: true
-#       max_pesudorange_norm_error: 3.0
-#       max_phaserange_norm_error: 3.0
+#       max_pesudorange_error: 4.0
+#       max_phaserange_error: 0.03
 #     estimator_base_options:
 #       max_iteration: 10
 #       num_threads: 1
@@ -253,10 +252,10 @@ estimate:
 #     gnss_estimator_base_options:
 #       use_outlier_rejection: true
 #       reject_one_outlier_once: false
-#       max_pesudorange_norm_error: 3.0
-#       max_phaserange_norm_error: 3.0
+#       max_pesudorange_error: 4.0
+#       max_phaserange_error: 0.03
 #       gnss_common:
-#         min_elevation: 7.0
+#         min_elevation: 12.0
 #         min_SNR: [35.0, 30.0]
 #     imu_estimator_base_options:
 #       imu_parameters:
@@ -407,10 +406,10 @@ estimate:
 #     gnss_estimator_base_options:
 #       use_outlier_rejection: true
 #       reject_one_outlier_once: false
-#       max_pesudorange_norm_error: 3.0
-#       max_phaserange_norm_error: 3.0
+#       max_pesudorange_error: 4.0
+#       max_phaserange_error: 0.03
 #       gnss_common:
-#         min_elevation: 7.0
+#         min_elevation: 12.0
 #         min_SNR: [35.0, 30.0]
 #     gnss_loose_estimator_base_options:
 #     visual_estimator_base_options:
@@ -493,5 +492,5 @@ estimate:
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: false
+  log_to_stderr: true
   file_directory: /home/cc/datasets/log

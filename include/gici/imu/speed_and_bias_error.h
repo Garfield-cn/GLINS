@@ -156,6 +156,13 @@ public:
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const { return ErrorType::kSpeedAndBiasError; }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 9, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
 
   // the measurement
@@ -164,6 +171,7 @@ protected:
   // weighting related
   information_t information_; ///< The 9x9 information matrix.
   information_t square_root_information_; ///< The 9x9 square root information matrix.
+  information_t square_root_information_inverse_;
 
 };
 

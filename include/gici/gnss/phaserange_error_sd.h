@@ -46,10 +46,10 @@ public:
   static const int kNumResiduals = 1;
 
   /// \brief The information matrix type (1x1).
-  typedef double information_t;
+  typedef Eigen::Matrix<double, 1, 1> information_t;
 
   /// \brief The covariance matrix type (same as information).
-  typedef double covariance_t;
+  typedef Eigen::Matrix<double, 1, 1> covariance_t;
 
   /// \brief Default constructor.
   PhaserangeErrorSD();
@@ -76,6 +76,10 @@ public:
     measurement_rov_ = measurement_rov;
     measurement_ref_ = measurement_ref;
   }
+
+  /// \brief Set the information.
+  /// @param[in] information The information (weight) matrix.
+  void setInformation(const GnssErrorParameter& error_parameter);
 
   // Set coordinate for ENU to ECEF convertion
   void setCoordinate(const GeoCoordinatePtr& coordinate) {
@@ -125,6 +129,13 @@ public:
     return ErrorType::kPhaserangeErrorSD;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 1, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
   // Get GNSS index
   inline GnssMeasurementSDIndexPair getGnssMeasurementIndex() { 
     return GnssMeasurementSDIndexPair(
@@ -139,7 +150,11 @@ protected:
 
   // weighting related
   GnssErrorParameter error_parameter_;
-
+  information_t information_; ///< The DimxDim information matrix.
+  information_t square_root_information_; ///< The DimxDim square root information matrix.
+  information_t square_root_information_inverse_;
+  covariance_t covariance_; ///< The DimxDim covariance matrix.
+  
   // Parameter dimensions
   ceres::internal::StaticParameterDims<Ns...> dims_;
 

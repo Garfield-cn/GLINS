@@ -241,9 +241,6 @@ bool PppEstimator::estimate()
       << ", Fix status: " << std::setw(1) << static_cast<int>(curState().status);
   }
 
-  std::cout << "n_state = " << states_.size() << ", n_parameter = " 
-    << graph_->parameters().size() << ", n_residual = " << graph_->residuals().size() << std::endl;
-
   // Apply marginalization
   marginalization();
 

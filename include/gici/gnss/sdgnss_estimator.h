@@ -13,10 +13,6 @@ namespace gici {
 
 // SDGNSS options
 struct SdgnssEstimatorOptions {
-  // If true, we will use the first valid frequency in observation list.
-  // If false, we will use all the valid frequencies. 
-  bool use_single_frequency = true;
-
   // Estimate velocity or not
   bool estimate_velocity = true;
 

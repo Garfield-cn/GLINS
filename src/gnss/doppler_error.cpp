@@ -23,8 +23,6 @@ DopplerError<Ns ...>::DopplerError(
   satellite_ = measurement_.getSat(index);
   observation_ = measurement_.getObs(index);
 
-  error_parameter_ = error_parameter;
-
   // Check parameter block types
   // Group 1
   if (dims_.kNumParameterBlocks == 3 && 
@@ -43,6 +41,8 @@ DopplerError<Ns ...>::DopplerError(
   else {
     LOG(FATAL) << "DopplerError parameter blocks setup invalid!";
   }
+
+  setInformation(error_parameter);
 }
 
 // Construct with measurement and information matrix
@@ -55,6 +55,24 @@ DopplerError<Ns ...>::DopplerError(
   : DopplerError(measurement, index, error_parameter)
 {
   angular_velocity_ = angular_velocity;
+}
+
+// Set the information.
+template<int... Ns>
+void DopplerError<Ns ...>::setInformation(const GnssErrorParameter& error_parameter)
+{
+  // compute variance
+  error_parameter_ = error_parameter;
+  double factor = error_parameter_.doppler_error_factor;
+  covariance_ = covariance_t(square(factor));
+  char system = satellite_.getSystem();
+  covariance_ *= square(error_parameter_.system_error_ratio.at(system));
+
+  information_ = covariance_.inverse();
+  // perform the Cholesky decomposition on order to obtain the correct error weighting
+  Eigen::LLT<information_t> lltOfInformation(information_);
+  square_root_information_ = lltOfInformation.matrixL().transpose();
+  square_root_information_inverse_ = square_root_information_.inverse();
 }
 
 // This evaluates the error term and additionally computes the Jacobians.
@@ -142,12 +160,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
-  double factor = error_parameter_.doppler_error_factor;
-  double variance = square(factor);
-  char system = satellite_.getSystem();
-  variance *= square(error_parameter_.system_error_ratio.at(system));
-  double square_root_information = sqrt(1.0 / variance);
-  weighted_error = square_root_information * error;
+  weighted_error = square_root_information_ * error;
 
   // compute Jacobian
   if (jacobians != nullptr)
@@ -200,7 +213,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       // Position
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J0(jacobians[0]);
-        J0 = square_root_information * J_t_ECEF;
+        J0 = square_root_information_ * J_t_ECEF;
         
         if (jacobians_minimal != nullptr && jacobians_minimal[0] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -211,7 +224,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       // Velocity
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_v_ECEF;
+        J1 = square_root_information_ * J_v_ECEF;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -222,7 +235,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       // Frequency
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_freq;
+        J2 = square_root_information_ * J_freq;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -238,7 +251,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 7, Eigen::RowMajor>> J0(jacobians[0]);
         Eigen::Matrix<double, 1, 6, Eigen::RowMajor> J0_minimal;
-        J0_minimal = square_root_information * J_T_WS;
+        J0_minimal = square_root_information_ * J_T_WS;
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -255,7 +268,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       // Speed and biases
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 9, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_speed_and_bias;
+        J1 = square_root_information_ * J_speed_and_bias;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 9, Eigen::RowMajor> >
@@ -266,7 +279,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       // Relative position
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_t_SR_S;
+        J2 = square_root_information_ * J_t_SR_S;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -277,7 +290,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       // Frequency
       if (jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_freq;
+        J3 = square_root_information_ * J_freq;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >

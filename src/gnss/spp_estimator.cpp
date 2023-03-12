@@ -71,7 +71,6 @@ bool SppEstimator::addGnssMeasurementAndState(
   else if (coordinate_) {
     position_prior = coordinate_->getZero(GeoType::ECEF);
   }
-  curGnss().position = position_prior;
   // no position prior, we should get a coarse inital position
   if (checkZero(curGnss().position)) {
     gnss_base_options_.common.min_elevation = 0.0;
@@ -84,12 +83,13 @@ bool SppEstimator::addGnssMeasurementAndState(
 
   // Set to local measurement handle
   curGnss() = measurement;
+  curGnss().position = position_prior;
 
   // Correct code bias
   correctCodeBias(curGnss());
 
   // Compute ionosphere delays
-  computeIonosphereDelay(curGnss(), spp_options_.use_single_frequency);
+  computeIonosphereDelay(curGnss(), true);
 
   // Add parameter blocks
   double timestamp = measurement.timestamp;
@@ -104,8 +104,7 @@ bool SppEstimator::addGnssMeasurementAndState(
   
   // Add pseudorange residual blocks
   int num_valid_satellite = 0;
-  addPseudorangeResidualBlocks(curGnss(), curState(), num_valid_satellite, 
-    spp_options_.use_single_frequency);
+  addPseudorangeResidualBlocks(curGnss(), curState(), num_valid_satellite, true);
 
   // Check if insufficient satellites
   if (!checkSufficientSatellite(num_valid_satellite, num_valid_system)) {
@@ -182,8 +181,7 @@ bool SppEstimator::estimate()
 
     // Add doppler residual blocks
     int num_valid_doppler_satellite = 0;
-    addDopplerResidualBlocks(curGnss(), curState(), 
-      num_valid_doppler_satellite, spp_options_.use_single_frequency);
+    addDopplerResidualBlocks(curGnss(), curState(), num_valid_doppler_satellite, true);
     if (!checkSufficientSatellite(
         num_valid_doppler_satellite, num_valid_doppler_system, false)) {
       eraseGnssVelocityParameterBlock(curState());

@@ -249,7 +249,7 @@ struct GnssCommonOptions {
   std::vector<std::pair<char, int>> code_exclude;
 
   // Minimum elevation angle (deg)
-  double min_elevation = 7.0;
+  double min_elevation = 12.0;
 
   // Minimum SNR for frequencies 1575.42 MHz (L1) and 1176.45 MHz (L5).
   // SNR masks for other frequencies will be interpolated by a linear model.
