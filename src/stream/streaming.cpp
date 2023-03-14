@@ -26,7 +26,7 @@ Streaming::Streaming(const NodeOptionHandlePtr& nodes, size_t i_streamer) :
   // Initialize streamer
   streamer_ = makeStreamer(streamer_node);
   if (streamer_ == nullptr) {
-    LOG(ERROR) << "Unable to make streamer!";
+    LOG(ERROR) << tag_ << ": Unable to make streamer!";
     return;
   }
 
@@ -93,13 +93,13 @@ Streaming::Streaming(const NodeOptionHandlePtr& nodes, size_t i_streamer) :
   }
 
   if (!any_option_got) {
-    LOG(ERROR) << "Unable to load either output_tags nor input_tags!";
+    LOG(ERROR) << tag_ << ": Unable to load either output_tags nor input_tags!";
     return;
   }
 
   // Initialize buffer
   if (!option_tools::safeGet(streamer_node, "buffer_length", &max_buf_size_)) {
-    LOG(INFO) << "Unable to load buffer length! Using default instead.";
+    LOG(INFO) << tag_ << ": Unable to load buffer length! Using default instead.";
     max_buf_size_ = 32768;
   }
   if ((has_input_ && 
@@ -114,19 +114,37 @@ Streaming::Streaming(const NodeOptionHandlePtr& nodes, size_t i_streamer) :
 
   // Get loop rate
   if (!option_tools::safeGet(streamer_node, "loop_duration", &loop_duration_)) {
-    LOG(INFO) << "Unable to load loop duration! Using default instead.";
+    LOG(INFO) << tag_ << ": Unable to load loop duration! Using default instead.";
     loop_duration_ = 0.005;
+  }
+
+  // Get messages to send on start-up
+  std::string message;
+  option_tools::safeGet(streamer_node, "start_message", &message);
+  if (message.size() > 0 && !has_input_) {
+    LOG(ERROR) << tag_ << ": The start_message options only works with input streams!";
+    return;
   }
 
   // Open streamer
   StreamerRWType rw;
   if (has_logging_ || has_output_) rw = StreamerRWType::Write;
   if (has_input_) rw = StreamerRWType::Read;
-  if ((has_logging_ || has_output_) && has_input_) rw = StreamerRWType::ReadAndWrite;
+  if ((has_logging_ || has_output_ || !message.empty()) && has_input_) {
+    rw = StreamerRWType::ReadAndWrite;
+  }
   if (!streamer_->open(rw)) {
     LOG(ERROR) << "Open streamer " << tag_ << " failed!";
   }
   else opened_ = true;
+
+  // Send start-up message
+  if (!message.empty()) {
+    uint8_t *message_buf = (uint8_t *)malloc(sizeof(uint8_t) * message.size());
+    memcpy(message_buf, message.data(), message.size());
+    streamer_->write(message_buf, message.size());
+    free(message_buf);
+  }
 
   // Set valid
   valid_ = true;
