@@ -195,6 +195,8 @@ bool PppEstimator::addGnssMeasurementAndState(
 // Solve current graph
 bool PppEstimator::estimate()
 {
+  vk::Timer t__;
+
   // Optimize with FDE
   if (gnss_base_options_.use_outlier_rejection)
   while (1)
@@ -206,11 +208,14 @@ bool PppEstimator::estimate()
         gnss_base_options_.reject_one_outlier_once) && 
         !rejectPhaserangeOutlier(curState(), curAmbiguityState(),
         gnss_base_options_.reject_one_outlier_once)) break;
+    if (!gnss_base_options_.reject_one_outlier_once) break;  
   }
   // Optimize without FDE
   else {
     optimize();
   }
+
+  t__.stop(); double dt1 = t__.getAccumulated(); t__.reset(); t__.start();
 
   // Ambiguity resolution
   curState().status = GnssSolutionStatus::Float;
@@ -241,8 +246,32 @@ bool PppEstimator::estimate()
       << ", Fix status: " << std::setw(1) << static_cast<int>(curState().status);
   }
 
+  if (dt1 > 0.02) {
+    LOG(INFO) << "...";
+  }
+
+  {
+    std::ofstream outfile;
+    outfile.open("/home/cc/datasets/tmp/log.txt", std::ios::out | std::ios::trunc);
+
+    for (auto parameter : graph_->parameters()) {
+      outfile << (int)parameter.first << ": " << parameter.second->typeInfo() << std::endl;
+    }
+    outfile.close();
+  }
+
   // Apply marginalization
   marginalization();
+
+  t__.stop(); double dt2 = t__.getAccumulated(); t__.reset(); t__.start();
+
+  std::cout << "Cost " << std::fixed << dt1 << ", " << dt2 
+    << ". n_parameter = " << graph_->parameters().size()
+    << ". n_residual = " << graph_->residuals().size() << std::endl;
+
+  if (dt1 > 0.02) {
+    LOG(INFO) << "...";
+  }
 
   // Shift memory for states and measurements
   shiftMemory();

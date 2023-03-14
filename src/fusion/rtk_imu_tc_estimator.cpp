@@ -186,6 +186,7 @@ bool RtkImuTcEstimator::estimate()
         gnss_base_options_.reject_one_outlier_once) && 
         !rejectPhaserangeOutlier(curState(), curAmbiguityState(),
         gnss_base_options_.reject_one_outlier_once)) break;
+    if (!gnss_base_options_.reject_one_outlier_once) break;  
   }
   // Optimize without FDE
   else {
