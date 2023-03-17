@@ -1,5 +1,5 @@
 /**
-* @Function: GNSS/IMU/Camera coupled estimator thread
+* @Function: Multisensor estimation thread handle
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn

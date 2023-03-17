@@ -1299,7 +1299,6 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
   for (size_t i = 0; i < residuals.size(); i++) {
     if (fabs(residuals[i]) > gnss_base_options_.max_phaserange_error) {
       outlier_indexes.push_back(i);
-      break;
     }
   }
   // outlier detected, remove this residual block and the corresponding ambiguity 
@@ -1384,7 +1383,7 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
           PHASE_CHANNEL_TO_STR_MAPS;
           info_message += " at " + index.prn + "|" + phase_str;
         }
-        if (type == ErrorType::kPseudorangeErrorSD) {
+        if (type == ErrorType::kPhaserangeErrorSD) {
           GnssMeasurementSDIndexPair index = 
             getGnssMeasurementSDIndexPairFromErrorInterface(error_interface);
           system = index.rov.prn[0];
@@ -1397,7 +1396,7 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
           info_message += " at " + index.rov.prn + "|" + 
             phase_str_rov + "&" + phase_str_ref;
         }
-        if (type == ErrorType::kPseudorangeErrorDD) {
+        if (type == ErrorType::kPhaserangeErrorDD) {
           GnssMeasurementDDIndexPair index = 
             getGnssMeasurementDDIndexPairFromErrorInterface(error_interface);
           system = index.rov.prn[0];

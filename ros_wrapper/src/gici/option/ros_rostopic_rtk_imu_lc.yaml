@@ -24,6 +24,12 @@ stream:
       format: gnss_raw
       enable_ephemeris: true
   - streamer:
+      tag: str_ros_imu
+      type: ros
+      topic_name: /mavros/imu/data
+      io: input
+      format: imu  
+  - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
@@ -79,19 +85,20 @@ estimate:
     str_ros_gnss_ref_roles: [reference]
     str_ros_gnss_eph_roles: [ephemeris]
     fmt_dcb_file_roles: [code_bias]
-    output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: str_ros_gnss_rov
     compute_covariance: true
     rtk_options:
       max_window_length: 3
       use_ambiguity_resolution: true
-      estimate_velocity: false
+      estimate_velocity: true
     gnss_estimator_base_options:
       gnss_common:
         # system_exclude: [R, E, C]
         min_elevation: 12.0
         min_SNR: [35.0, 30.0]
         max_gdop: 5.0
+      gnss_error_parameter:
+        doppler_error_factor: 1.0
       use_outlier_rejection: true
       max_pesudorange_error: 4.0
       max_phaserange_error: 0.03
@@ -108,9 +115,46 @@ estimate:
       min_percentage_fixation_wl: 0.9
       min_percentage_fixation_nl: 0.9
       ratio: 2.0
+- estimator:
+    tag: est_gnss_imu_lc
+    type: gnss_imu_lc
+    input_tags: [str_ros_imu, est_gnss]
+    str_ros_imu_roles: [major]
+    est_gnss_roles: [position_and_velocity]
+    output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
+    output_align_tag: str_ros_imu
+    output_downsample_rate: 40
+    gnss_imu_lc_options:
+      max_window_length: 3
+    gnss_loose_estimator_base_options:
+    imu_estimator_base_options:
+      imu_parameters:
+        sigma_bg: 1.0e-3
+        sigma_ba: 1.0e-2
+        sigma_g_c: 2.6700e-04
+        sigma_a_c: 0.0112 
+        sigma_gw_c: 2.0881e-06
+        sigma_aw_c: 2.7361e-04
+      body_to_imu_rotation: [0.0, 0.0, 0.0]
+    estimator_base_options:
+      max_iteration: 5
+      num_threads: 4
+      max_solver_time: 0.05
+      verbose_output: true
+      solver_type: sparse_normal_cholesky
+      trust_region_strategy_type: dogleg
+    gnss_imu_initializer_options:
+      max_iteration: 30
+      num_threads: 4
+      max_solver_time: 0.5
+      gnss_extrinsics: [-0.05, 0.03, 0.1]
+      gnss_extrinsics_initial_std: [0.0, 0.0, 0.0]
+      time_window_length_slow_motion: 0.3
+      time_window_length_dynamic_motion: 0.5
+      min_acceleration: 1.0
 
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: false
+  log_to_stderr: true
   file_directory: /home/cc/datasets/log

@@ -10,7 +10,7 @@
 
 namespace gici {
 
-#define LOG_CYCLE_SLIP 0
+#define LOG_CYCLE_SLIP 1
 
 // Cycle slip detection
 void cycleSlipDetection(GnssMeasurement& measurement_pre, 
@@ -68,16 +68,20 @@ void cycleSlipDetectionSD(GnssMeasurement& measurement_rov_pre,
     observation_sd.pseudorange = dpseudorange;
     observation_sd.phaserange = dphaserange;
     observation_sd.wavelength = observation_rov.wavelength;
+    observation_sd.LLI = 0;
     observation_sd.slip = false;
+    observation_sd.SNR = observation_rov.SNR;
+    observation_sd.raw_code = observation_rov.raw_code;
 
     // force insert here
     std::string prn = pairs_pre[i].rov.prn;
     int code_type = pairs_pre[i].rov.code_type;
-    measurement_sd_pre.satellites[prn].prn = satellite_rov.prn;
-    measurement_sd_pre.satellites[prn].sat_type = satellite_rov.sat_type;
-    measurement_sd_pre.satellites[prn].sat_position = satellite_rov.sat_position;
-    measurement_sd_pre.satellites[prn].sat_clock = satellite_rov.sat_clock;
-    measurement_sd_pre.satellites[prn].observations[code_type] = observation_sd;
+    Satellite& satellite_sd_pre = measurement_sd_pre.satellites[prn];
+    satellite_sd_pre.prn = satellite_rov.prn;
+    satellite_sd_pre.sat_type = satellite_rov.sat_type;
+    satellite_sd_pre.sat_position = satellite_rov.sat_position;
+    satellite_sd_pre.sat_clock = satellite_rov.sat_clock;
+    satellite_sd_pre.observations[code_type] = observation_sd;
     measurement_sd_pre.position.setZero();
   }
 
@@ -96,15 +100,19 @@ void cycleSlipDetectionSD(GnssMeasurement& measurement_rov_pre,
     observation_sd.pseudorange = dpseudorange;
     observation_sd.phaserange = dphaserange;
     observation_sd.wavelength = observation_rov.wavelength;
+    observation_sd.LLI = 0;
     observation_sd.slip = false;
+    observation_sd.SNR = observation_rov.SNR;
+    observation_sd.raw_code = observation_rov.raw_code;
 
     std::string prn = pairs_cur[i].rov.prn;
     int code_type = pairs_cur[i].rov.code_type;
-    measurement_sd_cur.satellites[prn].prn = satellite_rov.prn;
-    measurement_sd_cur.satellites[prn].sat_type = satellite_rov.sat_type;
-    measurement_sd_cur.satellites[prn].sat_position = satellite_rov.sat_position;
-    measurement_sd_cur.satellites[prn].sat_clock = satellite_rov.sat_clock;
-    measurement_sd_cur.satellites[prn].observations[code_type] = observation_sd;
+    Satellite& satellite_sd_cur = measurement_sd_cur.satellites[prn];
+    satellite_sd_cur.prn = satellite_rov.prn;
+    satellite_sd_cur.sat_type = satellite_rov.sat_type;
+    satellite_sd_cur.sat_position = satellite_rov.sat_position;
+    satellite_sd_cur.sat_clock = satellite_rov.sat_clock;
+    satellite_sd_cur.observations[code_type] = observation_sd;
     measurement_sd_cur.position.setZero();
   }
 
