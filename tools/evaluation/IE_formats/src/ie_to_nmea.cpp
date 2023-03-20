@@ -51,6 +51,7 @@ int main(int argc, char ** argv)
 
   while (!(fgets(buf, 1034 * sizeof(char), fp_ie) == NULL))
   {
+    if (!(buf[0] >= '1' && buf[0] <= '9')) continue;
     std::vector<std::string> strs;
     strs.push_back("");
     for (int i = 0; i < strlen(buf); i++) {
