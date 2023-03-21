@@ -5,22 +5,22 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230308_campus/1/gnss_rover.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230308_campus/1/gnss_reference.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230308_campus/1/gnss_ephemeris.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_ephemeris.bin
   - streamer:
       tag: str_gnss_ssr
       output_tags: [fmt_gnss_ssr]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230308_campus/1/gnss_ssr.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_ssr.bin
   - streamer:
       tag: str_gnss_atx
       output_tags: [fmt_gnss_atx]
@@ -37,7 +37,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230308_campus/1/solution.txt
+      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -68,22 +68,22 @@ stream:
       tag: fmt_gnss_rov
       type: gnss-raw
       sub_type: tersus
-      start_time: 2023.03.08.08
+      start_time: 2023.03.20.08
   - formator:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.08.08
+      start_time: 2023.03.20.08
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.08.08
+      start_time: 2023.03.20.08
   - formator:
       io: input
       tag: fmt_gnss_ssr
       type: gnss-rtcm-3
-      start_time: 2023.03.08.08
+      start_time: 2023.03.20.08
   - formator:
       io: input
       tag: fmt_gnss_atx
@@ -122,10 +122,10 @@ estimate:
     gnss_estimator_base_options:
       use_outlier_rejection: true
       reject_one_outlier_once: true
-      max_pesudorange_error: 3.0
+      max_pesudorange_error: 1.0
       gnss_common:
         min_elevation: 12.0
-        # system_exclude: [C]
+        system_exclude: [R, E, C]
     estimator_base_options:
       max_iteration: 10
       num_threads: 2
@@ -171,5 +171,5 @@ estimate:
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: false
+  log_to_stderr: true
   file_directory: /home/cc/datasets/log
