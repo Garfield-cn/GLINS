@@ -121,7 +121,8 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
     const GnssMeasurement& measurement_ref)
 {
   // Get prior states
-  Eigen::Vector3d position_prior = getPoseEstimate().getPosition();
+  Eigen::Vector3d position_prior = coordinate_->convert(
+    getPoseEstimate().getPosition(), GeoType::ENU, GeoType::ECEF);
 
   // Set to local measurement handle
   curGnssRov() = measurement_rov;

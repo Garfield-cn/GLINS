@@ -331,6 +331,41 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
   // Set phase center
   epoch.phase_center = phase_center_local_;
 
+
+  static rtk_t *rtk = NULL;
+  const prcopt_t prcopt={ /* defaults processing options */
+      PMODE_SINGLE,0,2,SYS_GPS,   /* mode,soltype,nf,navsys */
+      15.0*D2R,{{0,0}},           /* elmin,snrmask */
+      0,1,1,1,                    /* sateph,modear,glomodear,bdsmodear */
+      5,0,10,1,                   /* maxout,minlock,minfix,armaxiter */
+      0,0,0,0,                    /* estion,esttrop,dynamics,tidecorr */
+      1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
+      0,0,                        /* rovpos,refpos */
+      {100.0,100.0},              /* eratio[] */
+      {100.0,0.003,0.003,0.0,1.0}, /* err[] */
+      {30.0,0.03,0.3},            /* std[] */
+      {1E-4,1E-3,1E-4,1E-1,1E-2,0.0}, /* prn[] */
+      5E-12,                      /* sclkstab */
+      {3.0,0.9999,0.25,0.1,0.05}, /* thresar */
+      0.0,0.0,0.05,               /* elmaskar,almaskhold,thresslip */
+      30.0,30.0,30.0,             /* maxtdif,maxinno,maxgdop */
+      {0},{0},{0},                /* baseline,ru,rb */
+      {"",""},                    /* anttype */
+      {{0}},{{0}},{0}             /* antdel,pcv,exsats */
+  };
+  if (rtk == NULL) {
+    rtk = (rtk_t *)malloc(sizeof(rtk_t));
+    rtkinit(rtk, &prcopt);
+  }
+  if (role_out == GnssRole::Rover) {
+    for (int i = 0; i < obs->n; i++) {
+      obs->data[i].rcv = 1;
+    }
+    rtkpos(rtk, obs->data, obs->n, nav);
+    epoch.position = Eigen::Map<Eigen::Vector3d>(rtk->sol.rr);
+  }
+
+
   // Call GNSS observation processor
   for (auto it_gnss_callback : estimator_callbacks_) {
     EstimatorDataCluster estimator_data(epoch);
