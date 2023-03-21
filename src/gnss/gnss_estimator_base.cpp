@@ -1330,7 +1330,6 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
       // get corresponding ambiguity parameter
       Graph::ParameterBlockCollection parameters = graph_->parameters(
         residual_index_to_id.at(static_cast<size_t>(index)));
-      bool removed = false, found = false;
       BackendId id;
       for (auto& parameter : parameters) {
         id = BackendId(parameter.first);
@@ -1354,13 +1353,10 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
         for (auto it = ambiguity_state.ids.begin(); 
             it != ambiguity_state.ids.end(); it++) {
           if (*it == id) {
-            found = true;
             it = ambiguity_state.ids.erase(it); break;
           }
         }
-        removed = true;
       }
-      CHECK(removed && found);
 
       // remove residual block. We do not need to call removeResidualBlock() here because the 
       // residual block has already been removed when calling removeParameterBlock()
