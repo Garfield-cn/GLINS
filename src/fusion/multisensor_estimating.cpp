@@ -305,6 +305,11 @@ void MultiSensorEstimating::estimatorDataCallback(EstimatorDataCluster& data)
     return;
   }
 
+  // if (data.imu) {
+  //   data.imu->timestamp -= 1.0;
+  //   data.timestamp -= 1.0;
+  // }
+
   // temporarily store measurements
   mutex_addin_.lock();
   measurement_addin_buffer_.push_back(data);

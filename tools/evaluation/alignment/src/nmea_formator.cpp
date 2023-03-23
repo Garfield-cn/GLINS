@@ -1,4 +1,10 @@
-#include "gici/ros_interface/nmea_formator.h"
+/**
+* @Function: Decode and encode GICI NMEA messages
+*
+* @Author  : Cheng Chi
+* @Email   : chichengcn@sjtu.edu.cn
+**/
+#include "nmea_formator.h"
 
 #define NMEA_TID   "GP"         /* NMEA talker ID for RMC and GGA sentences */
 #define MAXFIELD   64           /* max number of fields in a record */
@@ -296,4 +302,108 @@ int encodeGGA(const sol_t *sol, char *buff)
     for (q=(char *)buff+1,sum=0;*q;q++) sum^=*q; /* check-sum */
     p+=sprintf(p,"*%02X\r\n",sum);
     return p-(char *)buff;
+}
+
+// Encode GNESA (self-defined Extended Speed and Attitude) message
+// Format: $GNESA,tod,Ve,Vn,Vu,Ar,Ap,Ay*checksum
+int encodeESA(const sol_t *sol, const esa_t *esa, char* buf)
+{
+  gtime_t time;
+  double h,ep[6],pos[3],dms1[3],dms2[3],dop=1.0;
+  int solq,refid=0;
+  char *p=(char *)buf,*q,sum;
+  
+  if (sol->stat<=SOLQ_NONE) {
+    p+=sprintf(p,"$%sESA,,,,,,,",NMEA_TID);
+    for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q;
+    p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
+    return p-(char *)buf;
+  }
+  for (solq=0;solq<8;solq++) if (nmea_solq[solq]==sol->stat) break;
+  if (solq>=8) solq=0;
+  time=gpst2utc(sol->time);
+  time2epoch(time,ep);
+  p+=sprintf(p,"$%sESA,%02.0f%02.0f%06.3f,%+.3f,%+.3f,%+.3f,"
+             "%+.3f,%+.3f,%+.3f",
+             NMEA_TID,ep[3],ep[4],ep[5],sol->rr[3],sol->rr[4],sol->rr[5],
+             esa->att[0]*R2D,esa->att[1]*R2D,esa->att[2]*R2D);
+  for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
+  p+=sprintf(p,"*%02X\r\n",sum);
+  return p-(char *)buf;
+}
+
+// Load and decode NMEA file
+bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
+{
+    FILE *fp_nmea = fopen(path, "r");
+    if (fp_nmea == NULL) return false;
+
+    char buf[1024];
+    sol_t sol = {0};
+    esa_t esa = {0};
+    std::vector<sol_t> sols;
+    std::vector<esa_t> esas;
+    while (!(fgets(buf, 1034 * sizeof(char), fp_nmea) == NULL))
+    {
+        std::vector<std::string> strs;
+        strs.push_back("");
+        for (int i = 0; i < strlen(buf); i++) {
+            if (buf[i] == ',') {
+            if (strs.back().size() > 0) strs.push_back("");
+            continue;
+            }
+            if (buf[i] == '\r' || buf[i] == '\n') break;
+            strs.back().push_back(buf[i]);
+        }
+
+        if (strs[0].substr(3, 3) == "GGA") {
+            if (decodeGGA(buf, &sol)) sols.push_back(sol);
+        }
+        else if (strs[0].substr(3, 3) == "RMC") {
+            decodeRMC(buf, &sol);
+        }
+        else if (strs[0].substr(3, 3) == "ESA") {
+            if (decodeESA(buf, &sol, &esa)) esas.push_back(esa);
+        }
+    }
+    fclose(fp_nmea);
+
+    int esa_index = 0;
+    for (int i = 0; i < sols.size(); i++) {
+        epochs.push_back(NmeaEpoch());
+        epochs.back().sol = sols[i];
+        for (int j = esa_index; j < esas.size(); j++) {
+            double dt = timediff(esas[j].time, sols[i].time);
+            if (dt == 0.0) {
+                epochs.back().esa = esas[j];
+                esa_index = j;
+                break;
+            }
+            if (dt > 0.0) break;
+        }
+    }
+
+    return true;
+}
+
+// Encode and write NMEA file
+bool writeNmeaFile(const std::vector<NmeaEpoch>& epochs, char *path)
+{
+    FILE *fp_nmea = fopen(path, "w");
+    if (fp_nmea == NULL) return false;
+
+    char buf[1024];
+    for (auto epoch : epochs)
+    {
+        char *p = buf;
+        p += encodeRMC(&epoch.sol, p);
+        p += encodeGGA(&epoch.sol, p);
+        p += encodeESA(&epoch.sol, &epoch.esa, p);
+        *(p + 1) = '\0';
+        fprintf(fp_nmea, "%s", buf);
+    }
+
+    fclose(fp_nmea);
+
+    return true;
 }

@@ -5,7 +5,7 @@
 * @Email   : chichengcn@sjtu.edu.cn
 **/
 #include "rtklib.h"
-#include "nmea_encoder.h"
+#include "nmea_formator.h"
 
 #include <Eigen/Dense>
 #include <iostream>
@@ -45,11 +45,10 @@ int main(int argc, char ** argv)
 	}
 
   FILE *fp_ie = fopen(ie_buf, "r");
-  char buf[1034];
-  sprintf(buf, "%s.nmea", ie_buf);
-  FILE *fp_nmea = fopen(buf, "w");
 
-  while (!(fgets(buf, 1034 * sizeof(char), fp_ie) == NULL))
+  char buf[1024];
+  std::vector<NmeaEpoch> epochs;
+  while (!(fgets(buf, 1024 * sizeof(char), fp_ie) == NULL))
   {
     if (!(buf[0] >= '1' && buf[0] <= '9')) continue;
     std::vector<std::string> strs;
@@ -84,15 +83,21 @@ int main(int argc, char ** argv)
     sol.stat = SOLQ_FIX;
     pos2ecef(lla, sol.rr);
 
-    char *p = buf;
-    p += encodeGGA(&sol, (uint8_t *)p);
-    p += encodeRMC(&sol, (uint8_t *)p);
-    *(p + 1) = '\0';
-    fprintf(fp_nmea, "%s", buf);
+    NmeaEpoch epoch;
+    epoch.sol = sol;
+    epoch.esa.time = sol.time;
+    for (int i = 0; i < 3; i++) {
+      epoch.esa.vel[i] = 0.0;
+      epoch.esa.att[i] = att[i];
+    }
+    epochs.push_back(epoch);
   }
 
+  char nmea_path[1034];
+  sprintf(nmea_path, "%s.nmea", ie_buf);
+  writeNmeaFile(epochs, nmea_path);
+
   fclose(fp_ie);
-  fclose(fp_nmea);
 
   return 0;
 }
