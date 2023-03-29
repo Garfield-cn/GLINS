@@ -129,14 +129,22 @@ public:
     return ErrorType::kPoseError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 1, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
   // the measurement
   double measurement_; ///< The yaw measurement.
 
   // weighting related
-  information_t information_; ///< The 6x6 information matrix.
-  information_t square_root_information_; ///< The 6x6 square root information matrix.
-  covariance_t covariance_; ///< The 6x6 covariance matrix.
+  information_t information_; ///< The 1x1 information matrix.
+  information_t square_root_information_; ///< The 1x1 square root information matrix.
+  information_t square_root_information_inverse_;
+  covariance_t covariance_; ///< The 1x1 covariance matrix.
 
 };
 

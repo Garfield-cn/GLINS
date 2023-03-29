@@ -69,6 +69,7 @@ public:
     // perform the Cholesky decomposition on order to obtain the correct error weighting
     Eigen::LLT<information_t> lltOfInformation(information_);
     square_root_information_ = lltOfInformation.matrixL().transpose();
+    square_root_information_inverse_ = square_root_information_.inverse();
   }
 
   // getters
@@ -110,8 +111,6 @@ public:
     Eigen::Map<const Eigen::VectorXd> para_cur(parameters[1], Dim);
     Eigen::Map<Eigen::VectorXd> Res(residuals, Dim);
     Res = square_root_information_ * (para_cur - para_pre);
-
-    if (global::__cost_function_no_residual_weighting__) Res = (para_cur - para_pre);
 
     // Jacobian
     if (jacobians != nullptr)
@@ -163,11 +162,19 @@ public:
     return Type;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, Dim, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
 
   // weighting related
   information_t information_; ///< The DimxDim information matrix.
   information_t square_root_information_; ///< The DimxDim square root information matrix.
+  information_t square_root_information_inverse_;
   covariance_t covariance_; ///< The DimxDim covariance matrix.
 
 };

@@ -1,16 +1,17 @@
 /**
-* @Function: Convert file from IE output format to NMEA format
+* @Function: Convert file from IE output format to TUM pose format
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
 #include "rtklib.h"
-#include "nmea_encoder.h"
 
 #include <Eigen/Dense>
 #include <iostream>
 #include <string>
 #include <vector>
+
+const double ref_position[] = {31.0294769301 * D2R, 121.4207972420 * D2R, 19.579};
 
 // Convert euler angle to quarternion
 Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d rpy)
@@ -46,11 +47,14 @@ int main(int argc, char ** argv)
 
   FILE *fp_ie = fopen(ie_buf, "r");
   char buf[1034];
-  sprintf(buf, "%s.nmea", ie_buf);
-  FILE *fp_nmea = fopen(buf, "w");
+  sprintf(buf, "%s.tum", ie_buf);
+  FILE *fp_tum = fopen(buf, "w");
+  
+  fprintf(fp_tum, "# timestamp tx ty tz qx qy qz qw\r\n");
 
   while (!(fgets(buf, 1034 * sizeof(char), fp_ie) == NULL))
   {
+    if (!(buf[0] >= '1' && buf[0] <= '9')) continue;
     std::vector<std::string> strs;
     strs.push_back("");
     for (int i = 0; i < strlen(buf); i++) {
@@ -61,9 +65,6 @@ int main(int argc, char ** argv)
       if (buf[i] == '\r' || buf[i] == '\n') break;
       strs.back().push_back(buf[i]);
     }
-
-    if (strs.size() == 0 || atoi(strs[0].data()) == 0) continue;
-
     int gpsweek, status;
     double gpstow, lla[3], vel[3], att[3], pos[3];
     gpsweek = atoi(strs[0].data());
@@ -78,20 +79,23 @@ int main(int argc, char ** argv)
     pos2ecef(lla, pos);
     att[2] = -att[2];
 
-    sol_t sol;
-    sol.time = gpst2time(gpsweek, gpstow);
-    sol.stat = SOLQ_FIX;
-    pos2ecef(lla, sol.rr);
+    Eigen::Quaterniond q = eulerAngleToQuaternion(Eigen::Map<Eigen::Vector3d>(att));
+    Eigen::Vector3d p_enu = Eigen::Vector3d::Zero();
+    Eigen::Vector3d p_ecef = Eigen::Vector3d::Zero();
+    Eigen::Vector3d p_ref_ecef = Eigen::Vector3d::Zero();
+    pos2ecef(lla, p_ecef.data());
+    pos2ecef(ref_position, p_ref_ecef.data());
+    Eigen::Vector3d dp = p_ecef - p_ref_ecef;
+    ecef2enu(ref_position, dp.data(), p_enu.data());
+    gtime_t gtime = gpst2time(gpsweek, gpstow);
+    double time = (double)gtime.time + gtime.sec;
 
-    char *p = buf;
-    p += encodeGGA(&sol, (uint8_t *)p);
-    p += encodeRMC(&sol, (uint8_t *)p);
-    *(p + 1) = '\0';
-    fprintf(fp_nmea, "%s", buf);
+    fprintf(fp_tum, "%.4lf %.4lf %.4lf %.4lf %.4lf %.4lf %.4lf %.4lf\r\n", 
+      time, p_enu(0), p_enu(1), p_enu(2), q.x(), q.y(), q.z(), q.w());
   }
 
   fclose(fp_ie);
-  fclose(fp_nmea);
+  fclose(fp_tum);
 
   return 0;
 }

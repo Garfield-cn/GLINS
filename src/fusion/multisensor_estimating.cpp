@@ -1,5 +1,5 @@
 /**
-* @Function: GNSS/IMU/Camera coupled estimator thread
+* @Function: Multisensor estimation thread handle
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -304,6 +304,11 @@ void MultiSensorEstimating::estimatorDataCallback(EstimatorDataCluster& data)
     LOG(ERROR) << "Received illegal estimator data cluster!";
     return;
   }
+
+  // if (data.imu) {
+  //   data.imu->timestamp -= 1.0;
+  //   data.timestamp -= 1.0;
+  // }
 
   // temporarily store measurements
   mutex_addin_.lock();

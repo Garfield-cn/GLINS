@@ -25,8 +25,6 @@ PhaserangeError<Ns ...>::PhaserangeError(
   satellite_ = measurement_.getSat(index);
   observation_ = measurement_.getObs(index);
 
-  error_parameter_ = error_parameter;
-
   // Check parameter block types
   // Group 1
   if (dims_.kNumParameterBlocks == 5 && 
@@ -47,6 +45,39 @@ PhaserangeError<Ns ...>::PhaserangeError(
   else {
     LOG(FATAL) << "PhaserangeError parameter blocks setup invalid!";
   }
+
+  setInformation(error_parameter);
+}
+
+// Set the information.
+template<int... Ns>
+void PhaserangeError<Ns ...>::setInformation(const GnssErrorParameter& error_parameter)
+{
+  // compute variance
+  error_parameter_ = error_parameter;
+  Eigen::Vector3d factor;
+  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
+  double elevation = gnss_common::satelliteElevation(
+    satellite_.sat_position, measurement_.position);
+  double covariance = square(factor(0)) + square(factor(1) / sin(elevation));
+  char system = satellite_.getSystem();
+  covariance *= square(error_parameter_.system_error_ratio.at(system));
+  // check precise ephemeris
+  if (satellite_.sat_type != SatEphType::Precise) {
+    covariance += square(error_parameter_.ephemeris_broadcast);
+  }
+  // add IFCB residual error for GPS L5
+  if (satellite_.getSystem() == 'G' && checkEqual(observation_.wavelength, 
+      CLIGHT / gnss_common::phaseToFrequency('G', PHASE_L5))) {
+    covariance += square(error_parameter_.residual_gps_ifcb);
+  }
+  covariance_ = covariance_t(covariance);
+
+  information_ = covariance_.inverse();
+  // perform the Cholesky decomposition on order to obtain the correct error weighting
+  Eigen::LLT<information_t> lltOfInformation(information_);
+  square_root_information_ = lltOfInformation.matrixL().transpose();
+  square_root_information_inverse_ = square_root_information_.inverse();
 }
 
 // This evaluates the error term and additionally computes the Jacobians.
@@ -155,24 +186,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
-  Eigen::Vector3d factor;
-  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
-  double variance = square(factor(0)) + square(factor(1) / sin(elevation));
-  char system = satellite_.getSystem();
-  variance *= square(error_parameter_.system_error_ratio.at(system));
-  // check precise ephemeris
-  if (satellite_.sat_type != SatEphType::Precise) {
-    variance += square(error_parameter_.ephemeris_broadcast);
-  }
-  // add IFCB residual error for GPS L5
-  if (satellite_.getSystem() == 'G' && checkEqual(observation_.wavelength, 
-      CLIGHT / gnss_common::phaseToFrequency('G', PHASE_L5))) {
-    variance += square(error_parameter_.residual_gps_ifcb);
-  }
-  double square_root_information = sqrt(1.0 / variance);
-  weighted_error = square_root_information * error;
-
-  if (global::__cost_function_no_residual_weighting__) weighted_error = error;
+  weighted_error = square_root_information_ * error;
 
   // compute Jacobian
   if (jacobians != nullptr)
@@ -222,7 +236,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Position
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J0(jacobians[0]);
-        J0 = square_root_information * J_t_ECEF;
+        J0 = square_root_information_ * J_t_ECEF;
         
         if (jacobians_minimal != nullptr && jacobians_minimal[0] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -233,7 +247,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_clock;
+        J1 = square_root_information_ * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -244,7 +258,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Ambiguity
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_amb;
+        J2 = square_root_information_ * J_amb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -255,7 +269,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere
       if (jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_trop;
+        J3 = square_root_information_ * J_trop;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -266,7 +280,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Ionosphere
       if (jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_iono;
+        J4 = square_root_information_ * J_iono;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -282,7 +296,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 7, Eigen::RowMajor>> J0(jacobians[0]);
         Eigen::Matrix<double, 1, 6, Eigen::RowMajor> J0_minimal;
-        J0_minimal = square_root_information * J_T_WS;
+        J0_minimal = square_root_information_ * J_T_WS;
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -299,7 +313,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Relative position
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_t_SR_S;
+        J1 = square_root_information_ * J_t_SR_S;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -310,7 +324,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_clock;
+        J2 = square_root_information_ * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -321,7 +335,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Ambiguity
       if (jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_amb;
+        J3 = square_root_information_ * J_amb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -332,7 +346,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere
       if (jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_trop;
+        J4 = square_root_information_ * J_trop;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -343,7 +357,7 @@ bool PhaserangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Ionosphere
       if (jacobians[5] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J5(jacobians[5]);
-        J5 = square_root_information * J_iono;
+        J5 = square_root_information_ * J_iono;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[5] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >

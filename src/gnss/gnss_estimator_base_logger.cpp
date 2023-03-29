@@ -149,7 +149,6 @@ void GnssEstimatorBase::logIonosphereEstimate()
 void GnssEstimatorBase::logPseudorangeResidual()
 {
   // Get residuals
-  global::__cost_function_no_residual_weighting__ = true;
   State& state = lastState();
   const auto& residuals = graph_->residuals(state.id.asInteger());
   std::map<std::string, std::map<std::string, double>> residual_values;
@@ -165,13 +164,13 @@ void GnssEstimatorBase::logPseudorangeResidual()
     double residual_evaluate[1];
     graph_->problem_->EvaluateResidualBlock(
         id, false, nullptr, residual_evaluate, nullptr);
+    interface->deNormalizeResidual(residual_evaluate);
     if (residual_values.find(prn) == residual_values.end()) {
       residual_values.insert(std::make_pair(prn, std::map<std::string, double>()));
     }
     std::map<std::string, double>& code_to_value = residual_values.at(prn);
     code_to_value.insert(std::make_pair(code_str, residual_evaluate[0]));
   }
-  global::__cost_function_no_residual_weighting__ = false;
 
   // Log to file
   double ep[6];
@@ -198,7 +197,6 @@ void GnssEstimatorBase::logPseudorangeResidual()
 void GnssEstimatorBase::logPhaserangeResidual()
 {
   // Get residuals
-  global::__cost_function_no_residual_weighting__ = true;
   State& state = lastState();
   const auto& residuals = graph_->residuals(state.id.asInteger());
   std::map<std::string, std::map<std::string, double>> residual_values;
@@ -220,13 +218,13 @@ void GnssEstimatorBase::logPhaserangeResidual()
     double residual_evaluate[1];
     graph_->problem_->EvaluateResidualBlock(
         id, false, nullptr, residual_evaluate, nullptr);
+    interface->deNormalizeResidual(residual_evaluate);
     if (residual_values.find(prn) == residual_values.end()) {
       residual_values.insert(std::make_pair(prn, std::map<std::string, double>()));
     }
     std::map<std::string, double>& phase_to_value = residual_values.at(prn);
     phase_to_value.insert(std::make_pair(phase_str, residual_evaluate[0]));
   }
-  global::__cost_function_no_residual_weighting__ = false;
 
   // Log to file
   double ep[6];

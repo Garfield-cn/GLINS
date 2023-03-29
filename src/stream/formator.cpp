@@ -943,11 +943,11 @@ int NmeaFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
   if (data->solution == nullptr) return 0;
 
   uint8_t *p = buf;
-  if (option_.use_gga) {
-    p += encodeGGA(*data->solution, p);
-  }
   if (option_.use_rmc) {
     p += encodeRMC(*data->solution, p);
+  }
+  if (option_.use_gga) {
+    p += encodeGGA(*data->solution, p);
   }
   if (option_.use_esa) {
     p += encodeESA(*data->solution, p);

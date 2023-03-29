@@ -33,6 +33,9 @@ public:
   // apply Between-Satellite Difference (BSD) before we solve integer ambiguity.
   double getPhaseBias(const std::string prn, const int phase_id);
 
+  // If we have phase biases
+  const bool valid() const { return biases_.size() > 0; }
+
 private:
   BiasMap biases_;
 

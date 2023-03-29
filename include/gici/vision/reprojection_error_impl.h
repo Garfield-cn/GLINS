@@ -65,6 +65,7 @@ inline void ReprojectionError::setInformation(
   // perform the Cholesky decomposition on order to obtain the correct error weighting
   Eigen::LLT<Eigen::Matrix2d> lltOfInformation(information_);
   square_root_information_ = lltOfInformation.matrixL().transpose();
+  square_root_information_inverse_ = square_root_information_.inverse();
 }
 
 // This evaluates the error term and additionally computes the Jacobians.

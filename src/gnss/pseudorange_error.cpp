@@ -25,8 +25,6 @@ PseudorangeError<Ns ...>::PseudorangeError(
   satellite_ = measurement_.getSat(index);
   observation_ = measurement_.getObs(index);
 
-  error_parameter_ = error_parameter;
-
   // Check parameter block types
   // Group 1
   if (dims_.kNumParameterBlocks == 2 && 
@@ -64,6 +62,92 @@ PseudorangeError<Ns ...>::PseudorangeError(
   else {
     LOG(FATAL) << "PseudorangeError parameter blocks setup invalid!";
   }
+
+  setInformation(error_parameter);
+}
+
+// Set the information.
+template<int... Ns>
+void PseudorangeError<Ns ...>::setInformation(const GnssErrorParameter& error_parameter)
+{
+  // compute variance
+  error_parameter_ = error_parameter;
+  Eigen::Vector3d factor;
+  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
+  double ratio = square(error_parameter_.code_to_phase_ratio);
+  double elevation = gnss_common::satelliteElevation(
+    satellite_.sat_position, measurement_.position);
+  double azimuth = gnss_common::satelliteAzimuth(
+    satellite_.sat_position, measurement_.position);
+  double timestamp = measurement_.timestamp;
+
+  double ephemeris_var, ionosphere_var, troposphere_var;
+  if (!is_estimate_atmosphere_) {
+    // ephemeris error
+    if (satellite_.sat_type == SatEphType::Broadcast) {
+      ephemeris_var = square(error_parameter_.ephemeris_broadcast);
+    }
+    else if (satellite_.sat_type == SatEphType::Precise) {
+      ephemeris_var = square(error_parameter_.ephemeris_precise);
+    }
+    // ionosphere error
+    if (satellite_.ionosphere != 0.0 && 
+        satellite_.ionosphere_type == IonoType::Augmentation) {
+      ionosphere_var = square(error_parameter_.ionosphere_augment);
+    }
+    else if (satellite_.ionosphere != 0.0 && 
+             satellite_.ionosphere_type == IonoType::DualFrequency) {
+      ionosphere_var = square(error_parameter_.ionosphere_dual_frequency);
+    }
+    else {
+      double ionosphere_delay = gnss_common::ionosphereBroadcast(
+        timestamp, measurement_.position, azimuth, elevation, 
+        observation_.wavelength, measurement_.ionosphere_parameters);
+      ionosphere_var = square(
+        error_parameter_.ionosphere_broadcast_factor * ionosphere_delay);
+    }
+    // troposphere error
+    double troposphere_delay = gnss_common::troposphereSaastamoinen(
+      timestamp, measurement_.position, elevation);
+    troposphere_var = square(
+      error_parameter_.troposphere_model_factor * troposphere_delay);
+    // troposphere wet delay
+    if (measurement_.troposphere_wet != 0.0) {
+      troposphere_var = square(error_parameter_.troposphere_augment);
+    }
+  }
+  else {
+    // we do not add ephemeris error in precise positioning case
+    // because the precise ephemeris is highly time-correlated, which
+    // cannot be treated as white noise.
+    if (satellite_.sat_type == SatEphType::Broadcast) {
+      ephemeris_var = square(error_parameter_.ephemeris_broadcast);
+    }
+    else if (satellite_.sat_type == SatEphType::Precise) {
+      ephemeris_var = 0.0;
+    }
+    // ionosphere error
+    ionosphere_var = 0.0;
+    // troposphere error
+    troposphere_var = 0.0; 
+  }
+
+  double covariance = (square(factor(0)) + square(factor(1) / sin(elevation))) * ratio + 
+    ephemeris_var + ionosphere_var + troposphere_var;
+  char system = satellite_.getSystem();
+  covariance *= square(error_parameter_.system_error_ratio.at(system));
+  // add IFCB residual error for GPS L5
+  if (satellite_.getSystem() == 'G' && checkEqual(observation_.wavelength, 
+      CLIGHT / gnss_common::phaseToFrequency('G', PHASE_L5))) {
+    covariance += square(error_parameter_.residual_gps_ifcb);
+  }
+  covariance_ = covariance_t(covariance);
+
+  information_ = covariance_.inverse();
+  // perform the Cholesky decomposition on order to obtain the correct error weighting
+  Eigen::LLT<information_t> lltOfInformation(information_);
+  square_root_information_ = lltOfInformation.matrixL().transpose();
+  square_root_information_inverse_ = square_root_information_.inverse();
 }
 
 // This evaluates the error term and additionally computes the Jacobians.
@@ -85,7 +169,6 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
   Eigen::Quaterniond q_WS;
   double clock, ifb;
   double troposphere_delay, ionosphere_delay;
-  double ephemeris_var, troposphere_var, ionosphere_var;
   double gmf_wet, gmf_hydro;
   
   // Position and clock
@@ -139,38 +222,28 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
     // troposphere hydro-static delay
     troposphere_delay = gnss_common::troposphereSaastamoinen(
       timestamp, t_WR_ECEF, elevation);
-    troposphere_var = square(
-      error_parameter_.troposphere_model_factor * troposphere_delay);
     // troposphere wet delay
     if (measurement_.troposphere_wet != 0.0) {
       gnss_common::troposphereGMF(timestamp, t_WR_ECEF, elevation, nullptr, &gmf_wet);
       troposphere_delay += measurement_.troposphere_wet * gmf_wet;
-      troposphere_var = square(error_parameter_.troposphere_augment);
     }
 
     // ionosphere
-    if (satellite_.ionosphere != 0.0) {
+    if (satellite_.ionosphere != 0.0 && 
+        satellite_.ionosphere_type == IonoType::Augmentation) {
       ionosphere_delay = satellite_.ionosphere;
-      if (satellite_.ionosphere_type == IonoType::Augmentation) {
-        ionosphere_var = square(error_parameter_.ionosphere_augment);
-      }
-      else if (satellite_.ionosphere_type == IonoType::DualFrequency) {
-        ionosphere_var = square(error_parameter_.ionosphere_dual_frequency);
-      }
+      ionosphere_delay = gnss_common::ionosphereConvertFromBase(
+        ionosphere_delay, observation_.wavelength);
+    }
+    else if (satellite_.ionosphere != 0.0 && 
+             satellite_.ionosphere_type == IonoType::DualFrequency) {
+      ionosphere_delay = satellite_.ionosphere;
+      ionosphere_delay = gnss_common::ionosphereConvertFromBase(
+        ionosphere_delay, observation_.wavelength);
     }
     else {
       ionosphere_delay = gnss_common::ionosphereBroadcast(timestamp, t_WR_ECEF, 
           azimuth, elevation, observation_.wavelength, measurement_.ionosphere_parameters);
-      ionosphere_var = square(
-        error_parameter_.ionosphere_broadcast_factor * ionosphere_delay);
-    }
-
-    // ephemeris error
-    if (satellite_.sat_type == SatEphType::Broadcast) {
-      ephemeris_var = square(error_parameter_.ephemeris_broadcast);
-    }
-    else if (satellite_.sat_type == SatEphType::Precise) {
-      ephemeris_var = square(error_parameter_.ephemeris_precise);
     }
   }
   // use estimated atomspheric delays
@@ -187,8 +260,6 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       zwd = parameters[4][0];
       ionosphere_delay = parameters[5][0];
     }
-    troposphere_var = 0.0;
-    ionosphere_var = 0.0;
 
     // troposphere hydro-static delay
     double zhd = gnss_common::troposphereSaastamoinen(timestamp, t_WR_ECEF, PI / 2.0);
@@ -199,16 +270,6 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
     // ionosphere delay to current frequency
     ionosphere_delay = gnss_common::ionosphereConvertFromBase(
       ionosphere_delay, observation_.wavelength);
-
-    // we do not add ephemeris error in precise positioning case
-    // because the precise ephemeris is highly time-correlated, which
-    // cannot be treated as white noise.
-    if (satellite_.sat_type == SatEphType::Broadcast) {
-      ephemeris_var = square(error_parameter_.ephemeris_broadcast);
-    }
-    else if (satellite_.sat_type == SatEphType::Precise) {
-      ephemeris_var = 0.0;
-    }
   }
 
   // Get estimate derivated measurement
@@ -222,22 +283,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
 
   // weigh it
   Eigen::Map<Eigen::Matrix<double, 1, 1> > weighted_error(residuals);
-  Eigen::Vector3d factor;
-  for (size_t i = 0; i < 3; i++) factor(i) = error_parameter_.phase_error_factor[i];
-  double ratio = square(error_parameter_.code_to_phase_ratio);
-  double variance = (square(factor(0)) + square(factor(1) / sin(elevation))) * ratio + 
-    ephemeris_var + ionosphere_var + troposphere_var;
-  char system = satellite_.getSystem();
-  variance *= square(error_parameter_.system_error_ratio.at(system));
-  // add IFCB residual error for GPS L5
-  if (satellite_.getSystem() == 'G' && checkEqual(observation_.wavelength, 
-      CLIGHT / gnss_common::phaseToFrequency('G', PHASE_L5))) {
-    variance += square(error_parameter_.residual_gps_ifcb);
-  }
-  double square_root_information = sqrt(1.0 / variance);
-  weighted_error = square_root_information * error;
-
-  if (global::__cost_function_no_residual_weighting__) weighted_error = error;
+  weighted_error = square_root_information_ * error;
 
   // compute Jacobian
   if (jacobians != nullptr)
@@ -286,7 +332,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Position
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J0(jacobians[0]);
-        J0 = square_root_information * J_t_ECEF;
+        J0 = square_root_information_ * J_t_ECEF;
         
         if (jacobians_minimal != nullptr && jacobians_minimal[0] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -297,7 +343,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_clock;
+        J1 = square_root_information_ * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -308,7 +354,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // IFB
       if (is_estimate_atmosphere_ && jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_ifb;
+        J2 = square_root_information_ * J_ifb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -319,7 +365,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_trop;
+        J3 = square_root_information_ * J_trop;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -330,7 +376,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Ionosphere
       if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_iono;
+        J4 = square_root_information_ * J_iono;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -346,7 +392,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 7, Eigen::RowMajor>> J0(jacobians[0]);
         Eigen::Matrix<double, 1, 6, Eigen::RowMajor> J0_minimal;
-        J0_minimal = square_root_information * J_T_WS;
+        J0_minimal = square_root_information_ * J_T_WS;
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -363,7 +409,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Relative position
       if (jacobians[1] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor>> J1(jacobians[1]);
-        J1 = square_root_information * J_t_SR_S;
+        J1 = square_root_information_ * J_t_SR_S;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[1] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 3, Eigen::RowMajor> >
@@ -374,7 +420,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Clock
       if (jacobians[2] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J2(jacobians[2]);
-        J2 = square_root_information * J_clock;
+        J2 = square_root_information_ * J_clock;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[2] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -385,7 +431,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // IFB
       if (is_estimate_atmosphere_ && jacobians[3] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J3(jacobians[3]);
-        J3 = square_root_information * J_ifb;
+        J3 = square_root_information_ * J_ifb;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[3] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -396,7 +442,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Troposphere
       if (is_estimate_atmosphere_ && jacobians[4] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J4(jacobians[4]);
-        J4 = square_root_information * J_trop;
+        J4 = square_root_information_ * J_trop;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[4] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >
@@ -407,7 +453,7 @@ bool PseudorangeError<Ns ...>::EvaluateWithMinimalJacobians(
       // Ionosphere
       if (is_estimate_atmosphere_ && jacobians[5] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor>> J5(jacobians[5]);
-        J5 = square_root_information * J_iono;
+        J5 = square_root_information_ * J_iono;
 
         if (jacobians_minimal != nullptr && jacobians_minimal[5] != nullptr) {
           Eigen::Map<Eigen::Matrix<double, 1, 1, Eigen::RowMajor> >

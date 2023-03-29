@@ -177,15 +177,23 @@ public:
     return ErrorType::kHomogeneousPointError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 3, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
 
   // the measurement
   Eigen::Vector4d measurement_; ///< The (4D) measurement.
 
   // weighting related
-  information_t information_; ///< The 4x4 information matrix.
-  information_t square_root_information_; ///< The 4x4 square root information matrix.
-  covariance_t covariance_; ///< The 4x4 covariance matrix.
+  information_t information_; ///< The 3x3 information matrix.
+  information_t square_root_information_; ///< The 3x3 square root information matrix.
+  information_t square_root_information_inverse_;
+  covariance_t covariance_; ///< The 3x3 covariance matrix.
 };
 
 }  // namespace gici

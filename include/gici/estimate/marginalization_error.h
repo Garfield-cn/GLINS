@@ -189,6 +189,8 @@ public:
     return ErrorType::kMarginalizationError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const {}
 
   /**
    * @brief Pseudo inversion of a symmetric matrix.

@@ -273,6 +273,9 @@ public:
     return ErrorType::kIMUError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const {}
+
 protected:
   // parameters
   ImuParameters imu_parameters_; ///< The IMU parameters.

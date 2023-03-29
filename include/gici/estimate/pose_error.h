@@ -171,6 +171,13 @@ public:
     return ErrorType::kPoseError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 6, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
 
   // the measurement
@@ -179,6 +186,7 @@ protected:
   // weighting related
   information_t information_; ///< The 6x6 information matrix.
   information_t square_root_information_; ///< The 6x6 square root information matrix.
+  information_t square_root_information_inverse_;
   covariance_t covariance_; ///< The 6x6 covariance matrix.
 
 };

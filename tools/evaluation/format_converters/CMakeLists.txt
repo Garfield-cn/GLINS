@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.8)
-project(ie_formats)
+project(gici_formats)
 
 # Set build flags. 
 set(CMAKE_CXX_FLAGS "-std=c++11" )
@@ -22,19 +22,24 @@ include_directories(
   ../../../include
 )
 
-# excecutables
+# Executables
+add_executable(nmea_to_tum src/nmea_to_tum.cpp src/nmea_formator.cpp)
+target_link_libraries(nmea_to_tum
+                      rtklib
+                      glog::glog)
+
+add_executable(nmea_to_ie src/nmea_to_ie.cpp src/nmea_formator.cpp)
+target_link_libraries(nmea_to_ie
+                      rtklib
+                      glog::glog)
+
 add_executable(ie_to_tum src/ie_to_tum.cpp)
 target_link_libraries(ie_to_tum
                       rtklib
                       glog::glog)
 
-add_executable(ie_to_nmea src/ie_to_nmea.cpp src/nmea_encoder.c)
+add_executable(ie_to_nmea src/ie_to_nmea.cpp src/nmea_formator.cpp)
 target_link_libraries(ie_to_nmea
-                      rtklib
-                      glog::glog)
-
-add_executable(ie_gnssins_to_gnss src/ie_gnssins_to_gnss.cpp)
-target_link_libraries(ie_gnssins_to_gnss
                       rtklib
                       glog::glog)
 
@@ -46,4 +51,4 @@ target_link_libraries(imupack_to_imr
 
 add_executable(imr_to_text src/imr_to_text.cpp)
 target_link_libraries(imr_to_text
-              rtklib)
+                      rtklib)

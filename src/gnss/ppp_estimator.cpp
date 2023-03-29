@@ -91,14 +91,14 @@ bool PppEstimator::addGnssMeasurementAndState(
   curGnss().position = position_prior;
   curGnss().phase_windup = phase_windup_;
 
-  // Correct code bias
-  correctCodeBias(curGnss(), false);
-
   // Erase duplicated phases, arrange to one observation per phase
   gnss_common::rearrangePhasesAndCodes(curGnss(), false);
 
+  // Correct code bias
+  correctCodeBias(curGnss(), false);
+
   // Correct phase bias
-  // correctPhaseBias(curGnss());
+  if (curGnss().phase_bias->valid()) correctPhaseBias(curGnss());
 
   // Correct BDS satellite multipath
   correctBdsSatelliteMultipath(curGnss());
@@ -206,6 +206,7 @@ bool PppEstimator::estimate()
         gnss_base_options_.reject_one_outlier_once) && 
         !rejectPhaserangeOutlier(curState(), curAmbiguityState(),
         gnss_base_options_.reject_one_outlier_once)) break;
+    if (!gnss_base_options_.reject_one_outlier_once) break;  
   }
   // Optimize without FDE
   else {
@@ -240,9 +241,6 @@ bool PppEstimator::estimate()
       << ", Sat number: " << std::setw(2) << num_satellites_
       << ", Fix status: " << std::setw(1) << static_cast<int>(curState().status);
   }
-
-  std::cout << "n_state = " << states_.size() << ", n_parameter = " 
-    << graph_->parameters().size() << ", n_residual = " << graph_->residuals().size() << std::endl;
 
   // Apply marginalization
   marginalization();

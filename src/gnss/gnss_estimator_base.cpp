@@ -600,12 +600,19 @@ void GnssEstimatorBase::addPseudorangeResidualBlocks(
       if (satellite.ionosphere_type == IonoType::None) continue;
 
       // Add residuals
-      int num_code_used = 0;
       bool has_valid = false;
       for (auto obs : satellite.observations) {
         if (!checkObservationValid(measurement, 
           GnssMeasurementIndex(satellite.prn, obs.first))) continue;
-        if (use_single_frequency && num_code_used > 0) continue;
+        
+        // check single frequency
+        if (use_single_frequency) {
+          CodeBias::BaseFrequencies bases = measurement.code_bias->getBase();
+          std::pair<int, int> base_pair = bases.at(system);
+          int phase_id_base = gnss_common::getPhaseID(system, base_pair.first);
+          int phase_id = gnss_common::getPhaseID(system, obs.first);
+          if (phase_id_base != phase_id) continue;
+        }
 
         BackendId clock_id = createGnssClockId(satellite.getSystem(), measurement.id);
 
@@ -638,7 +645,6 @@ void GnssEstimatorBase::addPseudorangeResidualBlocks(
             graph_->parameterBlockPtr(clock_id.asInteger()));
         }
         
-        num_code_used++;
         has_valid = true;
       }
       if (has_valid) num_valid_satellite++;
@@ -798,17 +804,26 @@ void GnssEstimatorBase::addDopplerResidualBlocks(
   for (auto& sat : measurement.satellites) 
   {
     const Satellite& satellite = sat.second;
+    char system = satellite.getSystem();
     std::vector<Observation> observations_frequency;
 
-    if (!gnss_common::useSystem(gnss_base_options_.common, satellite.getSystem()) || 
+    if (!gnss_common::useSystem(gnss_base_options_.common, system) || 
         !gnss_common::useSatellite(gnss_base_options_.common, satellite.prn)) continue;
 
     bool has_valid = false;
-    int num_code_used = 0;
     for (auto obs : satellite.observations) {
       if (!checkObservationValid(measurement, 
         GnssMeasurementIndex(satellite.prn, obs.first), true)) continue;
-      if (use_single_frequency && num_code_used > 0) continue;
+      
+      // check single frequency
+      if (use_single_frequency) {
+        CodeBias::BaseFrequencies bases = measurement.code_bias->getBase();
+        std::pair<int, int> base_pair = bases.at(system);
+        int phase_id_base = gnss_common::getPhaseID(system, base_pair.first);
+        int phase_id = gnss_common::getPhaseID(system, obs.first);
+        if (phase_id_base != phase_id) continue;
+      }
+
       const Observation& observation = 
         measurement.getObs(GnssMeasurementIndex(satellite.prn, obs.first));
       if (observation.slip) continue;
@@ -817,7 +832,7 @@ void GnssEstimatorBase::addDopplerResidualBlocks(
       if (parameter_id.type() == IdType::gPosition) {
         is_state_pose_ = false;
         BackendId velocity_id = changeIdType(parameter_id, IdType::gVelocity);
-        BackendId freq_id = createGnssFrequencyId(satellite.getSystem(), measurement.id);
+        BackendId freq_id = createGnssFrequencyId(system, measurement.id);
         std::shared_ptr<DopplerError<3, 3, 1>> doppler_error = 
           std::make_shared<DopplerError<3, 3, 1>>(measurement, 
           GnssMeasurementIndex(satellite.prn, obs.first), 
@@ -833,7 +848,7 @@ void GnssEstimatorBase::addDopplerResidualBlocks(
         is_state_pose_ = true;
         BackendId pose_id = state.id_in_graph;
         BackendId speed_and_bias_id = changeIdType(pose_id, IdType::ImuStates);
-        BackendId freq_id = createGnssFrequencyId(satellite.getSystem(), measurement.id);
+        BackendId freq_id = createGnssFrequencyId(system, measurement.id);
         std::shared_ptr<DopplerError<7, 9, 3, 1>> doppler_error = 
           std::make_shared<DopplerError<7, 9, 3, 1>>(measurement, 
           GnssMeasurementIndex(satellite.prn, obs.first), 
@@ -847,7 +862,6 @@ void GnssEstimatorBase::addDopplerResidualBlocks(
           graph_->parameterBlockPtr(freq_id.asInteger()));
       }
       
-      num_code_used++;
       has_valid = true;
     }
 
@@ -1131,13 +1145,15 @@ bool GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject
   std::unordered_map<size_t, std::shared_ptr<ErrorInterface>> residual_index_to_interface;
   for (size_t i = 0; i < residual_blocks.size(); i++) {
     auto& residual_block = residual_blocks[i];
-    ErrorType type = residual_block.error_interface_ptr->typeInfo();
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
     if (!(type == ErrorType::kPseudorangeError || 
           type == ErrorType::kPseudorangeErrorSD || 
           type == ErrorType::kPseudorangeErrorDD)) continue;
     double residual[1];
     graph_->problem()->EvaluateResidualBlock(residual_block.residual_block_id, 
       false, nullptr, residual, nullptr);
+    interface->deNormalizeResidual(residual);
     residuals.push_back(*residual);
     residual_index_to_id.insert(std::make_pair(
       residuals.size() - 1, residual_block.residual_block_id)); 
@@ -1151,7 +1167,7 @@ bool GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject
   
   std::vector<int> outlier_indexes;
   for (size_t i = 0; i < residuals.size(); i++) {
-    if (fabs(residuals[i]) > gnss_base_options_.max_pesudorange_norm_error) {
+    if (fabs(residuals[i]) > gnss_base_options_.max_pesudorange_error) {
       outlier_indexes.push_back(i);
     }
   }
@@ -1236,7 +1252,7 @@ bool GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject
         }
 #undef MAP
         LOG(INFO) << "Rejected pseudorange outlier" << info_message
-                  << ": normalized residual = " << std::fixed << residuals[index];
+                  << ": residual = " << std::fixed << residuals[index];
       }
     }
     return true;
@@ -1260,13 +1276,15 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
   std::unordered_map<size_t, std::shared_ptr<ErrorInterface>> residual_index_to_interface;
   for (size_t i = 0; i < residual_blocks.size(); i++) {
     auto& residual_block = residual_blocks[i];
-    ErrorType type = residual_block.error_interface_ptr->typeInfo();
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
     if (!(type == ErrorType::kPhaserangeError || 
           type == ErrorType::kPhaserangeErrorSD || 
           type == ErrorType::kPhaserangeErrorDD)) continue;
     double residual[1];
     graph_->problem()->EvaluateResidualBlock(residual_block.residual_block_id, 
       false, nullptr, residual, nullptr);
+    interface->deNormalizeResidual(residual);
     residuals.push_back(*residual);
     residual_index_to_id.insert(std::make_pair(
       residuals.size() - 1, residual_block.residual_block_id)); 
@@ -1279,9 +1297,8 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
   } 
   std::vector<int> outlier_indexes;
   for (size_t i = 0; i < residuals.size(); i++) {
-    if (fabs(residuals[i]) > gnss_base_options_.max_phaserange_norm_error) {
+    if (fabs(residuals[i]) > gnss_base_options_.max_phaserange_error) {
       outlier_indexes.push_back(i);
-      break;
     }
   }
   // outlier detected, remove this residual block and the corresponding ambiguity 
@@ -1313,7 +1330,6 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
       // get corresponding ambiguity parameter
       Graph::ParameterBlockCollection parameters = graph_->parameters(
         residual_index_to_id.at(static_cast<size_t>(index)));
-      bool removed = false, found = false;
       BackendId id;
       for (auto& parameter : parameters) {
         id = BackendId(parameter.first);
@@ -1337,13 +1353,10 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
         for (auto it = ambiguity_state.ids.begin(); 
             it != ambiguity_state.ids.end(); it++) {
           if (*it == id) {
-            found = true;
             it = ambiguity_state.ids.erase(it); break;
           }
         }
-        removed = true;
       }
-      CHECK(removed && found);
 
       // remove residual block. We do not need to call removeResidualBlock() here because the 
       // residual block has already been removed when calling removeParameterBlock()
@@ -1366,7 +1379,7 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
           PHASE_CHANNEL_TO_STR_MAPS;
           info_message += " at " + index.prn + "|" + phase_str;
         }
-        if (type == ErrorType::kPseudorangeErrorSD) {
+        if (type == ErrorType::kPhaserangeErrorSD) {
           GnssMeasurementSDIndexPair index = 
             getGnssMeasurementSDIndexPairFromErrorInterface(error_interface);
           system = index.rov.prn[0];
@@ -1379,7 +1392,7 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
           info_message += " at " + index.rov.prn + "|" + 
             phase_str_rov + "&" + phase_str_ref;
         }
-        if (type == ErrorType::kPseudorangeErrorDD) {
+        if (type == ErrorType::kPhaserangeErrorDD) {
           GnssMeasurementDDIndexPair index = 
             getGnssMeasurementDDIndexPairFromErrorInterface(error_interface);
           system = index.rov.prn[0];
@@ -1400,8 +1413,8 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
             "|" + phase_str_rov_base + "&" + phase_str_ref_base;
         }
 #undef MAP
-        LOG(INFO) << "Rejected phaserange outlier: normalized residual = " 
-                  << std::fixed << residuals[index];
+        LOG(INFO) << "Rejected phaserange outlier" << info_message
+                  << ": residual = " << std::fixed << residuals[index];
       }
     }
 

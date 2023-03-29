@@ -128,6 +128,9 @@ public:
 
   /// @brief Residual block type as string
   virtual ErrorType typeInfo() const = 0;
+
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const = 0;
 };
 
 }  // namespace gici

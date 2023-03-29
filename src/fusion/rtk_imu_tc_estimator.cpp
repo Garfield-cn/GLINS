@@ -88,16 +88,8 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
     const GnssMeasurement& measurement_ref)
 {
   // Get prior states
-  if (!spp_estimator_->addGnssMeasurementAndState(measurement_rov)) {
-    LOG(INFO) << "SPP adding GNSS measurement failed!";
-    return false;
-  }
-  if (!spp_estimator_->estimate()) {
-    LOG(INFO) << "SPP estimation failed!";
-    return false;
-  }
-  Eigen::Vector3d position_prior = spp_estimator_->getPositionEstimate();
-  Eigen::Vector3d velocity_prior = spp_estimator_->getVelocityEstimate();
+  Eigen::Vector3d position_prior = coordinate_->convert(
+    getPoseEstimate().getPosition(), GeoType::ENU, GeoType::ECEF);
 
   // Set to local measurement handle
   curGnssRov() = measurement_rov;
@@ -186,6 +178,7 @@ bool RtkImuTcEstimator::estimate()
         gnss_base_options_.reject_one_outlier_once) && 
         !rejectPhaserangeOutlier(curState(), curAmbiguityState(),
         gnss_base_options_.reject_one_outlier_once)) break;
+    if (!gnss_base_options_.reject_one_outlier_once) break;  
   }
   // Optimize without FDE
   else {

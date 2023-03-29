@@ -185,6 +185,13 @@ public:
     return ErrorType::kReprojectionError;
   }
 
+  // Convert normalized residual to raw residual
+  virtual void deNormalizeResidual(double *residuals) const
+  {
+    Eigen::Map<Eigen::Matrix<double, 2, 1>> Residual(residuals);
+    Residual = square_root_information_inverse_ * Residual;
+  }
+
 protected:
 
   // the measurement
@@ -196,6 +203,7 @@ protected:
   // weighting related
   covariance_t information_; ///< The 2x2 information matrix.
   covariance_t square_root_information_; ///< The 2x2 square root information matrix.
+  covariance_t square_root_information_inverse_;
   covariance_t covariance_; ///< The 2x2 covariance matrix.
 
   bool disabled_ = false;

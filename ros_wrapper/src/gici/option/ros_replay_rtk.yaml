@@ -5,17 +5,12 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_rover.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/20230301_campus/20230301_2/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_reference.bin
-  - streamer:
-      tag: str_gnss_eph
-      output_tags: [fmt_gnss_eph]
-      type: file
-      path: /home/cc/Desktop/current_interest/20230310/gnss_ephemeris.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/20230301_campus/20230301_2/gnss_reference.bin
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
@@ -26,7 +21,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Desktop/current_interest/20230310/solution.txt
+      path: /media/cc/T72/ubuntu/datasets/gici/20230301_campus/20230301_2/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -57,17 +52,12 @@ stream:
       tag: fmt_gnss_rov
       type: gnss-raw
       sub_type: tersus
-      start_time: 2023.03.10.15
+      start_time: 2023.03.01.08
   - formator:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.10.15
-  - formator:
-      io: input
-      tag: fmt_gnss_eph
-      type: gnss-rtcm-3
-      start_time: 2023.03.10.15
+      start_time: 2023.03.01.08
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -88,14 +78,13 @@ estimate:
 - estimator:
     tag: est_gnss
     type: rtk
-    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
+    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_dcb_file]
     fmt_gnss_rov_roles: [rover]
-    fmt_gnss_ref_roles: [reference]
-    fmt_gnss_eph_roles: [ephemeris]
+    fmt_gnss_ref_roles: [reference, ephemeris]
     fmt_dcb_file_roles: [code_bias]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_rov
-    compute_covariance: true
+    compute_covariance: false
     rtk_options:
       max_window_length: 3
       use_ambiguity_resolution: true
@@ -103,13 +92,13 @@ estimate:
     gnss_estimator_base_options:
       gnss_common:
         # system_exclude: [R, E, C]
-        min_elevation: 7.0
+        min_elevation: 12.0
         min_SNR: [35.0, 30.0]
       use_outlier_rejection: true
-      max_pesudorange_norm_error: 3.0
-      max_phaserange_norm_error: 3.0
+      max_pesudorange_error: 6.0
+      max_phaserange_error: 0.06
     estimator_base_options:
-      max_iteration: 10
+      max_iteration: 2
       num_threads: 2
       max_solver_time: 0.05
       verbose_output: true
