@@ -273,6 +273,9 @@ public:
     return ErrorType::kIMUError;
   }
 
+  // Down-weight current resiudal
+  void downWeight(const double factor) { down_weight_factor_ = factor; }
+
   // Convert normalized residual to raw residual
   virtual void deNormalizeResidual(double *residuals) const {}
 
@@ -332,6 +335,7 @@ protected:
   ///< The information matrix for this error term.
   mutable information_t square_root_information_;
   ///< The square root information matrix for this error term.
+  mutable double down_weight_factor_ = 1.0;
 
 };
 

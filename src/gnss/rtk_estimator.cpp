@@ -16,7 +16,7 @@ RtkEstimator::RtkEstimator(const RtkEstimatorOptions& options,
                const GnssEstimatorBaseOptions& gnss_base_options, 
                const EstimatorBaseOptions& base_options,
                const AmbiguityResolutionOptions& ambiguity_options) :
-  rtk_options_(options), 
+  rtk_options_(options), ambiguity_options_(ambiguity_options),
   GnssEstimatorBase(gnss_base_options, base_options),
   EstimatorBase(base_options)
 {
@@ -146,13 +146,21 @@ bool RtkEstimator::addGnssMeasurementAndState(
       lastGnssRov(), curGnssRov(), lastAmbiguityState(), curAmbiguityState());
   }
 
+  // Compute DOP
+  updateGdop(curGnssRov(), index_pairs);
+
   return true;
 }
 
 // Solve current graph
 bool RtkEstimator::estimate()
 {
+  status_ = EstimatorStatus::Converged;
+
   // Optimize with FDE
+  size_t n_pseudorange = numPseudorangeError(curState());
+  size_t n_phaserange = numPhaserangeError(curState());
+  size_t n_doppler = numDopplerError(curState());
   if (gnss_base_options_.use_outlier_rejection)
   while (1)
   {
@@ -161,6 +169,8 @@ bool RtkEstimator::estimate()
     // reject outlier
     if (!rejectPseudorangeOutlier(curState(), 
         gnss_base_options_.reject_one_outlier_once) && 
+        !rejectDopplerOutlier(curState(), 
+        gnss_base_options_.reject_one_outlier_once) && 
         !rejectPhaserangeOutlier(curState(), curAmbiguityState(),
         gnss_base_options_.reject_one_outlier_once)) break;
     if (!gnss_base_options_.reject_one_outlier_once) break;
@@ -168,6 +178,29 @@ bool RtkEstimator::estimate()
   // Optimize without FDE
   else {
     optimize();
+  }
+
+  // Check if we rejected too many residuals
+  double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
+    static_cast<double>(numPseudorangeError(curState())) / 
+    static_cast<double>(n_pseudorange);
+  double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
+    static_cast<double>(numPhaserangeError(curState())) / 
+    static_cast<double>(n_phaserange);
+  double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
+    static_cast<double>(numDopplerError(curState())) / 
+    static_cast<double>(n_doppler);
+  const double thr = gnss_base_options_.diverge_max_reject_ratio;
+  if (isGnssGoodObservation() && 
+      (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {
+    num_cotinuous_reject_gnss_++;
+  }
+  else num_cotinuous_reject_gnss_ = 0;
+  if (num_cotinuous_reject_gnss_ > 
+      gnss_base_options_.diverge_min_num_continuous_reject) {
+    LOG(WARNING) << "Estimator diverge: Too many outliers rejected!";
+    status_ = EstimatorStatus::Diverged;
+    num_cotinuous_reject_gnss_ = 0;
   }
 
   // Ambiguity resolution
@@ -189,14 +222,35 @@ bool RtkEstimator::estimate()
     }
   }
 
+  // Check if we continuously cannot fix ambiguity, while we have good observations
+  if (rtk_options_.use_ambiguity_resolution) {
+    const double thr = gnss_base_options_.good_observation_max_reject_ratio;
+    if (isGnssGoodObservation() && ratio_pseudorange < thr && 
+        ratio_phaserange < thr && ratio_doppler < thr) {
+      if (curState().status != GnssSolutionStatus::Fixed) num_continuous_unfix_++;
+      else num_continuous_unfix_ = 0; 
+    }
+    else num_continuous_unfix_ = 0;
+    if (num_continuous_unfix_ > 
+        gnss_base_options_.reset_ambiguity_min_num_continuous_unfix) {
+      LOG(INFO) << "Continuously unfix under good observations. Clear current ambiguities.";
+      resetAmbiguityEstimation();
+      num_continuous_unfix_ = 0;
+    }
+  }
+
   // Log information
   if (base_options_.verbose_output) {
+    int distance = static_cast<int>(round(
+      (curGnssRov().position - curGnssRef().position).norm() / 1.0e3));
     LOG(INFO) << estimatorTypeToString(type_) << ": " 
       << "Iterations: " << graph_->summary.iterations.size() << ", "
       << std::scientific << std::setprecision(3) 
       << "Initial cost: " << graph_->summary.initial_cost << ", "
       << "Final cost: " << graph_->summary.final_cost
       << ", Sat number: " << std::setw(2) << num_satellites_
+      << ", GDOP: " << std::setprecision(1) << std::fixed << gdop_
+      << ", Dif distance: " << distance << " km"
       << ", Fix status: " << std::setw(1) << static_cast<int>(curState().status);
   }
 

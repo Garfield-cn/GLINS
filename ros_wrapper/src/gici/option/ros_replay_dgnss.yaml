@@ -17,17 +17,6 @@ stream:
       type: file
       path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_ephemeris.bin
   - streamer:
-      tag: str_gnss_ssr
-      output_tags: [fmt_gnss_ssr]
-      type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_ssr.bin
-  - streamer:
-      tag: str_gnss_atx
-      output_tags: [fmt_gnss_atx]
-      type: file
-      path: /home/cc/datasets/gnss_common/igs14.atx
-      enable_time_tag: false
-  - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
@@ -81,15 +70,6 @@ stream:
       start_time: 2023.03.20.08
   - formator:
       io: input
-      tag: fmt_gnss_ssr
-      type: gnss-rtcm-3
-      start_time: 2023.03.20.08
-  - formator:
-      io: input
-      tag: fmt_gnss_atx
-      type: atx-file
-  - formator:
-      io: input
       tag: fmt_dcb_file
       type: dcb-file
   - formator:
@@ -101,45 +81,65 @@ stream:
 
   replay:
     enable: true
-    speed: 1.0
+    speed: 3.0
     start_offset: 0.0
 
 estimate:
 - estimator:
-    tag: est_ppp
-    type: ppp
-    input_tags: [fmt_gnss_rov, fmt_gnss_eph, fmt_gnss_ssr, fmt_gnss_atx]
+    tag: est_gnss
+    type: dgnss
+    input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
     fmt_gnss_rov_roles: [rover]
+    fmt_gnss_ref_roles: [reference]
     fmt_gnss_eph_roles: [ephemeris]
-    fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias, phase_bias]
-    fmt_gnss_atx_roles: [phase_center]
+    fmt_dcb_file_roles: [code_bias]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_rov
     compute_covariance: false
-    ppp_options:
-      max_window_length: 3
-      use_ambiguity_resolution: false
+    dgnss_options:
       estimate_velocity: true
     gnss_estimator_base_options:
+      gnss_common:
+        # system_exclude: [R, E, C]
+        min_elevation: 12.0
+        min_SNR: [35.0, 30.0]
       use_outlier_rejection: true
       max_pesudorange_error: 4.0
-      max_phaserange_error: 0.03
-      gnss_common:
-        min_elevation: 12.0
-        system_exclude: [R]
-        satellite_exclude: [E07, E33]
-        # code_exclude: [G|5Q]
-        # mw_slip_thres: 3.0  
-        # gf_slip_thres: 0.05
     estimator_base_options:
-      max_iteration: 2
+      max_iteration: 10
       num_threads: 2
-      max_solver_time: 0.02
+      max_solver_time: 0.05
       verbose_output: true
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
-      log_intermediate_data: false
-      log_intermediate_data_directory: /home/cc/datasets/log_estimator
+# - estimator:
+#     tag: est_gnss
+#     type: sdgnss
+#     input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
+#     fmt_gnss_rov_roles: [rover]
+#     fmt_gnss_ref_roles: [reference]
+#     fmt_gnss_eph_roles: [ephemeris]
+#     fmt_dcb_file_roles: [code_bias]
+#     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
+#     output_align_tag: fmt_gnss_rov
+#     compute_covariance: false
+#     sdgnss_options:
+#       estimate_velocity: true
+#     gnss_estimator_base_options:
+#       gnss_common:
+#         # system_exclude: [R, E, C]
+#         min_elevation: 12.0
+#         min_SNR: [35.0, 30.0]
+#       use_outlier_rejection: true
+#       max_pesudorange_error: 4.0
+#       max_phaserange_error: 0.03
+#     estimator_base_options:
+#       max_iteration: 10
+#       num_threads: 2
+#       max_solver_time: 0.05
+#       verbose_output: true
+#       solver_type: dense_schur
+#       trust_region_strategy_type: dogleg
 
 logging:
   enable: true

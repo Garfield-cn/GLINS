@@ -18,7 +18,7 @@ struct VisualEstimatorBaseOptions {
   double feature_error_std = 2.0;
 
   // Landmark outliter rejection threshold (n sigma)
-  double landmark_outlier_rejection_threshold = 3.0;
+  double landmark_outlier_rejection_threshold = 2.0;
 
   // Maximum frequency of visual backend processing (Hz)
   double max_frequency = 10.0;
@@ -66,6 +66,9 @@ protected:
     const Transformation& T_SC_S_prior, 
     const double std_translation, const double std_orientation);
 
+  // Number of reprojection error
+  size_t numReprojectionError(const FramePtr& frame);
+
   // Reject landmark reprojection error outlier
   // feature_handler_ should be locked when calling this function.
   bool rejectReprojectionErrorOutlier(const FramePtr& frame);
@@ -82,6 +85,9 @@ protected:
 
   // Erase landmarks which have no observations
   void eraseEmptyLandmarks();
+
+  // Set all features as outliers to make them untracked
+  void untrackAllLandmarks();
 
   // Update landmarks from estimator and set to frontend
   // feature_handler_ should be locked when calling this function.

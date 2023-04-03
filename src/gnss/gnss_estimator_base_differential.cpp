@@ -253,6 +253,7 @@ void GnssEstimatorBase::addDdPseudorangeResidualBlocks(
   if (!is_verbose_model_) 
   {
     std::unordered_map<std::string, int> num_code_used;
+    std::unordered_map<char, int> num_system_used;
     for (auto& index_pair : index_pairs) 
     {
       const GnssMeasurementIndex& index = index_pair.rov;
@@ -264,6 +265,9 @@ void GnssEstimatorBase::addDdPseudorangeResidualBlocks(
       // Add residuals
       if (num_code_used.find(prn) == num_code_used.end()) {
         num_code_used.insert(std::make_pair(prn, 0));
+      }
+      if (num_system_used.find(system) == num_system_used.end()) {
+        num_system_used.insert(std::make_pair(system, 0));
       }
       if (use_single_frequency && num_code_used.at(prn) > 0) continue;
 
@@ -296,8 +300,9 @@ void GnssEstimatorBase::addDdPseudorangeResidualBlocks(
       }
       
       num_code_used.at(prn)++;
+      num_system_used.at(system)++;
     }
-    num_valid_satellite = num_code_used.size();
+    num_valid_satellite = num_code_used.size() + num_system_used.size();
   }
   // Precise mode.
   else 

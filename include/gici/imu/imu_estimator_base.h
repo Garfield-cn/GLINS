@@ -18,7 +18,7 @@ struct ImuEstimatorBaseOptions {
   // IMU parameters
   ImuParameters imu_parameters;
 
-  // IMU to car rotation (deg) (body frame: left, forward, up)
+  // IMU to car rotation (deg) (body frame: right, forward, up)
   // This is to avoid the y-axis rotating to 90 degree, which will cause gimbal lock.
   Eigen::Vector3d body_to_imu_rotation = Eigen::Vector3d::Zero();
 
@@ -224,6 +224,10 @@ protected:
   // The pose block and speed and bias block will be erased here, note that we do not extrinsics
   // blocks here, it should be erased by other sensor bases.
   void eraseImuState(const State& state);
+
+  // Down-weight IMU residual block
+  void downWeightImuResidualBlock(
+    const ceres::ResidualBlockId residual_id, double factor);
 
   // Get a IMU measurement near given timestamp
   ImuMeasurement getImuMeasurementNear(const double timestamp);

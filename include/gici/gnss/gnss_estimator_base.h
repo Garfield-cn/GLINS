@@ -35,6 +35,24 @@ struct GnssEstimatorBaseOptions {
 
   // Maximum doppler error to exclude (m/s)
   double max_doppler_error = 0.5;
+
+  // Minimum number of satellite to be considered as good observation environment
+  int good_observation_min_num_satellites = 10;
+
+  // Maximum GDOP value to be considered as good observation environment
+  double good_observation_max_gdop = 2.0;
+
+  // Maximim outlier rejection ratio to be considered as good observation environment
+  double good_observation_max_reject_ratio = 0.1;
+
+  // Minimum number of continuous unfix under good observation to reset ambiguities
+  size_t reset_ambiguity_min_num_continuous_unfix = 10;
+
+  // Maximum outlier rejection ratio to be considered as diverging
+  double diverge_max_reject_ratio = 0.5;
+
+  // Minimum number of continuous large amount rejection to be considered as divergence
+  size_t diverge_min_num_continuous_reject = 10;
 };
 
 // Estimator
@@ -56,6 +74,18 @@ public:
     const GnssMeasurement& measurement_rov, 
     const GnssMeasurement& measurement_ref)
   { return false; }
+
+  // Reset ambiguity estimation
+  inline void resetAmbiguityEstimation() {
+    if (ambiguity_states_.size() == 0) return;
+    eraseAmbiguityParameterBlocks(curAmbiguityState(), false);
+  }
+
+  // Reset ionosphere estimation
+  inline void resetIonosphereEstimation() {
+    if (ionosphere_states_.size() == 0) return;
+    eraseIonosphereParameterBlocks(curIonosphereState(), false);
+  }
 
   // Get solution status
   inline GnssSolutionStatus getSolutionStatus() { return lastState().status; }
@@ -239,14 +269,27 @@ protected:
     GnssMeasurement& cur_measurement,
     const AmbiguityState& last_state, const AmbiguityState& cur_state);
 
+  // Number of pseudorange errors
+  size_t numPseudorangeError(const State& state);
+
+  // Number of phaserange errors
+  size_t numPhaserangeError(const State& state);
+
+  // Number of doppler errors
+  size_t numDopplerError(const State& state);
+
   // Reject one pseudorange outlier
-  bool rejectPseudorangeOutlier(
+  size_t rejectPseudorangeOutlier(
     const State& state, bool reject_one = false);
 
   // Reject one phaserange outlier
-  bool rejectPhaserangeOutlier(
+  size_t rejectPhaserangeOutlier(
     const State& state, AmbiguityState& ambiguity_state, 
     bool reject_one = false);
+
+  // Reject one doppler outlier
+  size_t rejectDopplerOutlier(
+    const State& state, bool reject_one = false);
 
   // Add GNSS position block to marginalizer
   void addGnssPositionMarginBlockWithResiduals(const State& state, bool keep = false);
@@ -294,16 +337,16 @@ protected:
   void eraseIfbParameterBlocks(std::vector<std::pair<char, int>>& ifbs);
 
   // Erase frequency blcoks
-  void eraseFrequencyParameterBlocks(const State& state);
+  void eraseFrequencyParameterBlocks(const State& state, bool reform = true);
 
   // Erase troposphere blcok
-  void eraseTroposphereParameterBlock(const State& state);
+  void eraseTroposphereParameterBlock(const State& state, bool reform = true);
 
   // Erase ionosphere blcoks
-  void eraseIonosphereParameterBlocks(IonosphereState& state);
+  void eraseIonosphereParameterBlocks(IonosphereState& state, bool reform = true);
 
   // Erase ambiguity blcoks
-  void eraseAmbiguityParameterBlocks(AmbiguityState& state);
+  void eraseAmbiguityParameterBlocks(AmbiguityState& state, bool reform = true);
 
   // Erase all pseudorange residual blocks
   void erasePseudorangeResidualBlocks(const State& state);
@@ -313,6 +356,30 @@ protected:
 
   // Erase GNSS position and velocity residual block
   void eraseGnssLooseResidualBlocks(const State& state);
+
+  // Erase relative position residual blocks
+  void eraseRelativePositionResidualBlock(
+    const State& last_state, const State& cur_state);
+
+  // Erase relative position and velocity residual blocks
+  void eraseRelativePositionAndVelocityBlock(
+    const State& last_state, const State& cur_state);
+
+  // Erase relative frequency residual blocks
+  void eraseRelativeFrequencyBlock(
+    const State& last_state, const State& cur_state);
+
+  // Erase relative troposphere residual blocks
+  void eraseRelativeTroposphereResidualBlock(
+    const State& last_state, const State& cur_state);
+
+  // Erase relative ionosphere residual blocks
+  void eraseRelativeIonosphereResidualBlock(
+    const IonosphereState& last_state, const IonosphereState& cur_state);
+
+  // Erase relative ambiguity residual blocks
+  void eraseRelativeAmbiguityResidualBlock(
+    const AmbiguityState& last_state, const AmbiguityState& cur_state);
 
   // Convert from estimated states (in ENU) to body states
   void convertStateAndCovarianceToBody(
@@ -369,6 +436,29 @@ protected:
 
   // Free phaserange residual logger
   void freePhaserangeResidualLogger();
+
+  // Compute and update GDOP
+  inline void updateGdop(const GnssMeasurement& measurement) {
+    gdop_ = gnss_common::computeDops(measurement, gnss_base_options_.common).x();
+  }
+  inline void updateGdop(
+    const GnssMeasurement& measurement_rov, const GnssMeasurementSDIndexPairs& indexes) {
+    gdop_ = gnss_common::computeDops(
+      measurement_rov, indexes, gnss_base_options_.common).x();
+  }
+  inline void updateGdop(
+    const GnssMeasurement& measurement_rov, const GnssMeasurementDDIndexPairs& indexes) {
+    gdop_ = gnss_common::computeDops(
+      measurement_rov, indexes, gnss_base_options_.common).x();
+  }
+
+  // Check if we under good observation environment
+  inline bool isGnssGoodObservation() {
+    if (gdop_ > gnss_base_options_.good_observation_max_gdop) return false;
+    if (num_satellites_ < 
+        gnss_base_options_.good_observation_min_num_satellites) return false;
+    return true;
+  }
 
   // Get current GNSS measurement
   inline GnssMeasurement& curGnss() { 
@@ -520,7 +610,7 @@ protected:
     if (num_valid_satellite < num_valid_system + base) {
       if (!log) return false;
       LOG(INFO) << "Insufficient satellites! We need at least " 
-                   << num_valid_system + base << " satellites (or satellite pairs), "
+                   << num_valid_system + base << " satellites, "
                    << "but we only have " << num_valid_satellite << "!";
       return false;
     }
@@ -567,6 +657,7 @@ protected:
   std::vector<std::pair<char, int>> ifbs_;
   int num_satellites_;
   int differential_age_;
+  double gdop_;
   static int32_t solution_id;
   BackendId gnss_extrinsics_id_;
 

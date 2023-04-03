@@ -390,7 +390,6 @@ void loadOptions<GnssErrorParameter>(
   LOAD_COMMON(ionosphere_augment);
   LOAD_COMMON(troposphere_model_factor);
   LOAD_COMMON(troposphere_augment);
-  LOAD_COMMON(doppler_frequency);
   LOAD_COMMON(ephemeris_broadcast);
   LOAD_COMMON(ephemeris_precise);
   LOAD_COMMON(initial_troposphere);
@@ -647,6 +646,12 @@ void loadOptions<GnssEstimatorBaseOptions>(
   LOAD_COMMON(max_pesudorange_error);
   LOAD_COMMON(max_phaserange_error);
   LOAD_COMMON(max_doppler_error);
+  LOAD_COMMON(good_observation_min_num_satellites);
+  LOAD_COMMON(good_observation_max_gdop);
+  LOAD_COMMON(good_observation_max_reject_ratio);
+  LOAD_COMMON(reset_ambiguity_min_num_continuous_unfix);
+  LOAD_COMMON(diverge_max_reject_ratio);
+  LOAD_COMMON(diverge_min_num_continuous_reject);
 
   if (checkSubOption(node, "gnss_common")) {
     YAML::Node subnode = node["gnss_common"];

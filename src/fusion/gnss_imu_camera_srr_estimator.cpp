@@ -197,10 +197,8 @@ bool GnssImuCameraSrrEstimator::visualInitialization(const FrameBundlePtr& frame
     for (size_t i = 1; i < init_solution_store_.size(); i++) {
       double dt1 = init_solution_store_[i].timestamp - timestamp;
       double dt2 = init_solution_store_[i - 1].timestamp - timestamp;
-      double dt3 = init_solution_store_[i].timestamp - 
-                  init_solution_store_[i - 1].timestamp;
       if ((dt1 >= 0 && dt2 <= 0) || 
-          (i == init_solution_store_.size() - 1) && dt1 < 0 && fabs(dt1) < 2.0 * dt3) {
+          (i == init_solution_store_.size() - 1) && dt1 < 0 && fabs(dt1) < 2.0) {
         size_t idx = (dt1 >= 0 && dt2 <= 0) ? (i - 1) : i;
         Transformation T_WS = init_solution_store_[idx].pose;
         SpeedAndBias speed_and_bias = init_solution_store_[idx].speed_and_bias;
@@ -331,7 +329,7 @@ bool GnssImuCameraSrrEstimator::frameMarginalization()
 
   // If current frame is a keyframe. Marginalize the oldest keyframe and corresponding 
   // IMU and GNSS states out. And sparsify GNSS states.
-  if (curState().is_keyframe &&
+  if (states_[latest_state_index_].is_keyframe &&
       sizeOfKeyframeStates() > srr_options_.max_keyframes) {
     // Erase old marginalization item
     if (!eraseOldMarginalization()) return false;

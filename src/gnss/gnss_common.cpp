@@ -97,10 +97,17 @@ double gtimeToDouble(gtime_t time)
 }
 
 // Convert GPS time to UTC time
-double gpsTimeToUtc(double gps_time)
+double gpsTimeToUtcTime(double gps_time)
 {
   gtime_t gtime = doubleToGtime(gps_time);
   return gtimeToDouble(gpst2utc(gtime));
+}
+
+// Convert UTC time to GPS time
+double utcTimeToGpsTime(double utc_time)
+{
+  gtime_t gtime = doubleToGtime(utc_time);
+  return gtimeToDouble(utc2gpst(gtime));
 }
 
 // Convert double to gtime
@@ -1119,6 +1126,91 @@ Eigen::Vector4d computeDops(
     }
   }
   dops(ns, azel, degreeToRad(options.min_elevation), Dops.data());
+
+  if (Dops.norm() == 0.0) 
+  for (size_t i = 0; i < 4; i++) Dops(i) = 100.0;
+
+  return Dops;
+}
+Eigen::Vector4d computeDops(
+  const GnssMeasurement& measurement_rov,
+  const GnssMeasurementSDIndexPairs& indexes,
+  const GnssCommonOptions& options)
+{
+  if (checkZero(measurement_rov.position)) {
+    LOG(WARNING) << "Cannot compute DOPs: the receiver position should not be zero!";
+    return Eigen::Vector4d::Zero();
+  }
+
+  int ns = 0;
+  double azel[2 * MAXSAT];
+  Eigen::Vector4d Dops;
+  std::string current_prn = "";
+  for (auto index : indexes) {
+    if (index.rov.prn == current_prn) continue;
+    current_prn = index.rov.prn;
+
+    const auto& satellite = measurement_rov.getSat(index.rov);
+    double elevation = satelliteElevation(
+      satellite.sat_position, measurement_rov.position);
+    double azimuth = satelliteAzimuth(
+      satellite.sat_position, measurement_rov.position);
+    azel[2 * ns] = azimuth;
+    azel[2 * ns + 1] = elevation;
+    ns++;
+  }
+  dops(ns, azel, degreeToRad(options.min_elevation), Dops.data());
+
+  if (Dops.norm() == 0.0) 
+  for (size_t i = 0; i < 4; i++) Dops(i) = 100.0;
+
+  return Dops;
+}
+Eigen::Vector4d computeDops(
+  const GnssMeasurement& measurement_rov,
+  const GnssMeasurementDDIndexPairs& indexes,
+  const GnssCommonOptions& options)
+{
+  if (checkZero(measurement_rov.position)) {
+    LOG(WARNING) << "Cannot compute DOPs: the receiver position should not be zero!";
+    return Eigen::Vector4d::Zero();
+  }
+
+  int ns = 0;
+  double azel[2 * MAXSAT];
+  Eigen::Vector4d Dops;
+  std::string current_prn = "";
+  for (auto index : indexes) {
+    if (index.rov.prn == current_prn) continue;
+    current_prn = index.rov.prn;
+
+    const auto& satellite = measurement_rov.getSat(index.rov);
+    double elevation = satelliteElevation(
+      satellite.sat_position, measurement_rov.position);
+    double azimuth = satelliteAzimuth(
+      satellite.sat_position, measurement_rov.position);
+    azel[2 * ns] = azimuth;
+    azel[2 * ns + 1] = elevation;
+    ns++;
+  }
+  // add base satellites
+  for (auto index : indexes) {
+    if (index.rov_base.prn == current_prn) continue;
+    current_prn = index.rov_base.prn;
+
+    const auto& satellite = measurement_rov.getSat(index.rov_base);
+    double elevation = satelliteElevation(
+      satellite.sat_position, measurement_rov.position);
+    double azimuth = satelliteAzimuth(
+      satellite.sat_position, measurement_rov.position);
+    azel[2 * ns] = azimuth;
+    azel[2 * ns + 1] = elevation;
+    ns++;
+  }
+  dops(ns, azel, degreeToRad(options.min_elevation), Dops.data());
+
+  if (Dops.norm() == 0.0) 
+  for (size_t i = 0; i < 4; i++) Dops(i) = 100.0;
 
   return Dops;
 }

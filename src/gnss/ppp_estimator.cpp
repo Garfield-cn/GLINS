@@ -204,6 +204,8 @@ bool PppEstimator::estimate()
     // reject outlier
     if (!rejectPseudorangeOutlier(curState(),
         gnss_base_options_.reject_one_outlier_once) && 
+        !rejectDopplerOutlier(curState(), 
+        gnss_base_options_.reject_one_outlier_once) && 
         !rejectPhaserangeOutlier(curState(), curAmbiguityState(),
         gnss_base_options_.reject_one_outlier_once)) break;
     if (!gnss_base_options_.reject_one_outlier_once) break;  

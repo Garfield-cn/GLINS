@@ -12,12 +12,15 @@ link_libraries(m dl rt)
 find_package(Eigen3 REQUIRED NO_MODULE)
 # Glog
 find_package(glog REQUIRED)
+# Opencv
+find_package(OpenCV 4 REQUIRED)
 # RTKLIB
 add_definitions(-DENAGLO -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 add_subdirectory(../../../third_party/rtklib rtklib.out)
 
 include_directories(
   ${EIGEN3_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
   include
   ../../../include
 )
@@ -52,3 +55,16 @@ target_link_libraries(imupack_to_imr
 add_executable(imr_to_text src/imr_to_text.cpp)
 target_link_libraries(imr_to_text
                       rtklib)
+
+add_executable(imupack_to_text src/imupack_to_text.cpp 
+                      ../../../src/stream/format_imu.c)
+target_link_libraries(imupack_to_text
+                      rtklib
+                      glog::glog)
+
+add_executable(imagepack_to_tum src/imagepack_to_tum.cpp 
+                      ../../../src/stream/format_image.c)
+target_link_libraries(imagepack_to_tum
+                      rtklib
+                      ${OpenCV_LIBS}
+                      glog::glog)

@@ -253,7 +253,7 @@ struct GnssCommonOptions {
 
   // Minimum SNR for frequencies 1575.42 MHz (L1) and 1176.45 MHz (L5).
   // SNR masks for other frequencies will be interpolated by a linear model.
-  Eigen::Vector2d min_SNR = Eigen::Vector2d(35.0, 30.0);
+  Eigen::Vector2d min_SNR = Eigen::Vector2d(25.0, 20.0);
 
   // Maximum GDOP as valid solution
   double max_gdop = 20.0;
@@ -303,9 +303,6 @@ struct GnssErrorParameter {
 
   // Augmentation troposphere error
   double troposphere_augment = 0.01;
-
-  // Doppler frequency error
-  double doppler_frequency = 0.2;
 
   // Broadcast ephemeris error
   double ephemeris_broadcast = 3.0;

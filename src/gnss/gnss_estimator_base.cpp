@@ -1132,8 +1132,63 @@ void GnssEstimatorBase::addRelativeAmbiguityResidualBlock(
   }
 }
 
+// Number of pseudorange errors
+size_t GnssEstimatorBase::numPseudorangeError(const State& state)
+{
+  size_t num = 0;
+  const BackendId& parameter_id = state.id_in_graph;
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(parameter_id.asInteger());
+  for (size_t i = 0; i < residual_blocks.size(); i++) {
+    auto& residual_block = residual_blocks[i];
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
+    if (!(type == ErrorType::kPseudorangeError || 
+          type == ErrorType::kPseudorangeErrorSD || 
+          type == ErrorType::kPseudorangeErrorDD)) continue;
+    num++;
+  }
+  return num;
+}
+
+// Number of phaserange errors
+size_t GnssEstimatorBase::numPhaserangeError(const State& state)
+{
+  size_t num = 0;
+  const BackendId& parameter_id = state.id_in_graph;
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(parameter_id.asInteger());
+  for (size_t i = 0; i < residual_blocks.size(); i++) {
+    auto& residual_block = residual_blocks[i];
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
+    if (!(type == ErrorType::kPhaserangeError || 
+          type == ErrorType::kPhaserangeErrorSD || 
+          type == ErrorType::kPhaserangeErrorDD)) continue;
+    num++;
+  }
+  return num;
+}
+
+// Number of doppler errors
+size_t GnssEstimatorBase::numDopplerError(const State& state)
+{
+  size_t num = 0;
+  const BackendId& parameter_id = state.id_in_graph;
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(parameter_id.asInteger());
+  for (size_t i = 0; i < residual_blocks.size(); i++) {
+    auto& residual_block = residual_blocks[i];
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
+    if (!(type == ErrorType::kDopplerError)) continue;
+    num++;
+  }
+  return num;
+}
+
 // Reject one pseudorange outlier
-bool GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject_one)
+size_t GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject_one)
 {
   const BackendId& parameter_id = state.id_in_graph;
 
@@ -1160,6 +1215,7 @@ bool GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject
     residual_index_to_interface.insert(std::make_pair(
       residuals.size() - 1, residual_block.error_interface_ptr));
   }
+  if (residuals.size() == 0) return 0;
   double residuals_median = getMedian(residuals);
   for (size_t i = 0; i < residuals.size(); i++) {
     residuals[i] -= residuals_median;
@@ -1255,15 +1311,15 @@ bool GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject
                   << ": residual = " << std::fixed << residuals[index];
       }
     }
-    return true;
+    return indexes_to_remove.size();
   }
 
   // no outlier
-  return false;
+  return 0;
 }
 
 // Reject one phaserange outlier
-bool GnssEstimatorBase::rejectPhaserangeOutlier(
+size_t GnssEstimatorBase::rejectPhaserangeOutlier(
   const State& state, AmbiguityState& ambiguity_state, bool reject_one)
 {
   const BackendId& parameter_id = state.id_in_graph;
@@ -1291,6 +1347,7 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
     residual_index_to_interface.insert(std::make_pair(
       residuals.size() - 1, residual_block.error_interface_ptr));
   }
+  if (residuals.size() == 0) return 0;
   double residuals_median = getMedian(residuals);
   for (size_t i = 0; i < residuals.size(); i++) {
     residuals[i] -= residuals_median;
@@ -1440,11 +1497,107 @@ bool GnssEstimatorBase::rejectPhaserangeOutlier(
       else it++;
     }
 
-    return true;
+    return indexes_to_remove.size();
   }
   
   // no outlier
-  return false;
+  return 0;
+}
+
+// Reject one doppler outlier
+size_t GnssEstimatorBase::rejectDopplerOutlier(const State& state, bool reject_one)
+{
+  const BackendId& parameter_id = state.id_in_graph;
+
+  // check residual
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(parameter_id.asInteger());
+  std::vector<double> residuals;
+  std::unordered_map<size_t, ceres::ResidualBlockId> residual_index_to_id;
+  std::unordered_map<size_t, std::shared_ptr<ErrorInterface>> residual_index_to_interface;
+  for (size_t i = 0; i < residual_blocks.size(); i++) {
+    auto& residual_block = residual_blocks[i];
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
+    if (!(type == ErrorType::kDopplerError)) continue;
+    double residual[1];
+    graph_->problem()->EvaluateResidualBlock(residual_block.residual_block_id, 
+      false, nullptr, residual, nullptr);
+    interface->deNormalizeResidual(residual);
+    residuals.push_back(*residual);
+    residual_index_to_id.insert(std::make_pair(
+      residuals.size() - 1, residual_block.residual_block_id)); 
+    residual_index_to_interface.insert(std::make_pair(
+      residuals.size() - 1, residual_block.error_interface_ptr));
+  }
+  if (residuals.size() == 0) return 0;
+  double residuals_median = getMedian(residuals);
+  for (size_t i = 0; i < residuals.size(); i++) {
+    residuals[i] -= residuals_median;
+  } 
+  
+  std::vector<int> outlier_indexes;
+  for (size_t i = 0; i < residuals.size(); i++) {
+    if (fabs(residuals[i]) > gnss_base_options_.max_doppler_error) {
+      outlier_indexes.push_back(i);
+    }
+  }
+  // outlier detected, remove this residual block and re-optimize
+  if (outlier_indexes.size() > 0) {
+    std::vector<size_t> indexes_to_remove;
+    // only reject one outlier
+    if (reject_one) {
+      // find a largest outlier
+      size_t largest_outlier_index = 0;
+      double largest_outlier = 0.0;
+      for (auto index : outlier_indexes) {
+        double residual = fabs(residuals[index]);
+        if (residual > largest_outlier) {
+          largest_outlier = residual;
+          largest_outlier_index = index;
+        }
+      }
+      indexes_to_remove.push_back(largest_outlier_index);
+    }
+    // reject all outliers
+    else {
+      for (auto index : outlier_indexes) {
+        indexes_to_remove.push_back(index);
+      }
+    }
+    // apply rejection
+    for (auto index : indexes_to_remove) {
+      graph_->removeResidualBlock(
+        residual_index_to_id.at(static_cast<size_t>(index)));
+      if (base_options_.verbose_output) 
+      {
+        std::string info_message;
+        std::shared_ptr<ErrorInterface> error_interface = 
+          residual_index_to_interface.at(static_cast<size_t>(index));
+        ErrorType type = error_interface->typeInfo();
+        char system;
+        int code_type;
+        std::string code_str;
+#define MAP(S, R, C) \
+  if (system == S && code_type == C) { code_str = R; }
+        if (type == ErrorType::kDopplerError) {
+          GnssMeasurementIndex index = 
+            getGnssMeasurementIndexFromErrorInterface(error_interface);
+          system = index.prn[0];
+          code_type = index.code_type;
+          RINEX_TO_CODE_MAPS;
+          info_message += " at " + index.prn + "|" + code_str;
+        }
+#undef MAP
+        LOG(INFO) << "Rejected doppler outlier" << info_message
+                  << ": residual = " << std::fixed << residuals[index];
+      }
+    }
+    return indexes_to_remove.size();
+  }
+
+  // no outlier
+  return 0;
 }
 
 // Add position block to marginalizer
@@ -1703,7 +1856,8 @@ void GnssEstimatorBase::eraseIfbParameterBlocks(std::vector<std::pair<char, int>
 }
 
 // Erase frequency blcoks
-void GnssEstimatorBase::eraseFrequencyParameterBlocks(const State& state)
+void GnssEstimatorBase::eraseFrequencyParameterBlocks(
+  const State& state, bool reform)
 {
   const BackendId& parameter_id = state.id;
   for (auto system : getGnssSystemList()) {
@@ -1726,13 +1880,14 @@ void GnssEstimatorBase::eraseFrequencyParameterBlocks(const State& state)
       index_rhs = i; break;
     }
   }
-  if (index_lhs != -1 && index_rhs != -1) {
+  if (reform && index_lhs != -1 && index_rhs != -1) {
     addRelativeFrequencyBlock(states_[index_lhs], states_[index_rhs]);
   }
 }
 
 // Erase troposphere blcoks
-void GnssEstimatorBase::eraseTroposphereParameterBlock(const State& state)
+void GnssEstimatorBase::eraseTroposphereParameterBlock(
+  const State& state, bool reform)
 {
   const BackendId& parameter_id = state.id;
   BackendId tropo_id = changeIdType(parameter_id, IdType::gTroposphere);
@@ -1753,13 +1908,14 @@ void GnssEstimatorBase::eraseTroposphereParameterBlock(const State& state)
       index_rhs = i; break;
     }
   }
-  if (index_lhs != -1 && index_rhs != -1) {
+  if (reform && index_lhs != -1 && index_rhs != -1) {
     addRelativeTroposphereResidualBlock(states_[index_lhs], states_[index_rhs]);
   }
 }
 
 // Erase ionosphere blcoks
-void GnssEstimatorBase::eraseIonosphereParameterBlocks(IonosphereState& state)
+void GnssEstimatorBase::eraseIonosphereParameterBlocks(
+  IonosphereState& state, bool reform)
 {
   for (auto id : state.ids) {
     if (graph_->parameterBlockExists(id.asInteger())) {
@@ -1778,14 +1934,15 @@ void GnssEstimatorBase::eraseIonosphereParameterBlocks(IonosphereState& state)
       index_rhs = i; break;
     }
   }
-  if (index_lhs != -1 && index_rhs != -1) {
+  if (reform && index_lhs != -1 && index_rhs != -1) {
     addRelativeIonosphereResidualBlock(
       ionosphere_states_[index_lhs], ionosphere_states_[index_rhs]);
   }
 }
 
 // Erase ambiguity blcoks
-void GnssEstimatorBase::eraseAmbiguityParameterBlocks(AmbiguityState& state)
+void GnssEstimatorBase::eraseAmbiguityParameterBlocks(
+  AmbiguityState& state, bool reform)
 {
   // Reform connection if needed. we should reform at first 
   // because we need to access the residuals connected to current state.
@@ -1825,7 +1982,7 @@ void GnssEstimatorBase::eraseAmbiguityParameterBlocks(AmbiguityState& state)
       }
       CHECK(connected_ids.size() <= 2);
       // has bilateral connections, we reconnect them
-      if (connected_ids.size() == 2) {
+      if (reform && connected_ids.size() == 2) {
         // add noise for GPS L5 to absorb Inter-Frequency Clock Bias (IFCB)
         char system = BackendId(id).gSystem();
         int phase_id = BackendId(id).gPhaseId();
@@ -1920,6 +2077,163 @@ void GnssEstimatorBase::eraseGnssLooseResidualBlocks(const State& state)
         ErrorType::kPositionError || 
         residual_block.error_interface_ptr->typeInfo() == 
         ErrorType::kVelocityError) {
+      graph_->removeResidualBlock(residual_block.residual_block_id);
+    }
+  }
+}
+
+// Erase relative position residual blocks
+void GnssEstimatorBase::eraseRelativePositionResidualBlock(
+  const State& last_state, const State& cur_state)
+{
+  const BackendId last_id = last_state.id;
+  const BackendId cur_id = cur_state.id;
+
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(cur_id.asInteger());
+  for (auto residual_block : residual_blocks) {
+    if (residual_block.error_interface_ptr->typeInfo() != 
+        ErrorType::kRelativePositionError) continue;
+    auto parameters = graph_->parameters(residual_block.residual_block_id);
+    bool found = false;
+    for (auto parameter : parameters) {
+      if (parameter.first == last_id.asInteger()) {
+        found = true; break;
+      }
+    }
+    if (!found) continue;
+    graph_->removeResidualBlock(residual_block.residual_block_id);
+  }
+}
+
+// Erase relative position and velocity residual blocks
+void GnssEstimatorBase::eraseRelativePositionAndVelocityBlock(
+  const State& last_state, const State& cur_state)
+{
+  const BackendId last_id = last_state.id;
+  const BackendId cur_id = cur_state.id;
+
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(cur_id.asInteger());
+  for (auto residual_block : residual_blocks) {
+    if (residual_block.error_interface_ptr->typeInfo() != 
+        ErrorType::kRelativePositionAndVelocityError) continue;
+    auto parameters = graph_->parameters(residual_block.residual_block_id);
+    bool found = false;
+    for (auto parameter : parameters) {
+      if (parameter.first == last_id.asInteger()) {
+        found = true; break;
+      }
+    }
+    if (!found) continue;
+    graph_->removeResidualBlock(residual_block.residual_block_id);
+  }
+}
+
+// Erase relative frequency residual blocks
+void GnssEstimatorBase::eraseRelativeFrequencyBlock(
+  const State& last_state, const State& cur_state)
+{
+  const BackendId last_id = last_state.id;
+  const BackendId cur_id = cur_state.id;
+
+  for (auto system : getGnssSystemList()) {
+    BackendId last_freq_id = changeIdType(last_id, IdType::gFrequency, system);
+    BackendId cur_freq_id = changeIdType(cur_id, IdType::gFrequency, system);
+
+    if (!graph_->parameterBlockExists(last_freq_id.asInteger())) continue;
+    if (!graph_->parameterBlockExists(cur_freq_id.asInteger())) continue;
+
+    Graph::ResidualBlockCollection residual_blocks = 
+      graph_->residuals(cur_freq_id.asInteger());
+    for (auto residual_block : residual_blocks) {
+      if (residual_block.error_interface_ptr->typeInfo() != 
+          ErrorType::kRelativeFrequencyError) continue;
+      auto parameters = graph_->parameters(residual_block.residual_block_id);
+      bool found = false;
+      for (auto parameter : parameters) {
+        if (parameter.first == last_freq_id.asInteger()) {
+          found = true; break;
+        }
+      }
+      if (!found) continue;
+      graph_->removeResidualBlock(residual_block.residual_block_id);
+    }
+  }
+}
+
+// Erase relative troposphere residual blocks
+void GnssEstimatorBase::eraseRelativeTroposphereResidualBlock(
+  const State& last_state, const State& cur_state)
+{
+  const BackendId last_id = last_state.id;
+  const BackendId cur_id = cur_state.id;
+
+  BackendId last_tropo_id = changeIdType(last_id, IdType::gTroposphere);
+  BackendId cur_tropo_id = changeIdType(cur_id, IdType::gTroposphere);
+
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(cur_tropo_id.asInteger());
+  for (auto residual_block : residual_blocks) {
+    if (residual_block.error_interface_ptr->typeInfo() != 
+        ErrorType::kRelativeTroposphereError) continue;
+    auto parameters = graph_->parameters(residual_block.residual_block_id);
+    bool found = false;
+    for (auto parameter : parameters) {
+      if (parameter.first == last_tropo_id.asInteger()) {
+        found = true; break;
+      }
+    }
+    if (!found) continue;
+    graph_->removeResidualBlock(residual_block.residual_block_id);
+  }
+}
+
+// Erase relative ionosphere residual blocks
+void GnssEstimatorBase::eraseRelativeIonosphereResidualBlock(
+  const IonosphereState& last_state, const IonosphereState& cur_state)
+{
+  if (last_state.ids.size() == 0) return;
+  for (size_t i = 0; i < cur_state.ids.size(); i++) {
+    Graph::ResidualBlockCollection residual_blocks = 
+      graph_->residuals(cur_state.ids[i].asInteger());
+    for (auto residual_block : residual_blocks) {
+      if (residual_block.error_interface_ptr->typeInfo() != 
+          ErrorType::kRelativeIonosphereError) continue;
+      auto parameters = graph_->parameters(residual_block.residual_block_id);
+      bool found = false;
+      for (auto parameter : parameters) {
+        if (BackendId(parameter.first).bundleId() == 
+            last_state.ids[0].bundleId()) {
+          found = true; break;
+        }
+      }
+      if (!found) continue;
+      graph_->removeResidualBlock(residual_block.residual_block_id);
+    }
+  }
+}
+
+// Erase relative ambiguity residual blocks
+void GnssEstimatorBase::eraseRelativeAmbiguityResidualBlock(
+  const AmbiguityState& last_state, const AmbiguityState& cur_state)
+{
+  if (last_state.ids.size() == 0) return;
+  for (size_t i = 0; i < cur_state.ids.size(); i++) {
+    Graph::ResidualBlockCollection residual_blocks = 
+      graph_->residuals(cur_state.ids[i].asInteger());
+    for (auto residual_block : residual_blocks) {
+      if (residual_block.error_interface_ptr->typeInfo() != 
+          ErrorType::kRelativeAmbiguityError) continue;
+      auto parameters = graph_->parameters(residual_block.residual_block_id);
+      bool found = false;
+      for (auto parameter : parameters) {
+        if (BackendId(parameter.first).bundleId() == 
+            last_state.ids[0].bundleId()) {
+          found = true; break;
+        }
+      }
+      if (!found) continue;
       graph_->removeResidualBlock(residual_block.residual_block_id);
     }
   }

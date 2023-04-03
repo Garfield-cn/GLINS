@@ -116,9 +116,8 @@ public:
   virtual bool getCovarianceAt(
     const double timestamp, Eigen::Matrix<double, 15, 15>& covariance);
 
-  // Try to get pose estimate at given timestamp
-  virtual bool tryGetPoseAt(const double timestamp, Transformation& T_WS) 
-  { return false; }
+  // Get estimator status
+  EstimatorStatus getStatus() { return status_; }
 
   // Log intermediate data
   virtual void logIntermediateData() {}
@@ -200,6 +199,9 @@ protected:
 
   // Coordinate handle
   GeoCoordinatePtr coordinate_;
+
+  // Status
+  EstimatorStatus status_;
 
   // the marginalized error term
   std::shared_ptr<MarginalizationError> marginalization_error_;

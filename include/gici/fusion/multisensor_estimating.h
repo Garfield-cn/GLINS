@@ -14,8 +14,17 @@
 #include <glog/logging.h>
 
 #include "gici/estimate/estimating.h"
+#include "gici/utility/spin_control.h"
 #include "gici/vision/feature_handler.h"
 #include "gici/gnss/spp_estimator.h"
+#include "gici/gnss/ppp_estimator.h"
+#include "gici/gnss/sdgnss_estimator.h"
+#include "gici/gnss/dgnss_estimator.h"
+#include "gici/gnss/rtk_estimator.h"
+#include "gici/fusion/gnss_imu_lc_estimator.h"
+#include "gici/fusion/rtk_imu_tc_estimator.h"
+#include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
 namespace gici {
 
@@ -27,6 +36,9 @@ public:
 
   MultiSensorEstimating(const NodeOptionHandlePtr& nodes, size_t i_estimator);
   ~MultiSensorEstimating();
+
+  // Reset processors
+  void resetProcessors();
 
   // Estimator data callback
   void estimatorDataCallback(EstimatorDataCluster& data) override;
@@ -158,6 +170,25 @@ protected:
   // mutex to lock buffers and processes
   std::mutex mutex_addin_, mutex_input_, mutex_image_input_;
   std::mutex mutex_output_;
+
+  // Options
+  EstimatorBaseOptions base_options_;
+  GnssEstimatorBaseOptions gnss_base_options_;
+  GnssLooseEstimatorBaseOptions gnss_loose_base_options_;
+  ImuEstimatorBaseOptions imu_base_options_;
+  VisualEstimatorBaseOptions visual_estimator_base_options_;
+  FeatureHandlerOptions feature_handler_options_;
+  SppEstimatorOptions spp_options_;
+  SdgnssEstimatorOptions sdgnss_options_;
+  DgnssEstimatorOptions dgnss_options_;
+  RtkEstimatorOptions rtk_options_;
+  AmbiguityResolutionOptions ambiguity_options_;
+  PppEstimatorOptions ppp_options_;
+  GnssImuLcEstimatorOptions gnss_imu_lc_options_;
+  GnssImuInitializerOptions gnss_imu_init_options_;
+  RtkImuTcEstimatorOptions rtk_imu_tc_options_;
+  GnssImuCameraSrrEstimatorOptions gnss_imu_camera_srr_options_;
+  RtkImuCameraRrrEstimatorOptions rtk_imu_camera_rrr_options_;
 
   // Solutions
   bool backend_firstly_updated_ = false;

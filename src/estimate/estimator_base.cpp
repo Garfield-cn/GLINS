@@ -15,7 +15,7 @@ EstimatorBase::EstimatorBase(const EstimatorBaseOptions& options) :
   base_options_(options), graph_(std::make_shared<Graph>()),
   cauchy_loss_function_(new ceres::CauchyLoss(1)),
   huber_loss_function_(new ceres::HuberLoss(1)),
-  marginalization_residual_id_(0)
+  marginalization_residual_id_(0), status_(EstimatorStatus::Initializing)
 {
   marginalization_error_.reset(new MarginalizationError(*graph_.get()));
 }

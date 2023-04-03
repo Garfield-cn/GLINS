@@ -96,9 +96,14 @@ int main(int argc, char ** argv)
       if (!(input_imu(&imu, buf[i]) == 1)) continue;
       idx = 0;
       double tow = time2gpst(imu.time, NULL);
-      if (last_tow != 0.0 && tow - last_tow > 5.0 / frequency) {
+      if (last_tow != 0.0 && tow - last_tow > 0.1) {
         std::cout << "WARNING: Throughing IMU data at tow " << std::fixed << tow 
           << " because of time jumping! Last tow is " << last_tow << std::endl;
+        continue;
+      }
+      if (last_tow != 0.0 && tow - last_tow == 0.0) {
+        std::cout << "WARNING: Throughing IMU data at tow " << std::fixed << tow 
+          << " because of time duplicating! Last tow is " << last_tow << std::endl;
         continue;
       }
       last_tow = tow;

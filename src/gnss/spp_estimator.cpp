@@ -126,6 +126,8 @@ bool SppEstimator::addGnssMeasurementAndState(
 // Solve current graph
 bool SppEstimator::estimate()
 {
+  status_ = EstimatorStatus::Converged;
+
   // Optimize with FDE
   if (gnss_base_options_.use_outlier_rejection)
   while (1)
@@ -142,21 +144,39 @@ bool SppEstimator::estimate()
 
   // Check DOP
   bool dop_valid = true;
-  double gdop = 0.0;
   curGnss().position = getPositionEstimate(curState());
   if (!checkZero(curGnss().position)) {
-    gdop = gnss_common::computeDops(
-      curGnss(), gnss_base_options_.common).x();
-    if (gdop > gnss_base_options_.common.max_gdop) {
+    updateGdop(curGnss());
+    if (gdop_ > gnss_base_options_.common.max_gdop) {
       LOG(INFO) << "High GDOP! Our tolerant is " 
         << gnss_base_options_.common.max_gdop << " in maximum, but current GDOP is "
-        << gdop << "!";
+        << gdop_ << "!";
       // erase parameters
       Graph::ParameterBlockCollection parameters = graph_->parameters();
       for (auto parameter : parameters) graph_->removeParameterBlock(parameter.first);
       states_.clear(); 
       dop_valid = false;
     }
+  }
+
+  // Check chi-square
+  int n_residual = 0;
+  int n_parameter = graph_->parameters().size();
+  double chi_square = 0.0;
+  auto residual_blocks = graph_->residuals();
+  for (auto residual_block : residual_blocks) {
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
+    if (!(type == ErrorType::kPseudorangeError)) continue;
+    double residual[1];
+    n_residual++;
+    graph_->problem()->EvaluateResidualBlock(residual_block.residual_block_id, 
+      false, nullptr, residual, nullptr);
+    chi_square += square(residual[0]);
+  }
+  if (chi_square > chisqr[n_residual - n_parameter - 1]) {
+    LOG(INFO) << "High chi-square! Chi-square is " << chi_square
+      << ". Chi-square threshold is " << chisqr[n_residual - n_parameter - 1] << ".";
   }
 
   // Log information
@@ -166,7 +186,8 @@ bool SppEstimator::estimate()
       << std::scientific << std::setprecision(3) 
       << "Initial cost: " << graph_->summary.initial_cost << ", "
       << "Final cost: " << graph_->summary.final_cost
-      << ", Sat number: " << std::setw(2) << num_satellites_;
+      << ", Sat number: " << std::setw(2) << num_satellites_      
+      << ", GDOP: " << std::setprecision(1) << std::fixed << gdop_;
   }
 
   // Estimate velocity
@@ -205,11 +226,12 @@ bool SppEstimator::estimate()
       has_velocity_estimate_ = true;
     }
   }
-  
+
   // Shift memory
   states_.push_back(State());
   while (states_.size() > 2) states_.pop_front();
 
+  if (!dop_valid) status_ = EstimatorStatus::InvalidEpoch;
   return dop_valid;
 }
 
