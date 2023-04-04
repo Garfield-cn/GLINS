@@ -349,6 +349,8 @@ struct GnssErrorParameter {
 class BackendId;
 class AmbiguityState {
 public:
+  AmbiguityState() { clear(); }
+
   double timestamp = 0.0;
   std::vector<BackendId> ids;
 

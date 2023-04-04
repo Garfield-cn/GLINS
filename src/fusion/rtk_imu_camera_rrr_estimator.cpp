@@ -332,7 +332,7 @@ bool RtkImuCameraRrrEstimator::estimate()
     size_t n_phaserange = numPhaserangeError(states_[latest_state_index_]);
     size_t n_doppler = numDopplerError(states_[latest_state_index_]);
     if (gnss_base_options_.use_outlier_rejection) {
-      rejectPseudorangeOutlier(states_[latest_state_index_]);
+      rejectPseudorangeOutlier(states_[latest_state_index_], curAmbiguityState());
       rejectDopplerOutlier(states_[latest_state_index_]);
       rejectPhaserangeOutlier(states_[latest_state_index_], curAmbiguityState());
     }

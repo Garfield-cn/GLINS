@@ -1187,7 +1187,7 @@ size_t GnssEstimatorBase::numDopplerError(const State& state)
   return num;
 }
 
-// Reject one pseudorange outlier
+// Reject pseudorange outlier
 size_t GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reject_one)
 {
   const BackendId& parameter_id = state.id_in_graph;
@@ -1318,7 +1318,186 @@ size_t GnssEstimatorBase::rejectPseudorangeOutlier(const State& state, bool reje
   return 0;
 }
 
-// Reject one phaserange outlier
+// Reject pseudorange outlier together with corresponding ambiguity parameter
+size_t GnssEstimatorBase::rejectPseudorangeOutlier(
+  const State& state, AmbiguityState& ambiguity_state, 
+  bool reject_one)
+{
+  if (ambiguity_state.ids.size() == 0) {
+    return rejectPseudorangeOutlier(state, reject_one);
+  }
+
+  const BackendId& parameter_id = state.id_in_graph;
+
+  // check residual
+  Graph::ResidualBlockCollection residual_blocks = 
+    graph_->residuals(parameter_id.asInteger());
+  std::vector<double> residuals;
+  std::unordered_map<size_t, ceres::ResidualBlockId> residual_index_to_id;
+  std::unordered_map<size_t, std::shared_ptr<ErrorInterface>> residual_index_to_interface;
+  for (size_t i = 0; i < residual_blocks.size(); i++) {
+    auto& residual_block = residual_blocks[i];
+    std::shared_ptr<ErrorInterface> interface = residual_block.error_interface_ptr;
+    ErrorType type = interface->typeInfo();
+    if (!(type == ErrorType::kPseudorangeError || 
+          type == ErrorType::kPseudorangeErrorSD || 
+          type == ErrorType::kPseudorangeErrorDD)) continue;
+    double residual[1];
+    graph_->problem()->EvaluateResidualBlock(residual_block.residual_block_id, 
+      false, nullptr, residual, nullptr);
+    interface->deNormalizeResidual(residual);
+    residuals.push_back(*residual);
+    residual_index_to_id.insert(std::make_pair(
+      residuals.size() - 1, residual_block.residual_block_id)); 
+    residual_index_to_interface.insert(std::make_pair(
+      residuals.size() - 1, residual_block.error_interface_ptr));
+  }
+  if (residuals.size() == 0) return 0;
+  double residuals_median = getMedian(residuals);
+  for (size_t i = 0; i < residuals.size(); i++) {
+    residuals[i] -= residuals_median;
+  } 
+  
+  std::vector<int> outlier_indexes;
+  for (size_t i = 0; i < residuals.size(); i++) {
+    if (fabs(residuals[i]) > gnss_base_options_.max_pesudorange_error) {
+      outlier_indexes.push_back(i);
+    }
+  }
+  // outlier detected, remove this residual block and re-optimize
+  if (outlier_indexes.size() > 0) {
+    std::vector<size_t> indexes_to_remove;
+    // only reject one outlier
+    if (reject_one) {
+      // find a largest outlier
+      size_t largest_outlier_index = 0;
+      double largest_outlier = 0.0;
+      for (auto index : outlier_indexes) {
+        double residual = fabs(residuals[index]);
+        if (residual > largest_outlier) {
+          largest_outlier = residual;
+          largest_outlier_index = index;
+        }
+      }
+      indexes_to_remove.push_back(largest_outlier_index);
+    }
+    // reject all outliers
+    else {
+      for (auto index : outlier_indexes) {
+        indexes_to_remove.push_back(index);
+      }
+    }
+    // apply rejection
+    for (auto index : indexes_to_remove) {
+      graph_->removeResidualBlock(
+        residual_index_to_id.at(static_cast<size_t>(index)));
+
+      // erase corresponding ambiguity parameter(s)
+      std::string info_message;
+      std::shared_ptr<ErrorInterface> error_interface = 
+        residual_index_to_interface.at(static_cast<size_t>(index));
+      ErrorType type = error_interface->typeInfo();
+      char system;
+      int code_type;
+      std::string code_str;
+#define MAP(S, R, C) \
+  if (system == S && code_type == C) { code_str = R; }
+      if (type == ErrorType::kPseudorangeError) {
+        GnssMeasurementIndex index = 
+          getGnssMeasurementIndexFromErrorInterface(error_interface);
+        system = index.prn[0];
+        code_type = index.code_type;
+        RINEX_TO_CODE_MAPS;
+        info_message += " at " + index.prn + "|" + code_str;
+
+        int phase_id = gnss_common::getPhaseID(system, code_type);
+        for (auto it = ambiguity_state.ids.begin(); it != ambiguity_state.ids.end(); ) {
+          auto& ambiguity_id = *it;
+          if (!sameAmbiguity(ambiguity_id, 
+              createGnssAmbiguityId(index.prn, phase_id, 0))) {
+            it++; continue;
+          }
+          if (graph_->parameterBlockExists(ambiguity_id.asInteger())) {
+            graph_->removeParameterBlock(ambiguity_id.asInteger());
+          }
+          it = ambiguity_state.ids.erase(it);
+        }
+      }
+      if (type == ErrorType::kPseudorangeErrorSD) {
+        GnssMeasurementSDIndexPair index = 
+          getGnssMeasurementSDIndexPairFromErrorInterface(error_interface);
+        system = index.rov.prn[0];
+        code_type = index.rov.code_type;
+        RINEX_TO_CODE_MAPS;
+        std::string code_str_rov = code_str;
+        code_type = index.ref.code_type;
+        RINEX_TO_CODE_MAPS;
+        std::string code_str_ref = code_str;
+        info_message += " at " + index.rov.prn + "|" + 
+          code_str_rov + "&" + code_str_ref;
+
+        int phase_id = gnss_common::getPhaseID(system, code_type);
+        for (auto it = ambiguity_state.ids.begin(); it != ambiguity_state.ids.end(); ) {
+          auto& ambiguity_id = *it;
+          if (!sameAmbiguity(ambiguity_id, 
+              createGnssAmbiguityId(index.rov.prn, phase_id, 0))) {
+            it++; continue;
+          }
+          if (graph_->parameterBlockExists(ambiguity_id.asInteger())) {
+            graph_->removeParameterBlock(ambiguity_id.asInteger());
+          }
+          it = ambiguity_state.ids.erase(it);
+        }
+      }
+      if (type == ErrorType::kPseudorangeErrorDD) {
+        GnssMeasurementDDIndexPair index = 
+          getGnssMeasurementDDIndexPairFromErrorInterface(error_interface);
+        system = index.rov.prn[0];
+        code_type = index.rov.code_type;
+        RINEX_TO_CODE_MAPS;
+        std::string code_str_rov = code_str;
+        code_type = index.ref.code_type;
+        RINEX_TO_CODE_MAPS;
+        std::string code_str_ref = code_str;
+        code_type = index.rov_base.code_type;
+        RINEX_TO_CODE_MAPS;
+        std::string code_str_rov_base = code_str;
+        code_type = index.ref_base.code_type;
+        RINEX_TO_CODE_MAPS;
+        std::string code_str_ref_base = code_str;
+        info_message += " at " + index.rov.prn + "|" + 
+          code_str_rov + "&" + code_str_ref + "-" + index.rov_base.prn + 
+          "|" + code_str_rov_base + "&" + code_str_ref_base;
+
+        int phase_id = gnss_common::getPhaseID(system, code_type);
+        for (auto it = ambiguity_state.ids.begin(); it != ambiguity_state.ids.end(); ) {
+          auto& ambiguity_id = *it;
+          if (!sameAmbiguity(ambiguity_id, 
+              createGnssAmbiguityId(index.rov.prn, phase_id, 0))) {
+            it++; continue;
+          }
+          if (graph_->parameterBlockExists(ambiguity_id.asInteger())) {
+            graph_->removeParameterBlock(ambiguity_id.asInteger());
+          }
+          it = ambiguity_state.ids.erase(it);
+        }
+      }
+#undef MAP
+
+      if (base_options_.verbose_output) {
+          LOG(INFO) << "Rejected pseudorange outlier with ambiguities" << info_message
+                    << ": residual = " << std::fixed << residuals[index];
+      }
+    }
+
+    return indexes_to_remove.size();
+  }
+
+  // no outlier
+  return 0;
+}
+
+// Reject phaserange outlier
 size_t GnssEstimatorBase::rejectPhaserangeOutlier(
   const State& state, AmbiguityState& ambiguity_state, bool reject_one)
 {
@@ -1504,7 +1683,7 @@ size_t GnssEstimatorBase::rejectPhaserangeOutlier(
   return 0;
 }
 
-// Reject one doppler outlier
+// Reject doppler outlier
 size_t GnssEstimatorBase::rejectDopplerOutlier(const State& state, bool reject_one)
 {
   const BackendId& parameter_id = state.id_in_graph;
@@ -1855,7 +2034,7 @@ void GnssEstimatorBase::eraseIfbParameterBlocks(std::vector<std::pair<char, int>
   ifbs.clear();
 }
 
-// Erase frequency blcoks
+// Erase frequency blocks
 void GnssEstimatorBase::eraseFrequencyParameterBlocks(
   const State& state, bool reform)
 {
@@ -1885,7 +2064,7 @@ void GnssEstimatorBase::eraseFrequencyParameterBlocks(
   }
 }
 
-// Erase troposphere blcoks
+// Erase troposphere blocks
 void GnssEstimatorBase::eraseTroposphereParameterBlock(
   const State& state, bool reform)
 {
@@ -1913,7 +2092,7 @@ void GnssEstimatorBase::eraseTroposphereParameterBlock(
   }
 }
 
-// Erase ionosphere blcoks
+// Erase ionosphere blocks
 void GnssEstimatorBase::eraseIonosphereParameterBlocks(
   IonosphereState& state, bool reform)
 {
@@ -1940,7 +2119,7 @@ void GnssEstimatorBase::eraseIonosphereParameterBlocks(
   }
 }
 
-// Erase ambiguity blcoks
+// Erase ambiguity blocks
 void GnssEstimatorBase::eraseAmbiguityParameterBlocks(
   AmbiguityState& state, bool reform)
 {

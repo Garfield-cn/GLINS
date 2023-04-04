@@ -24,7 +24,7 @@ struct GnssEstimatorBaseOptions {
   // Use Fault Detection and Exclusion (FDE)
   bool use_outlier_rejection = true;
 
-  // Reject one outlier at a time or reject all 
+  // Reject outlier at a time or reject all 
   bool reject_one_outlier_once = false;
 
   // Maximum pseudorange error to exclude (m)
@@ -278,16 +278,21 @@ protected:
   // Number of doppler errors
   size_t numDopplerError(const State& state);
 
-  // Reject one pseudorange outlier
+  // Reject pseudorange outlier
   size_t rejectPseudorangeOutlier(
     const State& state, bool reject_one = false);
 
-  // Reject one phaserange outlier
+  // Reject pseudorange outlier together with corresponding ambiguity parameter
+  size_t rejectPseudorangeOutlier(
+    const State& state, AmbiguityState& ambiguity_state, 
+    bool reject_one = false);
+
+  // Reject phaserange outlier
   size_t rejectPhaserangeOutlier(
     const State& state, AmbiguityState& ambiguity_state, 
     bool reject_one = false);
 
-  // Reject one doppler outlier
+  // Reject doppler outlier
   size_t rejectDopplerOutlier(
     const State& state, bool reject_one = false);
 
@@ -336,16 +341,16 @@ protected:
   // Erase IFB blocks
   void eraseIfbParameterBlocks(std::vector<std::pair<char, int>>& ifbs);
 
-  // Erase frequency blcoks
+  // Erase frequency blocks
   void eraseFrequencyParameterBlocks(const State& state, bool reform = true);
 
   // Erase troposphere blcok
   void eraseTroposphereParameterBlock(const State& state, bool reform = true);
 
-  // Erase ionosphere blcoks
+  // Erase ionosphere blocks
   void eraseIonosphereParameterBlocks(IonosphereState& state, bool reform = true);
 
-  // Erase ambiguity blcoks
+  // Erase ambiguity blocks
   void eraseAmbiguityParameterBlocks(AmbiguityState& state, bool reform = true);
 
   // Erase all pseudorange residual blocks
