@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-const double ref_position[] = {31.0294769301 * D2R, 121.4207972420 * D2R, 19.579};
+const double ref_position[] = {31.0234248 * D2R, 121.4453827* D2R, 14.5};
 
 // Convert euler angle to quarternion
 Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d rpy)

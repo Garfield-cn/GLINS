@@ -3606,9 +3606,9 @@ extern void dops(int ns, const double *azel, double elmin, double *dop)
 extern double ionmodel(gtime_t t, const double *ion, const double *pos,
                        const double *azel)
 {
-    const double ion_default[]={ /* 2004/1/1 */
-        0.1118E-07,-0.7451E-08,-0.5961E-07, 0.1192E-06,
-        0.1167E+06,-0.2294E+06,-0.1311E+06, 0.1049E+07
+    const double ion_default[]={ /* 2023/1/1 */
+        0.2235E-07, 0.0000E-08,-0.5960E-07, 0.1192E-06,
+        0.1454E+06,-0.1966E+06, 0.0000E+06, 0.1966E+06
     };
     double tt,f,psi,phi,lam,amp,per,x;
     int week;

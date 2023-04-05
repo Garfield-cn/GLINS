@@ -822,6 +822,18 @@ void ImuEstimatorBase::eraseImuState(const State& state)
   imu_state_mutex_.unlock();
 }
 
+// Down-weight IMU residual block
+void ImuEstimatorBase::downWeightImuResidualBlock(
+  const ceres::ResidualBlockId residual_id, double factor)
+{
+  if (residual_id == nullptr) return;
+  auto residual = graph_->residualBlockIdToResidualBlockSpecMap().at(residual_id);
+  auto interface = residual.error_interface_ptr;
+  std::shared_ptr<ImuError> imu_error = 
+    std::dynamic_pointer_cast<ImuError>(interface);
+  imu_error->downWeight(factor);
+}
+
 // Get a IMU measurement near given timestamp
 ImuMeasurement ImuEstimatorBase::getImuMeasurementNear(const double timestamp) 
 {

@@ -43,7 +43,10 @@ double phaseToFrequency(char system, int phase_id, int channel = 0);
 double gtimeToDouble(gtime_t time);
 
 // Convert GPS time to UTC time
-double gpsTimeToUtc(double gps_time);
+double gpsTimeToUtcTime(double gps_time);
+
+// Convert UTC time to GPS time
+double utcTimeToGpsTime(double utc_time);
 
 // Convert double to gtime
 gtime_t doubleToGtime(double time);
@@ -230,6 +233,14 @@ double satelliteAzimuth(
 // Compute DOPs (GDOP,PDOP,HDOP,VDOP)
 Eigen::Vector4d computeDops(
   const GnssMeasurement& measurement,
+  const GnssCommonOptions& options = GnssCommonOptions());
+Eigen::Vector4d computeDops(
+  const GnssMeasurement& measurement_rov,
+  const GnssMeasurementSDIndexPairs& indexes,
+  const GnssCommonOptions& options = GnssCommonOptions());
+Eigen::Vector4d computeDops(
+  const GnssMeasurement& measurement_rov,
+  const GnssMeasurementDDIndexPairs& indexes,
   const GnssCommonOptions& options = GnssCommonOptions());
 
 // Melbourne-Wubbena (MW) combination

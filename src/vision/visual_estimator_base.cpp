@@ -197,6 +197,23 @@ void VisualEstimatorBase::addCameraExtrinsicsResidualBlock(
   graph_->setParameterBlockConstant(camera_extrinsics_id.asInteger());
 }
 
+// Number of reprojection error
+size_t VisualEstimatorBase::numReprojectionError(const FramePtr& frame)
+{
+  size_t num = 0;
+  for(auto it = landmarks_map_.begin(); it != landmarks_map_.end(); it++)
+  {
+    const BackendId& landmark_id = it->first;
+    MapPoint& map_point = it->second;
+
+    for (auto obs : map_point.observations) {
+      if (obs.first.frame_id != frame->id()) continue;
+      num++;
+    }
+  }
+  return num;
+}
+
 // Reject landmark reprojection error outlier
 bool VisualEstimatorBase::rejectReprojectionErrorOutlier(const FramePtr& frame)
 {
@@ -277,7 +294,9 @@ bool VisualEstimatorBase::rejectReprojectionErrorOutlier(const FramePtr& frame)
   if (rejected_landmarks.size() > 0) {
     LOG(INFO) << "Rejected " << rejected_landmarks.size() << " landmark outliers. Remaining " 
               << landmarks_map_.size() << " landmarks.";
-    if (rejected_landmarks.size() > 10) {
+    double rejected_ratio = static_cast<double>(rejected_landmarks.size()) / 
+      static_cast<double>(landmarks_map_.size());
+    if (rejected_ratio > 0.5) {
       LOG(WARNING) << "Too many outliers: track_id - residual";
       for (size_t i = 0; i < residual_vec.size(); i++) 
         LOG(WARNING) << std::fixed << residual_vec[i].first << " - " << residual_vec[i].second;
@@ -301,7 +320,7 @@ void VisualEstimatorBase::addLandmarkParameterMarginBlocksWithResiduals(
   {
     Graph::ResidualBlockCollection residuals =
         graph_->residuals(pit->first.asInteger());
-    CHECK(residuals.size() != 0);
+    CHECK(residuals.size() != 0) << ": " << pit->second.observations.size();
 
     // First loop: check if we can skip
     bool at_pose_to_margin = false;
@@ -458,6 +477,18 @@ void VisualEstimatorBase::eraseEmptyLandmarks()
       pit = landmarks_map_.erase(pit);
     }
     else pit++;
+  }
+}
+
+// Set all features as outliers to make them untracked
+void VisualEstimatorBase::untrackAllLandmarks()
+{
+  for(auto it = landmarks_map_.begin(); it != landmarks_map_.end(); it++) {
+    for (auto o : it->second.point->obs_) {
+      if (FramePtr f = o.frame.lock()) {
+        f->type_vec_[o.keypoint_index_] = FeatureType::kOutlier;
+      }
+    }
   }
 }
 

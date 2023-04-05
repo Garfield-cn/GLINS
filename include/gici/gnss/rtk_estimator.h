@@ -72,12 +72,17 @@ protected:
 protected:
   // Options
   RtkEstimatorOptions rtk_options_;
+  AmbiguityResolutionOptions ambiguity_options_;
 
   // SPP estimator to get initial states
   std::unique_ptr<SppEstimator> spp_estimator_;
 
   // Measurement alignment handle
   DifferentialMeasurementsAlign meausrement_align_;
+
+  // Status control
+  int num_continuous_unfix_ = 0;
+  int num_cotinuous_reject_gnss_ = 0;
 };
 
 }

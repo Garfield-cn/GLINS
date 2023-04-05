@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-const Eigen::Vector3d t_SR_S(-0.029, 0.354, -0.042);
+const Eigen::Vector3d t_SR_S(0.354, -0.042, -0.029);
 
 // Convert euler angle to quarternion
 Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d rpy)

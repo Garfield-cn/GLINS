@@ -27,49 +27,43 @@ MultiSensorEstimating::MultiSensorEstimating(
   // load base options
   const YAML::Node& node = nodes->estimators[i_estimator]->this_node;
   YAML::Node estimator_base_node = node["estimator_base_options"];
-  EstimatorBaseOptions base_options;
   if (estimator_base_node.IsDefined()) {
-    option_tools::loadOptions(estimator_base_node, base_options);
+    option_tools::loadOptions(estimator_base_node, base_options_);
   }
 
-  force_initial_global_position_ = base_options.force_initial_global_position;
-  initial_global_position_ = base_options.initial_global_position;
-  base_options.compute_covariance = compute_covariance_;
+  force_initial_global_position_ = base_options_.force_initial_global_position;
+  initial_global_position_ = base_options_.initial_global_position;
+  base_options_.compute_covariance = compute_covariance_;
 
   // load GNSS base options
   YAML::Node gnss_base_node = node["gnss_estimator_base_options"];
   YAML::Node gnss_loose_base_node = node["gnss_loose_estimator_base_options"];
-  GnssEstimatorBaseOptions gnss_base_options;
-  GnssLooseEstimatorBaseOptions gnss_loose_base_options;
   if (estimatorTypeContains(SensorType::GNSS, type_) && 
       gnss_base_node.IsDefined()) {
-    option_tools::loadOptions(gnss_base_node, gnss_base_options);
+    option_tools::loadOptions(gnss_base_node, gnss_base_options_);
   }
   if (estimatorTypeContains(SensorType::GNSS, type_) && 
       gnss_loose_base_node.IsDefined()) {
-     option_tools::loadOptions(gnss_loose_base_node, gnss_loose_base_options);
+     option_tools::loadOptions(gnss_loose_base_node, gnss_loose_base_options_);
   }
 
   // load IMU base options
   YAML::Node imu_base_node = node["imu_estimator_base_options"];
-  ImuEstimatorBaseOptions imu_base_options;
   if (estimatorTypeContains(SensorType::IMU, type_) && 
       imu_base_node.IsDefined()) {
-    option_tools::loadOptions(imu_base_node, imu_base_options);
+    option_tools::loadOptions(imu_base_node, imu_base_options_);
   }
 
   // load camera base options
   YAML::Node visual_estimator_base_node = node["visual_estimator_base_options"];
   YAML::Node feature_handler_node = node["feature_handler_options"];
-  VisualEstimatorBaseOptions visual_estimator_base_options;
-  FeatureHandlerOptions feature_handler_options;
   if (estimatorTypeContains(SensorType::Camera, type_) && 
       visual_estimator_base_node.IsDefined()) {
-    option_tools::loadOptions(visual_estimator_base_node, visual_estimator_base_options);
+    option_tools::loadOptions(visual_estimator_base_node, visual_estimator_base_options_);
   }
   if (estimatorTypeContains(SensorType::Camera, type_) && 
       feature_handler_node.IsDefined()) {
-    option_tools::loadOptions(feature_handler_node, feature_handler_options);
+    option_tools::loadOptions(feature_handler_node, feature_handler_options_);
   }
 
   // Instantiate estimators
@@ -77,154 +71,139 @@ MultiSensorEstimating::MultiSensorEstimating(
   if (type_ == EstimatorType::Spp) 
   {
     YAML::Node spp_node = node["spp_options"];
-    SppEstimatorOptions spp_options;
     if (spp_node.IsDefined()) {
-      option_tools::loadOptions(spp_node, spp_options);
+      option_tools::loadOptions(spp_node, spp_options_);
     }
     estimator_.reset(new SppEstimator(
-      spp_options, gnss_base_options, base_options));
+      spp_options_, gnss_base_options_, base_options_));
   }
   // single-differenced GNSS pseudorange positioning
   else if (type_ == EstimatorType::Sdgnss) 
   {
     YAML::Node sdgnss_node = node["sdgnss_options"];
-    SdgnssEstimatorOptions sdgnss_options;
     if (sdgnss_node.IsDefined()) {
-      option_tools::loadOptions(sdgnss_node, sdgnss_options);
+      option_tools::loadOptions(sdgnss_node, sdgnss_options_);
     }
     estimator_.reset(new SdgnssEstimator(
-      sdgnss_options, gnss_base_options, base_options));
+      sdgnss_options_, gnss_base_options_, base_options_));
   }
   // double-differenced GNSS pseudorange positioning (differential GNSS)
   else if (type_ == EstimatorType::Dgnss) 
   {
     YAML::Node dgnss_node = node["dgnss_options"];
-    DgnssEstimatorOptions dgnss_options;
     if (dgnss_node.IsDefined()) {
-      option_tools::loadOptions(dgnss_node, dgnss_options);
+      option_tools::loadOptions(dgnss_node, dgnss_options_);
     }
     estimator_.reset(new DgnssEstimator(
-      dgnss_options, gnss_base_options, base_options));
+      dgnss_options_, gnss_base_options_, base_options_));
   }
   // real-time kinematic
   else if (type_ == EstimatorType::Rtk) 
   {
     YAML::Node rtk_node = node["rtk_options"];
-    RtkEstimatorOptions rtk_options;
     if (rtk_node.IsDefined()) {
-      option_tools::loadOptions(rtk_node, rtk_options);
+      option_tools::loadOptions(rtk_node, rtk_options_);
     }
     YAML::Node ambiguity_node = node["ambiguity_resolution_options"];
-    AmbiguityResolutionOptions ambiguity_options;
     if (ambiguity_node.IsDefined()) {
-      option_tools::loadOptions(ambiguity_node, ambiguity_options);
+      option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
     estimator_.reset(new RtkEstimator(
-      rtk_options, gnss_base_options, base_options, ambiguity_options));
+      rtk_options_, gnss_base_options_, base_options_, ambiguity_options_));
   }
   // precise point positioning
   else if (type_ == EstimatorType::Ppp) 
   {
     YAML::Node ppp_node = node["ppp_options"];
-    PppEstimatorOptions ppp_options;
     if (ppp_node.IsDefined()) {
-      option_tools::loadOptions(ppp_node, ppp_options);
+      option_tools::loadOptions(ppp_node, ppp_options_);
     }
     YAML::Node ambiguity_node = node["ambiguity_resolution_options"];
-    AmbiguityResolutionOptions ambiguity_options;
     if (ambiguity_node.IsDefined()) {
-      option_tools::loadOptions(ambiguity_node, ambiguity_options);
+      option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
     estimator_.reset(new PppEstimator(
-      ppp_options, gnss_base_options, base_options, ambiguity_options));
+      ppp_options_, gnss_base_options_, base_options_, ambiguity_options_));
   }
   // GNSS/IMU loosely couple
   else if (type_ == EstimatorType::GnssImuLc)
   {
     YAML::Node gnss_imu_lc_node = node["gnss_imu_lc_options"];
-    GnssImuLcEstimatorOptions gnss_imu_lc_options;
     if (gnss_imu_lc_node.IsDefined()) {
-      option_tools::loadOptions(gnss_imu_lc_node, gnss_imu_lc_options);
+      option_tools::loadOptions(gnss_imu_lc_node, gnss_imu_lc_options_);
     }
     YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
-    GnssImuInitializerOptions gnss_imu_init_options;
     if (gnss_imu_init_node.IsDefined()) {
-      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options);
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
 
     // rotate estrinsics
-    gnss_imu_init_options.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics, imu_base_options);
-    gnss_imu_init_options.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics_initial_std, imu_base_options);
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
 
     estimator_.reset(new GnssImuLcEstimator(
-      gnss_imu_lc_options, gnss_imu_init_options, gnss_loose_base_options, 
-      imu_base_options, base_options));
+      gnss_imu_lc_options_, gnss_imu_init_options_, gnss_loose_base_options_, 
+      imu_base_options_, base_options_));
   }
   // RTK/IMU tightly couple
   else if (type_ == EstimatorType::RtkImuTc)
   {
     YAML::Node rtk_imu_tc_node = node["rtk_imu_tc_options"];
-    RtkImuTcEstimatorOptions rtk_imu_tc_options;
     if (rtk_imu_tc_node.IsDefined()) {
-      option_tools::loadOptions(rtk_imu_tc_node, rtk_imu_tc_options);
+      option_tools::loadOptions(rtk_imu_tc_node, rtk_imu_tc_options_);
     }
     YAML::Node rtk_node = node["rtk_options"];
-    RtkEstimatorOptions rtk_options;
     if (rtk_node.IsDefined()) {
-      option_tools::loadOptions(rtk_node, rtk_options);
+      option_tools::loadOptions(rtk_node, rtk_options_);
     }
     YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
-    GnssImuInitializerOptions gnss_imu_init_options;
     if (gnss_imu_init_node.IsDefined()) {
-      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options);
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
     YAML::Node ambiguity_node = node["ambiguity_resolution_options"];
-    AmbiguityResolutionOptions ambiguity_options;
     if (ambiguity_node.IsDefined()) {
-      option_tools::loadOptions(ambiguity_node, ambiguity_options);
+      option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
 
     // rotate estrinsics
-    gnss_imu_init_options.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics, imu_base_options);
-    gnss_imu_init_options.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics_initial_std, imu_base_options);
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
 
     estimator_.reset(new RtkImuTcEstimator(
-      rtk_imu_tc_options, gnss_imu_init_options, rtk_options, gnss_base_options, 
-      gnss_loose_base_options, imu_base_options, base_options, ambiguity_options));
+      rtk_imu_tc_options_, gnss_imu_init_options_, rtk_options_, gnss_base_options_, 
+      gnss_loose_base_options_, imu_base_options_, base_options_, ambiguity_options_));
   }
   // GNSS/IMU/Camera semi-tightly integration
   else if (type_ == EstimatorType::GnssImuCameraSrr)
   {
     YAML::Node gnss_imu_camera_srr_node = node["gnss_imu_camera_srr_options"];
-    GnssImuCameraSrrEstimatorOptions gnss_imu_camera_srr_options;
     if (gnss_imu_camera_srr_node.IsDefined()) {
-      option_tools::loadOptions(gnss_imu_camera_srr_node, gnss_imu_camera_srr_options);
+      option_tools::loadOptions(gnss_imu_camera_srr_node, gnss_imu_camera_srr_options_);
     }
     YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
-    GnssImuInitializerOptions gnss_imu_init_options;
     if (gnss_imu_init_node.IsDefined()) {
-      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options);
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
 
     // rotate estrinsics
-    gnss_imu_init_options.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics, imu_base_options);
-    gnss_imu_init_options.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics_initial_std, imu_base_options);
-    CameraBundlePtr camera_bundle = feature_handler_options.cameras;
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
+    CameraBundlePtr camera_bundle = feature_handler_options_.cameras;
     for (size_t i = 0; i < camera_bundle->numCameras(); i++) {
       camera_bundle->set_T_C_B(i, ImuEstimatorBase::rotateImuToBody(
-        camera_bundle->get_T_C_B(i).inverse(), imu_base_options).inverse());
+        camera_bundle->get_T_C_B(i).inverse(), imu_base_options_).inverse());
     }
 
-    feature_handler_.reset(new FeatureHandler(feature_handler_options, imu_base_options));
-    estimator_.reset(new GnssImuCameraSrrEstimator(gnss_imu_camera_srr_options,
-      gnss_imu_init_options, gnss_loose_base_options, visual_estimator_base_options, 
-      imu_base_options, base_options));
+    feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
+    estimator_.reset(new GnssImuCameraSrrEstimator(gnss_imu_camera_srr_options_,
+      gnss_imu_init_options_, gnss_loose_base_options_, visual_estimator_base_options_, 
+      imu_base_options_, base_options_));
     std::shared_ptr<VisualEstimatorBase> visual_estimator = 
       std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
     CHECK_NOTNULL(visual_estimator);
@@ -234,41 +213,37 @@ MultiSensorEstimating::MultiSensorEstimating(
   else if (type_ == EstimatorType::RtkImuCameraRrr)
   {
     YAML::Node rtk_imu_camera_rrr_node = node["rtk_imu_camera_rrr_options"];
-    RtkImuCameraRrrEstimatorOptions rtk_imu_camera_rrr_options;
     if (rtk_imu_camera_rrr_node.IsDefined()) {
-      option_tools::loadOptions(rtk_imu_camera_rrr_node, rtk_imu_camera_rrr_options);
+      option_tools::loadOptions(rtk_imu_camera_rrr_node, rtk_imu_camera_rrr_options_);
     }
     YAML::Node rtk_node = node["rtk_options"];
-    RtkEstimatorOptions rtk_options;
     if (rtk_node.IsDefined()) {
-      option_tools::loadOptions(rtk_node, rtk_options);
+      option_tools::loadOptions(rtk_node, rtk_options_);
     }
     YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
-    GnssImuInitializerOptions gnss_imu_init_options;
     if (gnss_imu_init_node.IsDefined()) {
-      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options);
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
     YAML::Node ambiguity_node = node["ambiguity_resolution_options"];
-    AmbiguityResolutionOptions ambiguity_options;
     if (ambiguity_node.IsDefined()) {
-      option_tools::loadOptions(ambiguity_node, ambiguity_options);
+      option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
 
     // rotate estrinsics
-    gnss_imu_init_options.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics, imu_base_options);
-    gnss_imu_init_options.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
-      gnss_imu_init_options.gnss_extrinsics_initial_std, imu_base_options);
-    CameraBundlePtr camera_bundle = feature_handler_options.cameras;
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
+    CameraBundlePtr camera_bundle = feature_handler_options_.cameras;
     for (size_t i = 0; i < camera_bundle->numCameras(); i++) {
       camera_bundle->set_T_C_B(i, ImuEstimatorBase::rotateImuToBody(
-        camera_bundle->get_T_C_B(i).inverse(), imu_base_options).inverse());
+        camera_bundle->get_T_C_B(i).inverse(), imu_base_options_).inverse());
     }
 
-    feature_handler_.reset(new FeatureHandler(feature_handler_options, imu_base_options));
-    estimator_.reset(new RtkImuCameraRrrEstimator(rtk_imu_camera_rrr_options, 
-      gnss_imu_init_options, rtk_options, gnss_base_options, gnss_loose_base_options, 
-      visual_estimator_base_options, imu_base_options, base_options, ambiguity_options));
+    feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
+    estimator_.reset(new RtkImuCameraRrrEstimator(rtk_imu_camera_rrr_options_, 
+      gnss_imu_init_options_, rtk_options_, gnss_base_options_, gnss_loose_base_options_, 
+      visual_estimator_base_options_, imu_base_options_, base_options_, ambiguity_options_));
     std::shared_ptr<VisualEstimatorBase> visual_estimator = 
       std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
     CHECK_NOTNULL(visual_estimator);
@@ -277,7 +252,7 @@ MultiSensorEstimating::MultiSensorEstimating(
 
   // For coordinate initialization
   if (estimatorTypeContains(SensorType::GNSS, type_)) {
-    spp_estimator_.reset(new SppEstimator(gnss_base_options));
+    spp_estimator_.reset(new SppEstimator(gnss_base_options_));
   }
 
   // Initial values
@@ -297,6 +272,96 @@ MultiSensorEstimating::~MultiSensorEstimating()
   }
 }
 
+// Reset estimator
+void MultiSensorEstimating::resetProcessors()
+{
+  backend_firstly_updated_ = false;
+  mutex_output_.lock();
+
+  // single point positioning
+  if (type_ == EstimatorType::Spp) 
+  {
+    estimator_.reset(new SppEstimator(
+      spp_options_, gnss_base_options_, base_options_));
+  }
+  // single-differenced GNSS pseudorange positioning
+  else if (type_ == EstimatorType::Sdgnss) 
+  {
+    estimator_.reset(new SdgnssEstimator(
+      sdgnss_options_, gnss_base_options_, base_options_));
+  }
+  // double-differenced GNSS pseudorange positioning (differential GNSS)
+  else if (type_ == EstimatorType::Dgnss) 
+  {
+    estimator_.reset(new DgnssEstimator(
+      dgnss_options_, gnss_base_options_, base_options_));
+  }
+  // real-time kinematic
+  else if (type_ == EstimatorType::Rtk) 
+  {
+    estimator_.reset(new RtkEstimator(
+      rtk_options_, gnss_base_options_, base_options_, ambiguity_options_));
+  }
+  // precise point positioning
+  else if (type_ == EstimatorType::Ppp) 
+  {
+    estimator_.reset(new PppEstimator(
+      ppp_options_, gnss_base_options_, base_options_, ambiguity_options_));
+  }
+  // GNSS/IMU loosely couple
+  else if (type_ == EstimatorType::GnssImuLc)
+  {
+    estimator_.reset(new GnssImuLcEstimator(
+      gnss_imu_lc_options_, gnss_imu_init_options_, gnss_loose_base_options_, 
+      imu_base_options_, base_options_));
+  }
+  // RTK/IMU tightly couple
+  else if (type_ == EstimatorType::RtkImuTc)
+  {
+    estimator_.reset(new RtkImuTcEstimator(
+      rtk_imu_tc_options_, gnss_imu_init_options_, rtk_options_, gnss_base_options_, 
+      gnss_loose_base_options_, imu_base_options_, base_options_, ambiguity_options_));
+  }
+  // GNSS/IMU/Camera semi-tightly integration
+  else if (type_ == EstimatorType::GnssImuCameraSrr)
+  {
+    feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
+    estimator_.reset(new GnssImuCameraSrrEstimator(gnss_imu_camera_srr_options_,
+      gnss_imu_init_options_, gnss_loose_base_options_, visual_estimator_base_options_, 
+      imu_base_options_, base_options_));
+    std::shared_ptr<VisualEstimatorBase> visual_estimator = 
+      std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
+    CHECK_NOTNULL(visual_estimator);
+    visual_estimator->setFeatureHandler(feature_handler_);
+  }
+  // RTK/IMU/Camera tightly integration
+  else if (type_ == EstimatorType::RtkImuCameraRrr)
+  {
+    feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
+    estimator_.reset(new RtkImuCameraRrrEstimator(rtk_imu_camera_rrr_options_, 
+      gnss_imu_init_options_, rtk_options_, gnss_base_options_, gnss_loose_base_options_, 
+      visual_estimator_base_options_, imu_base_options_, base_options_, ambiguity_options_));
+    std::shared_ptr<VisualEstimatorBase> visual_estimator = 
+      std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
+    CHECK_NOTNULL(visual_estimator);
+    visual_estimator->setFeatureHandler(feature_handler_);
+  }
+  
+  // Set coordinate and gravity
+  estimator_->setCoordinate(solution_.coordinate);
+  if (estimatorTypeContains(SensorType::IMU, type_)) {
+    double gravity = earthGravity(solution_.coordinate->getZero(GeoType::LLA));
+    std::shared_ptr<ImuEstimatorBase> imu_estimator = 
+      std::dynamic_pointer_cast<ImuEstimatorBase>(estimator_);
+    CHECK_NOTNULL(imu_estimator);
+    imu_estimator->setGravity(gravity);
+  }
+
+  // Clear output control
+  output_timestamps_.clear();
+  mutex_output_.unlock();
+}
+
 // GNSS data callback
 void MultiSensorEstimating::estimatorDataCallback(EstimatorDataCluster& data)
 {
@@ -304,11 +369,6 @@ void MultiSensorEstimating::estimatorDataCallback(EstimatorDataCluster& data)
     LOG(ERROR) << "Received illegal estimator data cluster!";
     return;
   }
-
-  // if (data.imu) {
-  //   data.imu->timestamp -= 1.0;
-  //   data.timestamp -= 1.0;
-  // }
 
   // temporarily store measurements
   mutex_addin_.lock();
@@ -498,7 +558,7 @@ void MultiSensorEstimating::handleNonTimePropagationSensors(EstimatorDataCluster
       }
       else if (pending_sparsify_num_ > 0) pending_sparsify_num_--;
       if (pending_sparsify_num_) {
-        LOG(INFO) << "Backend pending! Sparsifying measurements with counter " 
+        LOG(WARNING) << "Backend pending! Sparsifying measurements with counter " 
                     << pending_sparsify_num_ << ".";
         for (int i = 0; i < pending_sparsify_num_; i++) {
           // some measurements we cannot erase
@@ -638,6 +698,13 @@ bool MultiSensorEstimating::processEstimator()
   if (estimator_->addMeasurement(measurement)) {
     // solve
     if (estimator_->estimate()) is_updated = true;
+    // check if estimator valid
+    if (estimator_->getStatus() == EstimatorStatus::Diverged) {
+      // reset estimator
+      LOG(WARNING) << "Reset estimator because it is diverge!";
+      resetProcessors();
+      is_updated = false;
+    }
     // log intermediate data
     estimator_->logIntermediateData();
   }

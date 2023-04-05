@@ -62,6 +62,11 @@ GnssSolution GnssLooseEstimatorBase::convertSolutionToGnssSolution(
   if (role == SolutionRole::Velocity || role == SolutionRole::PositionAndVelocity) {
     gnss_solution.has_velocity = true;
   }
+  
+  // adjust covariance
+  // if (gnss_solution.status == GnssSolutionStatus::Float) {
+  //   gnss_solution.covariance.topLeftCorner(3, 3) *= 1.0e2;
+  // }
 
   return gnss_solution;
 }

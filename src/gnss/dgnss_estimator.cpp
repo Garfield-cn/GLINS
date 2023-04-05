@@ -130,6 +130,8 @@ bool DgnssEstimator::estimate()
     optimize();
     // reject outlier
     if (!rejectPseudorangeOutlier(curState(),
+        gnss_base_options_.reject_one_outlier_once) && 
+        !rejectDopplerOutlier(curState(), 
         gnss_base_options_.reject_one_outlier_once)) break;
   }
   // Optimize without FDE

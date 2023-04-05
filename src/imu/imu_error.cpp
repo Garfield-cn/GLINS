@@ -662,7 +662,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
 
     // error weighting
     Eigen::Map<Eigen::Matrix<double, 15, 1> > weighted_error(residuals);
-    weighted_error = square_root_information_ * error;
+    weighted_error = (1.0 / down_weight_factor_) * square_root_information_ * error;
 
     // get the Jacobians
     if (jacobians != nullptr)
@@ -671,7 +671,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
       {
         // Jacobian w.r.t. minimal perturbance
         Eigen::Matrix<double, 15, 6> J0_minimal =
-            square_root_information_ * F0.block<15, 6>(0, 0);
+            (1.0 / down_weight_factor_) * square_root_information_ * F0.block<15, 6>(0, 0);
 
         // pseudo inverse of the local parametrization Jacobian:
         Eigen::Matrix<double, 6, 7, Eigen::RowMajor> J_lift;
@@ -697,7 +697,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
       {
         Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor> >
             J1(jacobians[1]);
-        J1 = square_root_information_ * F0.block<15, 9>(0, 6);
+        J1 = (1.0 / down_weight_factor_) * square_root_information_ * F0.block<15, 9>(0, 6);
 
         // if requested, provide minimal Jacobians
         if (jacobians_minimal != nullptr)
@@ -713,7 +713,8 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
       if (jacobians[2] != nullptr)
       {
         // Jacobian w.r.t. minimal perturbance
-        Eigen::Matrix<double, 15, 6> J2_minimal = square_root_information_
+        Eigen::Matrix<double, 15, 6> J2_minimal = 
+            (1.0 / down_weight_factor_) * square_root_information_
             * F1.block<15, 6>(0, 0);
 
         // pseudo inverse of the local parametrization Jacobian:
@@ -740,7 +741,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
       {
         Eigen::Map<Eigen::Matrix<double, 15, 9, Eigen::RowMajor> >
             J3(jacobians[3]);
-        J3 = square_root_information_ * F1.block<15, 9>(0, 6);
+        J3 = (1.0 / down_weight_factor_) * square_root_information_ * F1.block<15, 9>(0, 6);
 
         // if requested, provide minimal Jacobians
         if (jacobians_minimal != nullptr)

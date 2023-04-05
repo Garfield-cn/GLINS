@@ -112,6 +112,11 @@ protected:
   // RTK estimator used for ambiguity covariance estimation
   std::unique_ptr<RtkEstimator> ambiguity_covariance_estimator_;
   bool ambiguity_covariance_coordinate_setted_ = false;
+
+  // Status control
+  int num_continuous_unfix_ = 0;
+  int num_cotinuous_reject_gnss_ = 0;
+  int num_cotinuous_reject_visual_ = 0;
 };
 
 }

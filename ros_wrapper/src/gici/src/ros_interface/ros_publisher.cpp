@@ -68,14 +68,19 @@ static void drawFeatures(
       case FeatureType::kMapPointSeedConverged: {
         size_t obs_size = frame.landmark_vec_[i]->obs_.size();
         cv::Scalar bgr = cv::Scalar(0, 0, 0);
+        const int thickness = 3;
         const int max_size = 10;
-        bgr(2) = obs_size * 255 / max_size;
-        bgr(1) = 255 - obs_size * 255 / max_size;
-        if (frame.landmark_vec_[i]->obs_.size() <= 1) {
-          cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), 3, cv::Scalar(0, 255, 0), -1);
+        const int min_size = 5;
+        if (obs_size < min_size) obs_size = 0;
+        else obs_size -= min_size;
+        bgr(2) = 150 + obs_size * 105 / (max_size - min_size);
+        bgr(1) = 150 - obs_size * 150 / (max_size - min_size);
+        bgr(0) = 150 - obs_size * 150 / (max_size - min_size);
+        if (frame.landmark_vec_[i]->obs_.size() < min_size) {
+          cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), thickness, bgr, -1);
         }
         else  {
-          cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), 3, bgr, -1);
+          cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), thickness, bgr, -1);
           auto& obs = frame.landmark_vec_[i]->obs_[frame.landmark_vec_[i]->obs_.size() - 2];
           if (obs_size >= max_size)
           if (auto last_frame = obs.frame.lock()) {

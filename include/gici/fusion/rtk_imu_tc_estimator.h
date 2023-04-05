@@ -82,6 +82,10 @@ protected:
   // Initialization control
   std::shared_ptr<GnssImuInitializer> initializer_;
   std::shared_ptr<RtkEstimator> initializer_sub_estimator_;
+
+  // Status control
+  int num_continuous_unfix_ = 0;
+  int num_cotinuous_reject_gnss_ = 0;
 };
 
 }

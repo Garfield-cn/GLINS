@@ -194,6 +194,9 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
     addNHCResidualBlock(states_[index]);
   }
 
+  // Compute DOP
+  updateGdop(curGnssRov(), index_pairs);
+
   return true;
 }
 
@@ -281,10 +284,8 @@ bool RtkImuCameraRrrEstimator::visualInitialization(const FrameBundlePtr& frame_
     for (size_t i = 1; i < init_solution_store_.size(); i++) {
       double dt1 = init_solution_store_[i].timestamp - timestamp;
       double dt2 = init_solution_store_[i - 1].timestamp - timestamp;
-      double dt3 = init_solution_store_[i].timestamp - 
-                  init_solution_store_[i - 1].timestamp;
       if ((dt1 >= 0 && dt2 <= 0) || 
-          (i == init_solution_store_.size() - 1) && dt1 < 0 && fabs(dt1) < 2.0 * dt3) {
+          (i == init_solution_store_.size() - 1) && dt1 < 0 && fabs(dt1) < 2.0) {
         size_t idx = (dt1 >= 0 && dt2 <= 0) ? (i - 1) : i;
         Transformation T_WS = init_solution_store_[idx].pose;
         SpeedAndBias speed_and_bias = init_solution_store_[idx].speed_and_bias;
@@ -314,18 +315,52 @@ bool RtkImuCameraRrrEstimator::visualInitialization(const FrameBundlePtr& frame_
 // Solve current graph
 bool RtkImuCameraRrrEstimator::estimate()
 {
+  status_ = EstimatorStatus::Converged;
+
   // Optimize
   optimize();
 
-  // Reject GNSS outliers
+  // Get current sensor type
   IdType new_state_type = states_[latest_state_index_].id.type();
-  if (new_state_type == IdType::gPose && gnss_base_options_.use_outlier_rejection) {
-    rejectPseudorangeOutlier(states_[latest_state_index_]);
-    rejectPhaserangeOutlier(states_[latest_state_index_], curAmbiguityState());
-  }
 
-  // Ambiguity resolution
-  if (new_state_type == IdType::gPose) {
+  // GNSS processes
+  double gdop = 0.0;
+  if (new_state_type == IdType::gPose)
+  {
+    // Reject GNSS outliers
+    size_t n_pseudorange = numPseudorangeError(states_[latest_state_index_]);
+    size_t n_phaserange = numPhaserangeError(states_[latest_state_index_]);
+    size_t n_doppler = numDopplerError(states_[latest_state_index_]);
+    if (gnss_base_options_.use_outlier_rejection) {
+      rejectPseudorangeOutlier(states_[latest_state_index_], curAmbiguityState());
+      rejectDopplerOutlier(states_[latest_state_index_]);
+      rejectPhaserangeOutlier(states_[latest_state_index_], curAmbiguityState());
+    }
+
+    // Check if we rejected too many GNSS residuals
+    double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
+      static_cast<double>(numPseudorangeError(states_[latest_state_index_])) / 
+      static_cast<double>(n_pseudorange);
+    double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
+      static_cast<double>(numPhaserangeError(states_[latest_state_index_])) / 
+      static_cast<double>(n_phaserange);
+    double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
+      static_cast<double>(numDopplerError(states_[latest_state_index_])) / 
+      static_cast<double>(n_doppler);
+    const double thr = gnss_base_options_.diverge_max_reject_ratio;
+    if (isGnssGoodObservation() && 
+        (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {
+      num_cotinuous_reject_gnss_++;
+    }
+    else num_cotinuous_reject_gnss_ = 0;
+    if (num_cotinuous_reject_gnss_ > 
+        gnss_base_options_.diverge_min_num_continuous_reject) {
+      LOG(WARNING) << "Estimator diverge: Too many GNSS outliers rejected!";
+      status_ = EstimatorStatus::Diverged;
+      num_cotinuous_reject_gnss_ = 0;
+    }
+
+    // Ambiguity resolution
     for (size_t i = latest_state_index_; i < states_.size(); i++) {
       states_[i].status = GnssSolutionStatus::Float;
     }
@@ -346,11 +381,53 @@ bool RtkImuCameraRrrEstimator::estimate()
         }
       }
     }
+
+    // Check if we continuously cannot fix ambiguity, while we have good observations
+    if (rtk_options_.use_ambiguity_resolution) {
+      const double thr = gnss_base_options_.good_observation_max_reject_ratio;
+      if (isGnssGoodObservation() && ratio_pseudorange < thr && 
+          ratio_phaserange < thr && ratio_doppler < thr) {
+        if (curState().status != GnssSolutionStatus::Fixed) num_continuous_unfix_++;
+        else num_continuous_unfix_ = 0; 
+      }
+      else num_continuous_unfix_ = 0;
+      if (num_continuous_unfix_ > 
+          gnss_base_options_.reset_ambiguity_min_num_continuous_unfix) {
+        LOG(INFO) << "Continuously unfix under good observations. Clear current ambiguities.";
+        resetAmbiguityEstimation();
+        ambiguity_covariance_estimator_->resetAmbiguityEstimation();
+        num_continuous_unfix_ = 0;
+      }
+    }
+  }
+
+  // Image processes
+  if (new_state_type == IdType::cPose) {
+    // update landmarks to frontend
+    updateLandmarks();
+    // update states to frontend
+    updateFrameStateToFrontend(states_[latest_state_index_], curFrame());
+    // reject landmark outliers
+    size_t n_reprojection = numReprojectionError(curFrame());
+    rejectReprojectionErrorOutlier(curFrame());
+    // check if we rejected too many reprojection errors
+    double ratio_reprojection = n_reprojection == 0.0 ? 0.0 : 1.0 - 
+      static_cast<double>(numReprojectionError(curFrame())) / 
+      static_cast<double>(n_reprojection);
+    if (ratio_reprojection > 0.5) num_cotinuous_reject_visual_++;
+    else num_cotinuous_reject_visual_ = 0;
+    if (num_cotinuous_reject_visual_ > 10) {
+      LOG(WARNING) << "Estimator diverge: Too many visual outliers rejected!";
+      status_ = EstimatorStatus::Diverged;
+      num_cotinuous_reject_visual_ = 0;
+    }
   }
 
   // Log information
   State& new_state = states_[latest_state_index_];
   if (base_options_.verbose_output) {
+    int dif_distance = static_cast<int>(round(
+      (curGnssRov().position - curGnssRef().position).norm() / 1.0e3));
     LOG(INFO) << estimatorTypeToString(type_) << ": " 
       << "Iterations: " << graph_->summary.iterations.size() << ", "
       << std::scientific << std::setprecision(3) 
@@ -359,17 +436,8 @@ bool RtkImuCameraRrrEstimator::estimate()
       << ", Sensor type: " << std::setw(1) << 
         static_cast<int>(BackendId::sensorType(new_state.id.type()))
       << ", Sat number: " << std::setw(2) << num_satellites_
+      << ", GDOP: " << std::setprecision(1) << std::fixed << gdop_
       << ", Fix status: " << std::setw(1) << static_cast<int>(new_state.status);
-  }
-
-  // Update parameters to frontend
-  if (new_state_type == IdType::cPose) {
-    // update landmarks to frontend
-    updateLandmarks();
-    // update states to frontend
-    updateFrameStateToFrontend(states_[latest_state_index_], curFrame());
-    // reject landmark outliers
-    rejectReprojectionErrorOutlier(curFrame());
   }
 
   // Apply marginalization
@@ -391,7 +459,7 @@ bool RtkImuCameraRrrEstimator::estimate()
   }
   // only keep frame measurement data for two epochs
   while (frame_bundles_.size() > 2) frame_bundles_.pop_front();
-
+  
   return true;
 }
 
@@ -452,7 +520,7 @@ bool RtkImuCameraRrrEstimator::frameMarginalization()
 
   // If current frame is a keyframe. Marginalize the oldest keyframe and corresponding 
   // IMU and GNSS states out. And sparsify GNSS states.
-  if (curState().is_keyframe &&
+  if (states_[latest_state_index_].is_keyframe &&
       sizeOfKeyframeStates() > rrr_options_.max_keyframes) {
     // Erase old marginalization item
     if (!eraseOldMarginalization()) return false;

@@ -207,7 +207,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
 
   // Set to epoch data
   GnssMeasurement epoch;
-  epoch.timestamp = gnss_common::gpsTimeToUtc(
+  epoch.timestamp = gnss_common::gpsTimeToUtcTime(
     gnss_common::gtimeToDouble(gnss->observation->data[0].time));
   epoch.role = role_out;
   epoch.tag = formator_tag.substr(4, formator_tag.size() - 4);
@@ -308,7 +308,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
   // reference station position
   if (role_out == GnssRole::Reference) {
     if (gnss_local_->antenna->pos[0] == 0.0) {
-      LOG(WARNING) << "Unable to get antenna position of reference station!";
+      LOG(INFO) << "Unable to get antenna position of reference station!";
       return;
     }
     epoch.position = 
