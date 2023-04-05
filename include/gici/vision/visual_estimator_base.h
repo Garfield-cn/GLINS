@@ -22,6 +22,12 @@ struct VisualEstimatorBaseOptions {
 
   // Maximum frequency of visual backend processing (Hz)
   double max_frequency = 10.0;
+
+  // Maximum outlier rejection ratio to be considered as diverging
+  double diverge_max_reject_ratio = 0.5;
+
+  // Minimum number of continuous large amount rejection to be considered as divergence
+  size_t diverge_min_num_continuous_reject = 10;
 };
 
 // Estimator

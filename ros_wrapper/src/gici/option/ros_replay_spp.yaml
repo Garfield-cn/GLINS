@@ -103,7 +103,8 @@ estimate:
       max_pesudorange_error: 4.0
       gnss_common:
         min_elevation: 12.0
-        # system_exclude: [R, E, C]
+      gnss_error_parameter:
+        system_error_ratio: [1.0, 10.0, 1.0, 1.0]
     estimator_base_options:
       max_iteration: 10
       num_threads: 2

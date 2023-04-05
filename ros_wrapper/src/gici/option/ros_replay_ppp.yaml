@@ -127,7 +127,7 @@ estimate:
       gnss_common:
         min_elevation: 12.0
         system_exclude: [R]
-        # satellite_exclude: [E07, E33]
+        # satellite_exclude: [E07, E27, E33]
         # code_exclude: [G|5Q]
         # mw_slip_thres: 3.0  
         # gf_slip_thres: 0.05

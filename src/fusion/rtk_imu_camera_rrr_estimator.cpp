@@ -339,14 +339,11 @@ bool RtkImuCameraRrrEstimator::estimate()
 
     // Check if we rejected too many GNSS residuals
     double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numPseudorangeError(states_[latest_state_index_])) / 
-      static_cast<double>(n_pseudorange);
+      computeDivide(numPseudorangeError(states_[latest_state_index_]), n_pseudorange);
     double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numPhaserangeError(states_[latest_state_index_])) / 
-      static_cast<double>(n_phaserange);
+      computeDivide(numPhaserangeError(states_[latest_state_index_]), n_phaserange);
     double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numDopplerError(states_[latest_state_index_])) / 
-      static_cast<double>(n_doppler);
+      computeDivide(numDopplerError(states_[latest_state_index_]), n_doppler);
     const double thr = gnss_base_options_.diverge_max_reject_ratio;
     if (isGnssGoodObservation() && 
         (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {
@@ -412,11 +409,13 @@ bool RtkImuCameraRrrEstimator::estimate()
     rejectReprojectionErrorOutlier(curFrame());
     // check if we rejected too many reprojection errors
     double ratio_reprojection = n_reprojection == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numReprojectionError(curFrame())) / 
-      static_cast<double>(n_reprojection);
-    if (ratio_reprojection > 0.5) num_cotinuous_reject_visual_++;
+      computeDivide(numReprojectionError(curFrame()), n_reprojection);
+    if (ratio_reprojection > visual_base_options_.diverge_max_reject_ratio) {
+      num_cotinuous_reject_visual_++;
+    }
     else num_cotinuous_reject_visual_ = 0;
-    if (num_cotinuous_reject_visual_ > 10) {
+    if (num_cotinuous_reject_visual_ > 
+        visual_base_options_.diverge_min_num_continuous_reject) {
       LOG(WARNING) << "Estimator diverge: Too many visual outliers rejected!";
       status_ = EstimatorStatus::Diverged;
       num_cotinuous_reject_visual_ = 0;

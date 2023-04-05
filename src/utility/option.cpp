@@ -815,6 +815,8 @@ void loadOptions<VisualEstimatorBaseOptions>(
   LOAD_COMMON(feature_error_std);
   LOAD_COMMON(landmark_outlier_rejection_threshold);
   LOAD_COMMON(max_frequency);
+  LOAD_COMMON(diverge_max_reject_ratio);
+  LOAD_COMMON(diverge_min_num_continuous_reject);
 }
 
 // Copy the options with the same name from in to out

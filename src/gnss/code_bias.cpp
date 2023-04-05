@@ -218,7 +218,7 @@ void CodeBias::setDcb(const std::string prn,
   if (found) {
     if (!checkEqual(it_dcb->second.value, value, 0.01)) {
       it_dcb->second.value = value;
-      biases_updated_.at(prn) = true;
+      biases_updated_[prn] = true;
     }
   }
   else {
@@ -228,7 +228,7 @@ void CodeBias::setDcb(const std::string prn,
     dcb.value = value;
     dcb.std = 0.01;
     dcbs_.insert(std::make_pair(prn, dcb));
-    biases_updated_.insert(std::make_pair(prn, true));
+    biases_updated_[prn] = true;
   }
 }
 
@@ -250,7 +250,7 @@ void CodeBias::setTgdIsc(const std::string prn,
   if (found) {
     if (!checkEqual(it_tgd->second.value, value * CLIGHT, 0.01)) {
       it_tgd->second.value = value * CLIGHT;
-      biases_updated_.at(prn) = true;
+      biases_updated_[prn] = true;
     }
   } 
   else {
@@ -258,7 +258,7 @@ void CodeBias::setTgdIsc(const std::string prn,
     tgd.type = type;
     tgd.value = value * CLIGHT;
     tgds_.insert(std::make_pair(prn, tgd));
-    biases_updated_.insert(std::make_pair(prn, true));
+    biases_updated_[prn] = true;
   }
 }
 
@@ -279,10 +279,11 @@ void CodeBias::setZdcb(const std::string prn,
   }
   
   // Add to handle
+  bool updated = false;
   if (found) {
     if (!checkEqual(it_zdcb->second.value, value, 0.01)) {
       it_zdcb->second.value = value;
-      biases_updated_.at(prn) = true;
+      biases_updated_[prn] = true;
     }
   }
   else {
@@ -290,7 +291,7 @@ void CodeBias::setZdcb(const std::string prn,
     zdcb.code = code;
     zdcb.value = value;
     zdcbs_.insert(std::make_pair(prn, zdcb));
-    biases_updated_.insert(std::make_pair(prn, true));
+    biases_updated_[prn] = true;
   }
 }
 
@@ -311,10 +312,7 @@ void CodeBias::arrangeToBases()
 double CodeBias::getCodeBias(const std::string prn, 
   const int code, const bool accept_coarse)
 {
-  // Initialization
-  if (!biases_initialized_) {
-    arrangeToBases();
-  }
+  if (!biases_initialized_) return 0.0;
 
   // Get code bias
   mutex_.lock();

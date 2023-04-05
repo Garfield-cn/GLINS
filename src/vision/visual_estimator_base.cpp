@@ -291,20 +291,17 @@ bool VisualEstimatorBase::rejectReprojectionErrorOutlier(const FramePtr& frame)
     if (need_add_it) it++;
   }
 
-  if (rejected_landmarks.size() > 0) {
+  if (base_options_.verbose_output) {
     LOG(INFO) << "Rejected " << rejected_landmarks.size() << " landmark outliers. Remaining " 
               << landmarks_map_.size() << " landmarks.";
-    double rejected_ratio = static_cast<double>(rejected_landmarks.size()) / 
-      static_cast<double>(landmarks_map_.size());
-    if (rejected_ratio > 0.5) {
-      LOG(WARNING) << "Too many outliers: track_id - residual";
-      for (size_t i = 0; i < residual_vec.size(); i++) 
-        LOG(WARNING) << std::fixed << residual_vec[i].first << " - " << residual_vec[i].second;
+    for (size_t i = 0; i < residual_vec.size(); i++) {
+      LOG(INFO) << "Rejected landmark outlier " 
+        << std::fixed << residual_vec[i].first 
+        << ": nomalized residual = " << residual_vec[i].second;
     }
-    return true;
   }
 
-  return false;
+  return rejected_landmarks.size() > 0 ? true : false;
 }
 
 // Add landmark blocks in corresponding with given camera state to marginalizer

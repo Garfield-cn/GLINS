@@ -9,7 +9,7 @@
 
 using namespace gici;
 
-const double timestamp_shift = -1.0;
+const double timestamp_shift = 0.0;
 
 int main(int argc, char** argv)
 {

@@ -98,6 +98,12 @@ inline Eigen::Matrix<FloatT, Rows, Cols>
   return out;
 }
 
+// Compute x/y
+template<typename T>
+inline double computeDivide(T x, T y) {
+  return static_cast<double>(x) / static_cast<double>(y);
+}
+
 // Operation common -----------------------------------------------
 // Get current variable from deque
 template<typename T>
