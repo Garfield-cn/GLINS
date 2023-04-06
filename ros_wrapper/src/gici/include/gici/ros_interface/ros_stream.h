@@ -14,6 +14,7 @@
 #include <glog/logging.h>
 #include <ros/ros.h>
 #include <sensor_msgs/Imu.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <gici_ros/GlonassEphemeris.h>
 #include <gici_ros/GnssAntennaPosition.h>
 #include <gici_ros/GnssEphemerides.h>
@@ -37,6 +38,7 @@ enum class RosDataFormat {
   PoseStamped,
   PoseWithCovarianceStamped,
   Odometry,
+  NavSatFix,
   Marker,
   Path
 };
@@ -118,6 +120,7 @@ private:
   void gnssSsrPhaseBiasesCallback(const gici_ros::GnssSsrPhaseBiasesConstPtr& msg);
   void gnssSsrEphemeridesCallback(const gici_ros::GnssSsrEphemeridesConstPtr& msg);
   void poseCallback(const geometry_msgs::PoseWithCovarianceStampedConstPtr& msg);
+  void navSatFixCallback(const sensor_msgs::NavSatFixConstPtr& msg);
 
 protected:
   // Stream control
@@ -135,6 +138,7 @@ protected:
   std::vector<ros::Subscriber> subscribers_;
   std::vector<RosGnssDataFormat> gnss_formats_;
   std::unique_ptr<tf::TransformBroadcaster> tranform_broadcaster_;
+  GeoCoordinatePtr input_coordinate_;
   std::string frame_id_;
   std::string subframe_id_;
   std::string topic_name_;

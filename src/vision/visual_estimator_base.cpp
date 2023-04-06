@@ -107,9 +107,6 @@ void VisualEstimatorBase::addLandmarkParameterBlocksWithResiduals(const FramePtr
         point->in_ba_graph_ = false;
         landmarks_map_.erase(it_landmark);
       }
-      else {
-        // LOG(INFO) << "Added landmark " << point->id() << " at frame " << frame->id() << ".";
-      }
     }
   }
 

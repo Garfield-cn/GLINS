@@ -919,6 +919,7 @@ NmeaFormator::NmeaFormator(YAML::Node& node)
   LOAD_COMMON(use_gga);
   LOAD_COMMON(use_rmc);
   LOAD_COMMON(use_esa);
+  LOAD_COMMON(use_esd);
   LOAD_COMMON(talker_id);
   option_ = option;
 }
@@ -951,6 +952,9 @@ int NmeaFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
   }
   if (option_.use_esa) {
     p += encodeESA(*data->solution, p);
+  }
+  if (option_.use_esd) {
+    p += encodeESD(*data->solution, p);
   }
 
   return p - buf;
@@ -1066,8 +1070,7 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
   rpy *= R2D;
 
   gtime_t time;
-  double h,ep[6],pos[3],dms1[3],dms2[3],dop=1.0;
-  int solq,refid=0;
+  double ep[6];
   char *p=(char *)buf,*q,sum;
   
   if (sol.stat<=SOLQ_NONE) {
@@ -1076,14 +1079,46 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
     p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
     return p-(char *)buf;
   }
-  for (solq=0;solq<8;solq++) if (nmea_solq[solq]==sol.stat) break;
-  if (solq>=8) solq=0;
   time=gpst2utc(sol.time);
   time2epoch(time,ep);
   p+=sprintf(p,"$%sESA,%02.0f%02.0f%06.3f,%+.3f,%+.3f,%+.3f,"
              "%+.3f,%+.3f,%+.3f",
              option_.talker_id.data(),ep[3],ep[4],ep[5],sol.rr[3],sol.rr[4],sol.rr[5],
              rpy[0],rpy[1],rpy[2]);
+  for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
+  p+=sprintf(p,"*%02X\r\n",sum);
+  return p-(char *)buf;
+}
+
+// Encode GNESD (self-defined Extended STD) message
+// Format: $GNESD,tod,STD_Pe,STD_Pn,STD_Pu,STD_Ve,STD_Vn,STD_Vu,
+//         STD_Ar,STD_Ap,STD_Py*checksum
+int NmeaFormator::encodeESD(const Solution& solution, uint8_t* buf)
+{
+  sol_t sol;
+  convertSolution(solution, sol);
+
+  gtime_t time;
+  double ep[6], std_p[3], std_v[3], std_a[3];
+  char *p=(char *)buf,*q,sum;
+
+  for (size_t i = 0; i < 3; i++) {
+    std_p[i] = sqrt(solution.covariance(i, i));
+    std_v[i] = sqrt(solution.covariance(i + 6, i + 6));
+    std_a[i] = sqrt(solution.covariance(i + 3, i + 3)) * R2D;
+  }
+  
+  if (sol.stat<=SOLQ_NONE) {
+    p+=sprintf(p,"$%sESD,,,,,,,",option_.talker_id.data());
+    for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q;
+    p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
+    return p-(char *)buf;
+  }
+  time=gpst2utc(sol.time);
+  time2epoch(time,ep);
+  p+=sprintf(p,"$%sESD,%02.0f%02.0f%06.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f",
+             option_.talker_id.data(),ep[3],ep[4],ep[5],std_p[0],std_p[1],std_p[2],
+             std_v[0],std_v[1],std_v[2],std_a[0],std_a[1],std_a[2]);
   for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
   p+=sprintf(p,"*%02X\r\n",sum);
   return p-(char *)buf;

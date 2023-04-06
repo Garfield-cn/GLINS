@@ -22,8 +22,26 @@ find_package(catkin REQUIRED COMPONENTS
   eigen_conversions
   pcl_conversions
   pcl_ros
+  rosbag
   message_generation
 )
+
+add_message_files(
+  FILES
+  GlonassEphemeris.msg
+  GnssAntennaPosition.msg
+  GnssEphemerides.msg
+  GnssEphemeris.msg
+  GnssIonosphereParameter.msg
+  GnssObservation.msg
+  GnssObservations.msg
+  GnssSsrCodeBias.msg
+  GnssSsrCodeBiases.msg
+  GnssSsrEphemerides.msg
+  GnssSsrEphemeris.msg
+  GnssSsrPhaseBias.msg
+  GnssSsrPhaseBiases.msg
+) 
 
 generate_messages(
   DEPENDENCIES std_msgs
@@ -52,20 +70,35 @@ catkin_package(
 add_definitions(-DENAGLO -DENACMP -DENAGAL -DNFREQ=3 -DNEXOBS=3 -DDLL)
 
 # Sources
-aux_source_directory(src/ros_interface DIR_ROS_TOOLS)
+aux_source_directory(src/ros_utility DIR_UTILITIES)
 
 # Executables
 add_executable(publish_ie_poses
-              src/publish_ie_poses.cpp ${DIR_ROS_TOOLS})
+              src/publish_ie_poses.cpp ${DIR_UTILITIES})
 target_link_libraries(publish_ie_poses 
-      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+              gici ${catkin_LIBRARIES})
 
 add_executable(publish_tum_poses
-               src/publish_tum_poses.cpp ${DIR_ROS_TOOLS})
+               src/publish_tum_poses.cpp ${DIR_UTILITIES})
 target_link_libraries(publish_tum_poses 
-      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+              gici ${catkin_LIBRARIES})
 
 add_executable(publish_nmea_poses
-              src/publish_nmea_poses.cpp ${DIR_ROS_TOOLS})
+              src/publish_nmea_poses.cpp ${DIR_UTILITIES})
 target_link_libraries(publish_nmea_poses 
-      gici ${OpenCV_LIBS} ${catkin_LIBRARIES})
+              gici ${catkin_LIBRARIES})
+
+add_executable(imupack_to_rosbag
+              src/imupack_to_rosbag.cpp)
+target_link_libraries(imupack_to_rosbag 
+              gici ${catkin_LIBRARIES})
+              
+add_executable(imagepack_to_rosbag
+              src/imagepack_to_rosbag.cpp)
+target_link_libraries(imagepack_to_rosbag 
+              gici ${catkin_LIBRARIES})
+
+add_executable(nmea_to_rosbag_navsatfix
+              src/nmea_to_rosbag_navsatfix.cpp ${DIR_UTILITIES})
+target_link_libraries(nmea_to_rosbag_navsatfix 
+              gici ${catkin_LIBRARIES})

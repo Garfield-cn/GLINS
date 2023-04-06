@@ -203,6 +203,23 @@ RosStream::RosStream(
     if (io_type_ == StreamIOType::Input) {
       subscribers_.push_back(nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>(
         topic_name_, queue_size_, boost::bind(&RosStream::poseCallback, this, _1)));
+      // we need a coordinate zero for local frame to global frame convertion
+      std::vector<double> initial_global_position_vec;
+      if (option_tools::safeGet(streamer_node->this_node, 
+        "initial_global_position", &initial_global_position_vec)) {
+        CHECK(initial_global_position_vec.size() == 3);
+        Eigen::Vector3d initial_global_position;
+        for (size_t i = 0; i < 3; i++) {
+          initial_global_position(i) = initial_global_position_vec[i];
+        }
+        initial_global_position.head<2>() *= D2R;
+        input_coordinate_.reset(new GeoCoordinate(initial_global_position, GeoType::LLA));
+      }
+      else {
+        LOG(ERROR) << "A initial_global_position is required for the "
+                   << "pose_with_covariance_stamped topic in input mode!";
+        return;
+      }
     }
     else {
       publishers_.push_back(nh_.advertise<geometry_msgs::PoseWithCovarianceStamped>(
@@ -230,6 +247,17 @@ RosStream::RosStream(
         LOG(ERROR) << "A subframe_id is required for the odometry topic!";
         return;
       }
+    }
+  }
+  else if (data_format == "navsatfix") {
+    data_format_ = RosDataFormat::NavSatFix;
+    if (io_type_ == StreamIOType::Input) {
+      subscribers_.push_back(nh_.subscribe<sensor_msgs::NavSatFix>(
+        topic_name_, queue_size_, boost::bind(&RosStream::navSatFixCallback, this, _1)));
+    }
+    else {
+      publishers_.push_back(nh_.advertise<sensor_msgs::NavSatFix>(
+        topic_name_, queue_size_));
     }
   }
   else if (data_format == "marker") {
@@ -343,6 +371,17 @@ void RosStream::solutionOutputCallback(std::string tag, Solution& solution)
     publishOdometry(publishers_[0], *tranform_broadcaster_, solution.pose, 
       solution.speed_and_bias.head<3>(), solution.covariance.block<9, 9>(0, 0), 
       ros::Time(solution.timestamp), frame_id_, subframe_id_);
+  }
+  else if (data_format_ == RosDataFormat::NavSatFix) {
+    Eigen::Vector3d lla = 
+      solution.coordinate->convert(
+        solution.pose.getPosition(), GeoType::ENU, GeoType::LLA);
+    Eigen::Matrix3d lla_covariance = 
+      solution.coordinate->convertCovariance(
+        solution.covariance.topLeftCorner(3, 3), GeoType::ENU, GeoType::NED);
+    publishNavSatFix(publishers_[0], lla, 
+      lla_covariance, ros::Time(solution.timestamp), solution.status);
+      
   }
   else if (data_format_ == RosDataFormat::Path) {
     CHECK_NOTNULL(path_publisher_);
@@ -769,14 +808,66 @@ void RosStream::poseCallback(
   // Convert data
   Solution solution;
   solution.timestamp = msg->header.stamp.toSec();
+  solution.coordinate = input_coordinate_;
   Eigen::Vector3d p(msg->pose.pose.position.x, 
     msg->pose.pose.position.y, msg->pose.pose.position.z);
   Eigen::Quaterniond q(msg->pose.pose.orientation.w, msg->pose.pose.orientation.x, 
     msg->pose.pose.orientation.y, msg->pose.pose.orientation.z);
   solution.pose = Transformation(p, q);
+  solution.covariance.setZero();
   for (size_t i = 0; i < 6; i++) {
     for (size_t j = 0; j < 6; j++) {
       solution.covariance(i, j) = msg->pose.covariance[i * 6 + j];
+    }
+    CHECK(solution.covariance(i, i) > 0.0);
+  }
+  std::shared_ptr<DataCluster> data_cluster = std::make_shared<DataCluster>(solution);
+
+  // Call other loosely couple estimators (internal pipeline)
+  for (auto it_solution_callback : data_callbacks_) {
+    it_solution_callback(tag_, data_cluster);
+  }
+
+  // Call logger pipeline
+  for (auto pipeline : pipeline_ros_to_ros_) {
+    pipeline("", data_cluster);
+  }
+}
+
+void RosStream::navSatFixCallback(const sensor_msgs::NavSatFixConstPtr& msg)
+{
+  // Convert data
+  Solution solution;
+  solution.timestamp = msg->header.stamp.toSec();
+  Eigen::Vector3d lla;
+  lla(0) = msg->latitude * D2R;
+  lla(1) = msg->longitude * D2R;
+  lla(2) = msg->altitude;
+  if (input_coordinate_ == nullptr) {
+    input_coordinate_.reset(new GeoCoordinate(lla, GeoType::LLA));
+  }
+  solution.pose = Transformation(
+    input_coordinate_->convert(lla, GeoType::LLA, GeoType::ENU), 
+    Eigen::Quaterniond::Identity());
+  if (msg->status.status == sensor_msgs::NavSatStatus::STATUS_FIX) {
+    solution.status = GnssSolutionStatus::Fixed;
+  }
+  else {
+    solution.status = GnssSolutionStatus::Float;
+  }
+  solution.covariance.setZero();
+  if (msg->position_covariance_type == sensor_msgs::NavSatFix::COVARIANCE_TYPE_KNOWN)
+  for (size_t i = 0; i < 3; i++) {
+    for (size_t j = 0; i < 3; j++) {
+      solution.covariance(i, j) = msg->position_covariance[j + i * 3];
+    }
+  }
+  else {
+    if (solution.status == GnssSolutionStatus::Fixed) {
+      for (size_t i = 0; i < 3; i++) solution.covariance(i, i) = 1.0e-4;
+    }
+    else {
+      for (size_t i = 0; i < 3; i++) solution.covariance(i, i) = 1.0e2;
     }
   }
   std::shared_ptr<DataCluster> data_cluster = std::make_shared<DataCluster>(solution);

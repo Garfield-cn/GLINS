@@ -4,8 +4,8 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/ros_interface/ros_publisher.h"
-#include "gici/ros_interface/nmea_formator.h"
+#include "gici/ros_utility/ros_publisher.h"
+#include "gici/ros_utility/nmea_formator.h"
 
 using namespace gici;
 
