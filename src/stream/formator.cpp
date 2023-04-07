@@ -325,7 +325,7 @@ inline bool loadStartTime(YAML::Node& node, double& start_time) {
   int year = atoi(strs[0].data());
   int month = atoi(strs[1].data());
   int day = atoi(strs[2].data());
-  int hour = atoi(strs[3].data());
+  int hour = 12;
   int min = 0, sec = 0;
   double ep[] = { (double)year, (double)month, (double)day,
                   (double)hour, (double)min, (double)sec };
