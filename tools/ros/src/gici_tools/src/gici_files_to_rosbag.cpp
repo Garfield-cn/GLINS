@@ -75,7 +75,8 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
   {
     CHECK(data_cluster->gnss);
     auto& gnss = *data_cluster->gnss;
-    if (option.enable_observation)
+#define HAS(t) (std::find(gnss.types.begin(), gnss.types.end(), t) != gnss.types.end())
+    if (option.enable_observation && HAS(GnssDataType::Observation))
     {
       gici_ros::GnssObservations msg;
       for (int i = 0; i < gnss.observation->n; i++) {
@@ -104,7 +105,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/observations";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_ephemeris)
+    if (option.enable_ephemeris && HAS(GnssDataType::Ephemeris))
     {
       gici_ros::GnssEphemerides msg;
       nav_t *nav = gnss.ephemeris;
@@ -184,7 +185,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/ephemerides";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_antenna_position)
+    if (option.enable_antenna_position && HAS(GnssDataType::AntePos))
     {
       gici_ros::GnssAntennaPosition msg;
       for (size_t i = 0; i < 3; i++) {
@@ -194,7 +195,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/antenna_position";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_ionosphere_parameter)
+    if (option.enable_ionosphere_parameter && HAS(GnssDataType::IonPara))
     {
       gici_ros::GnssIonosphereParameter msg;
       // use GPS parameters
@@ -206,7 +207,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/ionosphere_parameter";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_ssr_code_bias)
+    if (option.enable_ssr_code_bias && HAS(GnssDataType::SSR))
     {
       gici_ros::GnssSsrCodeBiases msg;
       for (int i = 0; i < MAXSAT; i++) {
@@ -235,7 +236,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/code_bias";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_ssr_phase_bias)
+    if (option.enable_ssr_phase_bias && HAS(GnssDataType::SSR))
     {
       gici_ros::GnssSsrPhaseBiases msg;
       for (int i = 0; i < MAXSAT; i++) {
@@ -265,7 +266,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/phase_bias";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_ssr_ephemeris)
+    if (option.enable_ssr_ephemeris && HAS(GnssDataType::SSR))
     {
       gici_ros::GnssSsrEphemerides msg;
       for (int i = 0; i < MAXSAT; i++) {
