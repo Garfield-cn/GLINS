@@ -68,22 +68,22 @@ stream:
       tag: fmt_gnss_rov
       type: gnss-raw
       sub_type: tersus
-      start_time: 2023.03.20.08
+      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.20.08
+      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.20.08
+      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_gnss_ssr
       type: gnss-rtcm-3
-      start_time: 2023.03.20.08
+      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_gnss_atx
