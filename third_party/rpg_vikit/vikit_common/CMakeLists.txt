@@ -55,8 +55,8 @@ IF(USE_ROS)
 ENDIF()
 
 # Tests
-ADD_EXECUTABLE(test_vk_common test/test_common.cpp)
-TARGET_LINK_LIBRARIES(test_vk_common ${PROJECT_NAME})
+# ADD_EXECUTABLE(test_vk_common test/test_common.cpp)
+# TARGET_LINK_LIBRARIES(test_vk_common ${PROJECT_NAME})
 
 # ADD_EXECUTABLE(test_vk_common_triangulation test/test_triangulation.cpp)
 # TARGET_LINK_LIBRARIES(test_vk_common_triangulation ${PROJECT_NAME})

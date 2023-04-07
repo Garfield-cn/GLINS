@@ -24,27 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
   pcl_ros
   rosbag
   message_generation
-)
-
-add_message_files(
-  FILES
-  GlonassEphemeris.msg
-  GnssAntennaPosition.msg
-  GnssEphemerides.msg
-  GnssEphemeris.msg
-  GnssIonosphereParameter.msg
-  GnssObservation.msg
-  GnssObservations.msg
-  GnssSsrCodeBias.msg
-  GnssSsrCodeBiases.msg
-  GnssSsrEphemerides.msg
-  GnssSsrEphemeris.msg
-  GnssSsrPhaseBias.msg
-  GnssSsrPhaseBiases.msg
-) 
-
-generate_messages(
-  DEPENDENCIES std_msgs
+  gici_ros
 )
 
 include_directories(
@@ -101,4 +81,9 @@ target_link_libraries(imagepack_to_rosbag
 add_executable(nmea_to_rosbag_navsatfix
               src/nmea_to_rosbag_navsatfix.cpp ${DIR_UTILITIES})
 target_link_libraries(nmea_to_rosbag_navsatfix 
+              gici ${catkin_LIBRARIES})
+
+add_executable(gici_files_to_rosbag
+              src/gici_files_to_rosbag.cpp ${DIR_UTILITIES})
+target_link_libraries(gici_files_to_rosbag 
               gici ${catkin_LIBRARIES})
