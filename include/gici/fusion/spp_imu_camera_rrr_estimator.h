@@ -1,5 +1,5 @@
 /**
-* @Function: RTK/IMU/Camera tightly couple estimator (GNSS raw (RTK formula) + IMU raw + camera raw)
+* @Function: SPP/IMU/Camera tightly couple estimator (GNSS raw (SPP formula) + IMU raw + camera raw)
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
@@ -9,13 +9,13 @@
 #include "gici/gnss/gnss_estimator_base.h"
 #include "gici/imu/imu_estimator_base.h"
 #include "gici/vision/visual_estimator_base.h"
-#include "gici/gnss/rtk_estimator.h"
+#include "gici/gnss/spp_estimator.h"
 #include "gici/fusion/gnss_imu_initializer.h"
 
 namespace gici {
 
-// RTK/IMU/Camera RRR couple options
-struct RtkImuCameraRrrEstimatorOptions {
+// SPP/IMU/Camera RRR couple options
+struct SppImuCameraRrrEstimatorOptions {
   // Frame state window length
   // We only keep GNSS measurements near to keyframes (one-to-one) and throw the others 
   // away after one optimization, because the GNSS measurement errors, especially for 
@@ -32,23 +32,22 @@ struct RtkImuCameraRrrEstimatorOptions {
 };
 
 // Estimator
-class RtkImuCameraRrrEstimator : 
+class SppImuCameraRrrEstimator : 
   public GnssEstimatorBase, 
   public VisualEstimatorBase, 
   public ImuEstimatorBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
-  RtkImuCameraRrrEstimator(const RtkImuCameraRrrEstimatorOptions& options, 
+  SppImuCameraRrrEstimator(const SppImuCameraRrrEstimatorOptions& options, 
                const GnssImuInitializerOptions& init_options, 
-               const RtkEstimatorOptions rtk_options,
+               const SppEstimatorOptions spp_options,
                const GnssEstimatorBaseOptions& gnss_base_options, 
                const GnssLooseEstimatorBaseOptions& gnss_loose_base_options, 
                const VisualEstimatorBaseOptions& visual_base_options,
                const ImuEstimatorBaseOptions& imu_base_options,
-               const EstimatorBaseOptions& base_options,
-               const AmbiguityResolutionOptions& ambiguity_options);
-  ~RtkImuCameraRrrEstimator();
+               const EstimatorBaseOptions& base_options);
+  ~SppImuCameraRrrEstimator();
 
   // Add measurement
   bool addMeasurement(const EstimatorDataCluster& measurement) override;
@@ -62,9 +61,7 @@ public:
 
 protected:
   // Add GNSS measurements and state
-  bool addGnssMeasurementAndState(
-    const GnssMeasurement& measurement_rov, 
-    const GnssMeasurement& measurement_ref);
+  bool addGnssMeasurementAndState(const GnssMeasurement& measurement);
 
   // Add image measurements and state
   bool addImageMeasurementAndState(const FrameBundlePtr& frame_bundle, 
@@ -84,34 +81,23 @@ protected:
 
   // Sparsify GNSS states to bound computational load
   void sparsifyGnssStates();
-
-  // Compute ambiguity covariance at current epoch
-  bool estimateAmbiguityCovariance(const State& state, Eigen::MatrixXd& covariance);
   
   // Get latest state
   inline State& latestState() override { return states_[latest_state_index_]; }
 
 protected:
   // Options
-  RtkImuCameraRrrEstimatorOptions rrr_options_;
-  RtkEstimatorOptions rtk_options_;
+  SppImuCameraRrrEstimatorOptions rrr_options_;
+  SppEstimatorOptions spp_options_;
 
   // Initialization control
   std::shared_ptr<GnssImuInitializer> gnss_imu_initializer_;
-  std::shared_ptr<RtkEstimator> initializer_sub_estimator_;
+  std::shared_ptr<SppEstimator> initializer_sub_estimator_;
   bool visual_initialized_ = false;
   std::deque<FrameBundlePtr> init_keyframes_;
   std::deque<Solution> init_solution_store_;
 
-  // Measurement alignment handle
-  DifferentialMeasurementsAlign meausrement_align_;
-
-  // RTK estimator used for ambiguity covariance estimation
-  std::unique_ptr<RtkEstimator> ambiguity_covariance_estimator_;
-  bool ambiguity_covariance_coordinate_setted_ = false;
-
   // Status control
-  int num_continuous_unfix_ = 0;
   int num_cotinuous_reject_gnss_ = 0;
   int num_cotinuous_reject_visual_ = 0;
 };

@@ -26,8 +26,10 @@
 #include "gici/gnss/gnss_loose_estimator_base.h"
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/fusion/gnss_imu_initializer.h"
+#include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/spp_imu_camera_rrr_estimator.h"
 #include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
 namespace gici {
@@ -144,9 +146,14 @@ void convert<std::string, EstimatorType>
   MAP_IN_OUT("rtk", EstimatorType::Rtk);
   MAP_IN_OUT("ppp", EstimatorType::Ppp);
   MAP_IN_OUT("gnss_imu_lc", EstimatorType::GnssImuLc);
+  MAP_IN_OUT("spp_imu_tc", EstimatorType::SppImuTc);
+  MAP_IN_OUT("dgnss_imu_tc", EstimatorType::DgnssImuTc);
   MAP_IN_OUT("rtk_imu_tc", EstimatorType::RtkImuTc);
   MAP_IN_OUT("gnss_imu_camera_srr", EstimatorType::GnssImuCameraSrr);
+  MAP_IN_OUT("spp_imu_camera_rrr", EstimatorType::SppImuCameraRrr);
+  MAP_IN_OUT("dgnss_imu_camera_rrr", EstimatorType::DgnssImuCameraRrr);
   MAP_IN_OUT("rtk_imu_camera_rrr", EstimatorType::RtkImuCameraRrr);
+  MAP_IN_OUT("Ppp_imu_camera_rrr", EstimatorType::PppImuCameraRrr);
   LOG_INVALId;
 }
 
@@ -748,6 +755,13 @@ void loadOptions<GnssImuLcEstimatorOptions>(
 }
 
 template <>
+void loadOptions<SppImuTcEstimatorOptions>(
+    YAML::Node& node, SppImuTcEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+}
+
+template <>
 void loadOptions<RtkImuTcEstimatorOptions>(
     YAML::Node& node, RtkImuTcEstimatorOptions& options)
 {
@@ -793,6 +807,15 @@ void loadOptions<GnssImuInitializerOptions>(
 template <>
 void loadOptions<GnssImuCameraSrrEstimatorOptions>(
     YAML::Node& node, GnssImuCameraSrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_keyframes);
+  LOAD_COMMON(max_gnss_window_length_minor);
+  LOAD_COMMON(min_yaw_std_init_visual);
+}
+
+template <>
+void loadOptions<SppImuCameraRrrEstimatorOptions>(
+    YAML::Node& node, SppImuCameraRrrEstimatorOptions& options)
 {
   LOAD_COMMON(max_keyframes);
   LOAD_COMMON(max_gnss_window_length_minor);

@@ -321,7 +321,7 @@ inline bool loadStartTime(YAML::Node& node, double& start_time) {
     }
     strs[index] = strs[index] + str[i];
   }
-  CHECK(index == 3) << "Start time format illegal!";
+  CHECK(index == 2) << "Start time format illegal!";
   int year = atoi(strs[0].data());
   int month = atoi(strs[1].data());
   int day = atoi(strs[2].data());

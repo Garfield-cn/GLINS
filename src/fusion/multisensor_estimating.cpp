@@ -147,6 +147,32 @@ MultiSensorEstimating::MultiSensorEstimating(
       gnss_imu_lc_options_, gnss_imu_init_options_, gnss_loose_base_options_, 
       imu_base_options_, base_options_));
   }
+  // SPP/IMU tightly couple
+  else if (type_ == EstimatorType::SppImuTc)
+  {
+    YAML::Node spp_imu_tc_node = node["spp_imu_tc_options"];
+    if (spp_imu_tc_node.IsDefined()) {
+      option_tools::loadOptions(spp_imu_tc_node, spp_imu_tc_options_);
+    }
+    YAML::Node spp_node = node["spp_options"];
+    if (spp_node.IsDefined()) {
+      option_tools::loadOptions(spp_node, spp_options_);
+    }
+    YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
+    if (gnss_imu_init_node.IsDefined()) {
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
+    }
+
+    // rotate estrinsics
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
+
+    estimator_.reset(new SppImuTcEstimator(
+      spp_imu_tc_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_, 
+      gnss_loose_base_options_, imu_base_options_, base_options_));
+  }
   // RTK/IMU tightly couple
   else if (type_ == EstimatorType::RtkImuTc)
   {
@@ -209,6 +235,42 @@ MultiSensorEstimating::MultiSensorEstimating(
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
+  // SPP/IMU/Camera tightly integration
+  else if (type_ == EstimatorType::SppImuCameraRrr)
+  {
+    YAML::Node spp_imu_camera_rrr_node = node["spp_imu_camera_rrr_options"];
+    if (spp_imu_camera_rrr_node.IsDefined()) {
+      option_tools::loadOptions(spp_imu_camera_rrr_node, spp_imu_camera_rrr_options_);
+    }
+    YAML::Node spp_node = node["spp_options"];
+    if (spp_node.IsDefined()) {
+      option_tools::loadOptions(spp_node, spp_options_);
+    }
+    YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
+    if (gnss_imu_init_node.IsDefined()) {
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
+    }
+
+    // rotate estrinsics
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+      gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
+    CameraBundlePtr camera_bundle = feature_handler_options_.cameras;
+    for (size_t i = 0; i < camera_bundle->numCameras(); i++) {
+      camera_bundle->set_T_C_B(i, ImuEstimatorBase::rotateImuToBody(
+        camera_bundle->get_T_C_B(i).inverse(), imu_base_options_).inverse());
+    }
+
+    feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
+    estimator_.reset(new SppImuCameraRrrEstimator(spp_imu_camera_rrr_options_, 
+      gnss_imu_init_options_, spp_options_, gnss_base_options_, gnss_loose_base_options_, 
+      visual_estimator_base_options_, imu_base_options_, base_options_));
+    std::shared_ptr<VisualEstimatorBase> visual_estimator = 
+      std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
+    CHECK_NOTNULL(visual_estimator);
+    visual_estimator->setFeatureHandler(feature_handler_);
+  }
   // RTK/IMU/Camera tightly integration
   else if (type_ == EstimatorType::RtkImuCameraRrr)
   {
@@ -248,6 +310,10 @@ MultiSensorEstimating::MultiSensorEstimating(
       std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
+  }
+  else {
+    LOG(ERROR) << "Invalid estimator type: " << static_cast<int>(type_);
+    return;
   }
 
   // For coordinate initialization
@@ -315,6 +381,13 @@ void MultiSensorEstimating::resetProcessors()
       gnss_imu_lc_options_, gnss_imu_init_options_, gnss_loose_base_options_, 
       imu_base_options_, base_options_));
   }
+  // SPP/IMU tightly couple
+  else if (type_ == EstimatorType::SppImuTc) 
+  {
+    estimator_.reset(new SppImuTcEstimator(
+      spp_imu_tc_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_, 
+      gnss_loose_base_options_, imu_base_options_, base_options_));
+  }
   // RTK/IMU tightly couple
   else if (type_ == EstimatorType::RtkImuTc)
   {
@@ -334,6 +407,18 @@ void MultiSensorEstimating::resetProcessors()
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
+  // SPP/IMU/Camera tightly integration
+  else if (type_ == EstimatorType::SppImuCameraRrr)
+  {
+    feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
+    estimator_.reset(new SppImuCameraRrrEstimator(spp_imu_camera_rrr_options_, 
+      gnss_imu_init_options_, spp_options_, gnss_base_options_, gnss_loose_base_options_, 
+      visual_estimator_base_options_, imu_base_options_, base_options_));
+    std::shared_ptr<VisualEstimatorBase> visual_estimator = 
+      std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
+    CHECK_NOTNULL(visual_estimator);
+    visual_estimator->setFeatureHandler(feature_handler_);
+  }
   // RTK/IMU/Camera tightly integration
   else if (type_ == EstimatorType::RtkImuCameraRrr)
   {
@@ -346,7 +431,11 @@ void MultiSensorEstimating::resetProcessors()
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
-  
+  else {
+    LOG(ERROR) << "Invalid estimator type: " << static_cast<int>(type_);
+    return;
+  }
+
   // Set coordinate and gravity
   estimator_->setCoordinate(solution_.coordinate);
   if (estimatorTypeContains(SensorType::IMU, type_)) {

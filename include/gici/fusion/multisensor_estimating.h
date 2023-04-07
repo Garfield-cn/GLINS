@@ -22,8 +22,10 @@
 #include "gici/gnss/dgnss_estimator.h"
 #include "gici/gnss/rtk_estimator.h"
 #include "gici/fusion/gnss_imu_lc_estimator.h"
+#include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/spp_imu_camera_rrr_estimator.h"
 #include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
 namespace gici {
@@ -84,19 +86,34 @@ private:
               estimator_type == EstimatorType::Rtk || 
               estimator_type == EstimatorType::Ppp || 
               estimator_type == EstimatorType::GnssImuLc || 
+              estimator_type == EstimatorType::SppImuTc || 
+              estimator_type == EstimatorType::DgnssImuTc ||
               estimator_type == EstimatorType::RtkImuTc || 
+              estimator_type == EstimatorType::PppImuTc ||
               estimator_type == EstimatorType::GnssImuCameraSrr || 
-              estimator_type == EstimatorType::RtkImuCameraRrr);
+              estimator_type == EstimatorType::SppImuCameraRrr ||
+              estimator_type == EstimatorType::DgnssImuCameraRrr ||
+              estimator_type == EstimatorType::RtkImuCameraRrr || 
+              estimator_type == EstimatorType::PppImuCameraRrr);
     }
     else if (sensor_type == SensorType::IMU) {
       return (estimator_type == EstimatorType::GnssImuLc || 
+              estimator_type == EstimatorType::SppImuTc || 
+              estimator_type == EstimatorType::DgnssImuTc ||
               estimator_type == EstimatorType::RtkImuTc || 
+              estimator_type == EstimatorType::PppImuTc ||
               estimator_type == EstimatorType::GnssImuCameraSrr || 
-              estimator_type == EstimatorType::RtkImuCameraRrr);
+              estimator_type == EstimatorType::SppImuCameraRrr ||
+              estimator_type == EstimatorType::DgnssImuCameraRrr ||
+              estimator_type == EstimatorType::RtkImuCameraRrr || 
+              estimator_type == EstimatorType::PppImuCameraRrr);
     }
     else if (sensor_type == SensorType::Camera) {
       return (estimator_type == EstimatorType::GnssImuCameraSrr || 
-              estimator_type == EstimatorType::RtkImuCameraRrr);
+              estimator_type == EstimatorType::SppImuCameraRrr ||
+              estimator_type == EstimatorType::DgnssImuCameraRrr ||
+              estimator_type == EstimatorType::RtkImuCameraRrr || 
+              estimator_type == EstimatorType::PppImuCameraRrr);
     }
     else return false;
   }
@@ -104,7 +121,10 @@ private:
   // Check if there are more than one non-time-propagation sensors
   inline bool needTimeAlign(EstimatorType estimator_type) {
     return (estimator_type == EstimatorType::GnssImuCameraSrr || 
-            estimator_type == EstimatorType::RtkImuCameraRrr);
+            estimator_type == EstimatorType::SppImuCameraRrr ||
+            estimator_type == EstimatorType::DgnssImuCameraRrr ||
+            estimator_type == EstimatorType::RtkImuCameraRrr || 
+            estimator_type == EstimatorType::PppImuCameraRrr);
   }
 
   // Check legality of estimator data
@@ -186,8 +206,10 @@ protected:
   PppEstimatorOptions ppp_options_;
   GnssImuLcEstimatorOptions gnss_imu_lc_options_;
   GnssImuInitializerOptions gnss_imu_init_options_;
+  SppImuTcEstimatorOptions spp_imu_tc_options_;
   RtkImuTcEstimatorOptions rtk_imu_tc_options_;
   GnssImuCameraSrrEstimatorOptions gnss_imu_camera_srr_options_;
+  SppImuCameraRrrEstimatorOptions spp_imu_camera_rrr_options_;
   RtkImuCameraRrrEstimatorOptions rtk_imu_camera_rrr_options_;
 
   // Solutions
