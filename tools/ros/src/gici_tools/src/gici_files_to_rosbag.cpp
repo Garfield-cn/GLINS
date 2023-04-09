@@ -1,5 +1,5 @@
 /**
-* @Function: Convert file from GICI IMU pack to rosbag
+* @Function: Convert file from GICI formats to rosbag
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn

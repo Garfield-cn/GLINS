@@ -46,10 +46,8 @@ int main(int argc, char** argv)
     msg.longitude = lla[1] * R2D;
     msg.altitude = lla[2];
     msg.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_KNOWN;
-    for (size_t i = 0; i < 3; i++) {
-      for (size_t j = 0; j < 3; j++) {
-        msg.position_covariance[j + i * 3] = 0.0;
-      }
+    for (size_t j = 0; j < 9; j++) {
+      msg.position_covariance[j] = 0.0;
     }
     // ENU to NED
     msg.position_covariance[0 + 0 * 3] = square(epoch.esd.std_pos[1]);
