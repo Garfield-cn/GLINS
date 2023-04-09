@@ -432,7 +432,7 @@ void RosStream::gnssRawDataOutputCallback(DataCluster::GNSS& gnss)
         size_t i = format - gnss_formats_.begin();
         publishGnssAntennaPosition(publishers_[i], gnss);
       }
-      else if (type == GnssDataType::IonPara && 
+      else if (type == GnssDataType::IonAndUtcPara && 
           ((format = std::find(gnss_formats_.begin(), gnss_formats_.end(), 
           RosGnssDataFormat::IonosphereParameter)) != gnss_formats_.end())) {
         size_t i = format - gnss_formats_.begin();
@@ -688,7 +688,7 @@ void RosStream::gnssIonosphereParameterCallback(
       data_cluster->gnss->ephemeris->ion_gal[i] = msg->parameters[i];
     }
   }
-  data_cluster->gnss->types.push_back(GnssDataType::IonPara);
+  data_cluster->gnss->types.push_back(GnssDataType::IonAndUtcPara);
 
   // Call GNSS processor
   for (auto it_gnss_callback : data_callbacks_) {

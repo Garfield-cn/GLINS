@@ -195,7 +195,7 @@ void writeRosbag(const std::shared_ptr<DataCluster> data_cluster,
       std::string topic_name = option.topic_name + "/antenna_position";
       bag.write(topic_name, ros::Time(time_tag), msg);
     }
-    if (option.enable_ionosphere_parameter && HAS(GnssDataType::IonPara))
+    if (option.enable_ionosphere_parameter && HAS(GnssDataType::IonAndUtcPara))
     {
       gici_ros::GnssIonosphereParameter msg;
       // use GPS parameters

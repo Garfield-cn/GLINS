@@ -21,6 +21,12 @@ add_executable(correct_imu_timestamp src/correct_imu_timestamp.cpp
 target_link_libraries(correct_imu_timestamp 
                       gici)
 
+# Correct IMU timestamp
+add_executable(create_iono_parameter src/create_iono_parameter.cpp
+                                     src/edit_timestamp_utility.cpp)
+target_link_libraries(create_iono_parameter 
+                      gici)
+
 # Cut files
 add_executable(cut_files src/cut_files.cpp
                          src/edit_timestamp_utility.cpp)

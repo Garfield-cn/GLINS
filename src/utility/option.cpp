@@ -109,6 +109,7 @@ void convert<std::string, GnssRole>
   MAP_IN_OUT("reference", GnssRole::Reference);
   MAP_IN_OUT("ephemeris", GnssRole::Ephemeris);
   MAP_IN_OUT("ssr_ephemeris", GnssRole::SsrEphemeris);
+  MAP_IN_OUT("ion_utc", GnssRole::IonAndUtc);
   MAP_IN_OUT("code_bias", GnssRole::CodeBias);
   MAP_IN_OUT("phase_bias", GnssRole::PhaseBias);
   MAP_IN_OUT("heading", GnssRole::Heading);
@@ -229,6 +230,7 @@ SensorType sensorType(std::string in)
   MAP_IN_RET("rover", SensorType::GNSS);
   MAP_IN_RET("reference", SensorType::GNSS);
   MAP_IN_RET("ephemeris", SensorType::GNSS);
+  MAP_IN_RET("ion_utc", SensorType::GNSS);
   MAP_IN_RET("heading", SensorType::GNSS);
   MAP_IN_RET("code_bias", SensorType::GNSS);
   MAP_IN_RET("phase_bias", SensorType::GNSS);

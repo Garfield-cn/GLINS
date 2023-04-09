@@ -279,7 +279,7 @@ extern void updateStreamData(int ret, obs_t *obs, nav_t *nav,
     updateEphemeris(nav, sat, gnss_data[0]);
   }
   // Ionosphere parameters
-  else if (type == GnssDataType::IonPara) {
+  else if (type == GnssDataType::IonAndUtcPara) {
     updateIonAndUTC(nav, gnss_data[0]);
   }
   // Antenna position parameters
@@ -524,7 +524,7 @@ int RTCM3Formator::encode(
   type_valid.insert(std::make_pair(GnssDataType::Observation, false));
   type_valid.insert(std::make_pair(GnssDataType::Ephemeris, false));
   type_valid.insert(std::make_pair(GnssDataType::AntePos, false));
-  type_valid.insert(std::make_pair(GnssDataType::IonPara, false));
+  type_valid.insert(std::make_pair(GnssDataType::IonAndUtcPara, false));
   type_valid.insert(std::make_pair(GnssDataType::SSR, false));
   type_valid.insert(std::make_pair(GnssDataType::PhaseCenter, false));
   for (auto it : data->gnss->types) {

@@ -169,10 +169,10 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
       gnss_common::updateAntennaPosition(gnss->antenna, gnss_local_);
     }
 
-    if (it == GnssDataType::IonPara) {
+    if (it == GnssDataType::IonAndUtcPara) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GnssRole::Ephemeris) 
+        if (it_role == GnssRole::IonAndUtc) 
         { found = true; break; }
       }
       if (!found) continue;

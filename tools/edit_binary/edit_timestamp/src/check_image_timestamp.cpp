@@ -1,5 +1,5 @@
 /**
-* @Function: Correct IMU timestamp for unstable version GICI-board data
+* @Function: Check consistancy of image timestamp
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn

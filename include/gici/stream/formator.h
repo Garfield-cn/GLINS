@@ -39,7 +39,7 @@ enum class GnssDataType {
   Ephemeris = 2,
   Observation = 1,
   AntePos = 5,  // Antenna position
-  IonPara = 9,  // Ionosphere parameters
+  IonAndUtcPara = 9,  // Ionosphere and UTC parameters
   SSR = 10,
   PhaseCenter   // PCVs and PCOs
 };
