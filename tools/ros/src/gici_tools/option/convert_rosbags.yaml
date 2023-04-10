@@ -34,7 +34,6 @@ stream:
       tag: fmt_gnss_rov
       type: gnss-raw
       sub_type: tersus
-      start_time: 2023.03.27
   - formator:
       io: input
       tag: fmt_gnss_ref

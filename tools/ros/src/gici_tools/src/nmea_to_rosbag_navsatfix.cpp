@@ -39,7 +39,7 @@ int main(int argc, char** argv)
 
     sensor_msgs::NavSatFix msg;
     msg.header.seq = i + 1;
-    msg.header.stamp = ros::Time(gnss_common::gtimeToDouble(epoch.sol.time));
+    msg.header.stamp = ros::Time(gnss_common::gtimeToDouble(gpst2utc(epoch.sol.time)));
     double lla[3];
     ecef2pos(epoch.sol.rr, lla);
     msg.latitude = lla[0] * R2D;
