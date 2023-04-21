@@ -109,10 +109,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
       gnss_local_->observation == NULL || gnss_local_->antenna == NULL) return;
 
   // Get role
-  if (behaviors_.find(formator_tag) == behaviors_.end()) {
-    LOG(ERROR) << "Formator tag " << formator_tag << " not registered!";
-    return;
-  }
+  if (behaviors_.find(formator_tag) == behaviors_.end()) return;
   std::vector<GnssRole> roles;
   GnssRole role_out;
   for (size_t i = 0; i < behaviors_.at(formator_tag).size(); i++) {

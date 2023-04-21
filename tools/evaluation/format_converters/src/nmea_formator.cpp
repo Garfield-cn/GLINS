@@ -4,7 +4,7 @@
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
 **/
-#include "gici/ros_utility/nmea_formator.h"
+#include "nmea_formator.h"
 
 #define NMEA_TID   "GP"         /* NMEA talker ID for RMC and GGA sentences */
 #define MAXFIELD   64           /* max number of fields in a record */

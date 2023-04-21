@@ -11,8 +11,8 @@
 
 using namespace gici;
 
-const Eigen::Vector3d t_AB_A(-0.00516059,    0.319852,    0.079427);
-const Eigen::Vector3d rot_AB(178.596, -0.603932,  -179.275);
+const Eigen::Vector3d t_AB_A(-0.00509546,    0.320372,   0.0669864);
+const Eigen::Vector3d rot_AB(179.928, -0.55273, -179.265);
 
 int main(int argc, char ** argv)
 {
