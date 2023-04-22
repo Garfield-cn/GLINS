@@ -12,6 +12,44 @@
 #include <string>
 #include <vector>
 
+#define DEFAULT_PRECISION 1.0e-4
+
+// Check equal for float types
+template<typename FloatT>
+inline bool checkEqual(FloatT x, FloatT y, 
+                       float precision = DEFAULT_PRECISION) {
+  return (fabs(x - y) < precision);
+}
+
+// Check float type equals zero
+template<typename FloatT>
+inline bool checkZero(FloatT x, 
+                      float precision = DEFAULT_PRECISION) {
+  return checkEqual<FloatT>(x, 0.0, precision);
+}
+
+// Check equal for float matrix
+template<typename FloatT, int Rows, int Cols>
+inline bool checkEqual(Eigen::Matrix<FloatT, Rows, Cols> mat_x,
+                       Eigen::Matrix<FloatT, Rows, Cols> mat_y,
+                       float precision = DEFAULT_PRECISION) {
+  bool has_none_equal = false;
+  for (size_t i = 0; i < mat_x.rows(); i++) {
+    for (size_t j = 0; j < mat_x.cols(); j++) {
+      if (!checkEqual(mat_x(i, j), mat_y(i, j), precision)) {
+        has_none_equal = true; break;
+      }
+    }
+  }
+  return !has_none_equal;
+}
+
+// Square
+template<typename T>
+inline T square(T x) {
+  return (x * x);
+}
+
 // Convert quartion to euler angle
 Eigen::Vector3d quaternionToEulerAngle(const Eigen::Quaternion<double>& q)
 {
@@ -38,7 +76,7 @@ Eigen::Vector3d quaternionToEulerAngle(const Eigen::Quaternion<double>& q)
 }
 
 // Convert euler angle to quarternion
-Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d rpy)
+Eigen::Quaternion<double> eulerAngleToQuaternion(const Eigen::Vector3d& rpy)
 {
   // Abbreviations for the various angular functions
   double roll = rpy(0);
@@ -65,7 +103,7 @@ enum class Order {
   ZYX,
   ZXY
 };
-Eigen::Matrix3d eulerAngleToRotationMatrix(const Eigen::Vector3d rpy, Order order)
+Eigen::Matrix3d eulerAngleToRotationMatrix(const Eigen::Vector3d& rpy, Order order)
 {
   double x = rpy(0);
   double y = rpy(1);
@@ -85,6 +123,48 @@ Eigen::Matrix3d eulerAngleToRotationMatrix(const Eigen::Vector3d rpy, Order orde
   return Eigen::Matrix3d::Zero();
 }
 
+// Rotation matrix to euler angle
+Eigen::Vector3d rotationMatrixToEulerAngle(const Eigen::Matrix3d& R, Order order)
+{
+  Eigen::Vector3d euler = Eigen::Vector3d::Zero();
+  Eigen::Matrix3d R_varify;
+  if (order == Order::ZYX) 
+  {
+    // Assume cos(y) >= 0
+    euler(0) = atan2(R(2,1), R(2,2));
+    euler(1) = atan2(-R(2,0), sqrt(square(R(2,1))+square(R(2,2))));
+    euler(2) = atan2(R(1,0), R(0,0));
+    R_varify = eulerAngleToRotationMatrix(euler, order);
+    if (checkEqual(R_varify, R)) return euler;
+
+    // Assume cos(y) < 0
+    euler(0) = atan2(-R(2,1), -R(2,2));
+    euler(1) = atan2(-R(2,0), -sqrt(square(R(2,1))+square(R(2,2))));
+    euler(2) = atan2(-R(1,0), -R(0,0));
+    R_varify = eulerAngleToRotationMatrix(euler, order);
+    if (checkEqual(R_varify, R)) return euler;
+  }
+  if (order == Order::ZXY)
+  {
+    // Assume cos(y) >= 0
+    euler(0) = atan2(R(2,1), sqrt(square(R(2,0))+square(R(2,2))));
+    euler(1) = atan2(-R(2,0), R(2,2));
+    euler(2) = atan2(-R(0,1), R(1,1));
+    R_varify = eulerAngleToRotationMatrix(euler, order);
+    if (checkEqual(R_varify, R)) return euler;
+
+    // Assume cos(y) < 0
+    euler(0) = atan2(R(2,1), -sqrt(square(R(2,0))+square(R(2,2))));
+    euler(1) = atan2(R(2,0), -R(2,2));
+    euler(2) = atan2(R(0,1), -R(1,1));
+    R_varify = eulerAngleToRotationMatrix(euler, order);
+    if (checkEqual(R_varify, R)) return euler;
+  }
+
+  std::cout << "rotationMatrixToEulerAngle: No valid solution!" << std::endl;
+  return euler;
+}
+
 // Convert IE euler angle to gici euler angle
 // IE: roll, pitch, heading (negative yaw), rotation sequence is zxy.
 // gici: roll, pitch, yaw, rotation sequence is zyx
@@ -95,6 +175,16 @@ Eigen::Vector3d ieEulerToGiciEuler(const Eigen::Vector3d rph)
   Eigen::Matrix3d R = eulerAngleToRotationMatrix(rpy_zxy, Order::ZXY);
   Eigen::Quaterniond q(R);
   return quaternionToEulerAngle(q);
+}
+
+// Convert gici euler angle to IE euler angle 
+Eigen::Vector3d giciEulerToIeEuler(const Eigen::Vector3d rpy)
+{
+  Eigen::Matrix3d R = eulerAngleToRotationMatrix(rpy, Order::ZYX);
+  Eigen::Vector3d rpy_zxy = rotationMatrixToEulerAngle(R, Order::ZXY);
+  Eigen::Vector3d rph;
+  rph << rpy_zxy(1), rpy_zxy(0), -rpy_zxy(2);
+  return rph;
 }
 
 int main(int argc, char ** argv)
