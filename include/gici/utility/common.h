@@ -98,12 +98,6 @@ inline Eigen::Matrix<FloatT, Rows, Cols>
   return out;
 }
 
-// Compute x/y
-template<typename T>
-inline double computeDivide(T x, T y) {
-  return static_cast<double>(x) / static_cast<double>(y);
-}
-
 // Operation common -----------------------------------------------
 // Get current variable from deque
 template<typename T>
@@ -184,6 +178,12 @@ inline double getAverage(std::vector<T>& seq) {
     sum += static_cast<double>(seq[i]);
   }
   return sum / static_cast<double>(seq.size());
+}
+
+// Compute x/y
+template<typename T>
+inline double getDivide(T x, T y) {
+  return static_cast<double>(x) / static_cast<double>(y);
 }
 
 }

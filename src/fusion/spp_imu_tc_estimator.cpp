@@ -164,9 +164,9 @@ bool SppImuTcEstimator::estimate()
 
   // Check if we rejected too many GNSS residuals
   double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
-    computeDivide(numPseudorangeError(curState()), n_pseudorange);
+    getDivide(numPseudorangeError(curState()), n_pseudorange);
   double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
-    computeDivide(numDopplerError(curState()), n_doppler);
+    getDivide(numDopplerError(curState()), n_doppler);
   const double thr = gnss_base_options_.diverge_max_reject_ratio;
   if (isGnssGoodObservation() && 
       (ratio_pseudorange > thr || ratio_doppler > thr)) {

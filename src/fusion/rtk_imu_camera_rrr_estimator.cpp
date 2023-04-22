@@ -337,11 +337,11 @@ bool RtkImuCameraRrrEstimator::estimate()
 
     // Check if we rejected too many GNSS residuals
     double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
-      computeDivide(numPseudorangeError(states_[latest_state_index_]), n_pseudorange);
+      getDivide(numPseudorangeError(states_[latest_state_index_]), n_pseudorange);
     double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
-      computeDivide(numPhaserangeError(states_[latest_state_index_]), n_phaserange);
+      getDivide(numPhaserangeError(states_[latest_state_index_]), n_phaserange);
     double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
-      computeDivide(numDopplerError(states_[latest_state_index_]), n_doppler);
+      getDivide(numDopplerError(states_[latest_state_index_]), n_doppler);
     const double thr = gnss_base_options_.diverge_max_reject_ratio;
     if (isGnssGoodObservation() && 
         (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {
@@ -407,7 +407,7 @@ bool RtkImuCameraRrrEstimator::estimate()
     rejectReprojectionErrorOutlier(curFrame());
     // check if we rejected too many reprojection errors
     double ratio_reprojection = n_reprojection == 0.0 ? 0.0 : 1.0 - 
-      computeDivide(numReprojectionError(curFrame()), n_reprojection);
+      getDivide(numReprojectionError(curFrame()), n_reprojection);
     if (ratio_reprojection > visual_base_options_.diverge_max_reject_ratio) {
       num_cotinuous_reject_visual_++;
     }

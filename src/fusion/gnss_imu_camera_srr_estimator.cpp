@@ -256,7 +256,7 @@ bool GnssImuCameraSrrEstimator::estimate()
     rejectReprojectionErrorOutlier(curFrame());
     // check if we rejected too many reprojection errors
     double ratio_reprojection = n_reprojection == 0.0 ? 0.0 : 1.0 - 
-      computeDivide(numReprojectionError(curFrame()), n_reprojection);
+      getDivide(numReprojectionError(curFrame()), n_reprojection);
     if (ratio_reprojection > visual_base_options_.diverge_max_reject_ratio) {
       num_cotinuous_reject_visual_++;
     }
