@@ -15,6 +15,7 @@
 #include <cv_bridge/cv_bridge.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <sensor_msgs/Imu.h>
+#include <sensor_msgs/NavSatFix.h>
 #include <gici_ros/GlonassEphemeris.h>
 #include <gici_ros/GnssAntennaPosition.h>
 #include <gici_ros/GnssEphemerides.h>
@@ -310,6 +311,39 @@ void publishOdometry(ros::Publisher& pub, tf::TransformBroadcaster& broadcaster,
     }
   }
   pub.publish(odometry_msg);
+}
+
+// Publish NavSatFix
+void publishNavSatFix(ros::Publisher& pub, const Eigen::Vector3d& lla, 
+  Eigen::Matrix3d& covariance, const ros::Time time, GnssSolutionStatus status)
+{
+  sensor_msgs::NavSatFix sat_msg;
+  sat_msg.header.stamp = time;
+  sat_msg.latitude = lla(0) * R2D;
+  sat_msg.longitude = lla(1) * R2D;
+  sat_msg.altitude = lla(2);
+  if (covariance == Eigen::Matrix3d::Zero()) {
+    sat_msg.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN;
+  }
+  else {
+    sat_msg.position_covariance_type = sensor_msgs::NavSatFix::COVARIANCE_TYPE_KNOWN;
+    for (size_t i = 0; i < 3; i++) {
+      for (size_t j = 0; j < 3; j++) {
+        sat_msg.position_covariance[j + i * 3] = covariance(i, j);
+      }
+    }
+  }
+  sat_msg.status.service = sensor_msgs::NavSatStatus::SERVICE_GPS | 
+                           sensor_msgs::NavSatStatus::SERVICE_GLONASS | 
+                           sensor_msgs::NavSatStatus::SERVICE_GALILEO |
+                           sensor_msgs::NavSatStatus::SERVICE_COMPASS;
+  if (status == GnssSolutionStatus::Fixed) {
+    sat_msg.status.status = sensor_msgs::NavSatStatus::STATUS_FIX;
+  }
+  else {
+    sat_msg.status.status = sensor_msgs::NavSatStatus::STATUS_NO_FIX;
+  }
+  pub.publish(sat_msg);
 }
 
 // Path publisher

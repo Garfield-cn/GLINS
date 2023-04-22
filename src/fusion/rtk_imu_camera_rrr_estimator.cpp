@@ -42,9 +42,6 @@ RtkImuCameraRrrEstimator::RtkImuCameraRrrEstimator(
     init_options, gnss_loose_base_options, imu_base_options, 
     base_options, graph_, initializer_sub_estimator_));
 
-  // SPP estimator for setting initial states
-  spp_estimator_.reset(new SppEstimator(gnss_base_options));
-
   // Ambiguity resolution
   ambiguity_resolution_.reset(new AmbiguityResolution(ambiguity_options, graph_));
   
@@ -175,7 +172,8 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
   addDdPhaserangeResidualBlocks(curGnssRov(), curGnssRef(), index_pairs, states_[index]);
 
   // Add doppler residual blocks
-  addDopplerResidualBlocks(curGnssRov(), states_[index], num_valid_satellite);
+  addDopplerResidualBlocks(curGnssRov(), states_[index], num_valid_satellite, 
+    false, getImuMeasurementNear(timestamp).angular_velocity);
 
   // Add relative errors
   if (lastGnssState().valid()) {  // maybe invalid here because of long term GNSS absent
@@ -339,14 +337,11 @@ bool RtkImuCameraRrrEstimator::estimate()
 
     // Check if we rejected too many GNSS residuals
     double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numPseudorangeError(states_[latest_state_index_])) / 
-      static_cast<double>(n_pseudorange);
+      getDivide(numPseudorangeError(states_[latest_state_index_]), n_pseudorange);
     double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numPhaserangeError(states_[latest_state_index_])) / 
-      static_cast<double>(n_phaserange);
+      getDivide(numPhaserangeError(states_[latest_state_index_]), n_phaserange);
     double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numDopplerError(states_[latest_state_index_])) / 
-      static_cast<double>(n_doppler);
+      getDivide(numDopplerError(states_[latest_state_index_]), n_doppler);
     const double thr = gnss_base_options_.diverge_max_reject_ratio;
     if (isGnssGoodObservation() && 
         (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {
@@ -412,11 +407,13 @@ bool RtkImuCameraRrrEstimator::estimate()
     rejectReprojectionErrorOutlier(curFrame());
     // check if we rejected too many reprojection errors
     double ratio_reprojection = n_reprojection == 0.0 ? 0.0 : 1.0 - 
-      static_cast<double>(numReprojectionError(curFrame())) / 
-      static_cast<double>(n_reprojection);
-    if (ratio_reprojection > 0.5) num_cotinuous_reject_visual_++;
+      getDivide(numReprojectionError(curFrame()), n_reprojection);
+    if (ratio_reprojection > visual_base_options_.diverge_max_reject_ratio) {
+      num_cotinuous_reject_visual_++;
+    }
     else num_cotinuous_reject_visual_ = 0;
-    if (num_cotinuous_reject_visual_ > 10) {
+    if (num_cotinuous_reject_visual_ > 
+        visual_base_options_.diverge_min_num_continuous_reject) {
       LOG(WARNING) << "Estimator diverge: Too many visual outliers rejected!";
       status_ = EstimatorStatus::Diverged;
       num_cotinuous_reject_visual_ = 0;

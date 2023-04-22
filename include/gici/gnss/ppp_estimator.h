@@ -74,6 +74,9 @@ protected:
 
   // Phase wind-up handle
   PhaseWindupPtr phase_windup_;
+
+  // Status control
+  int num_cotinuous_reject_gnss_ = 0;
 };
 
 }

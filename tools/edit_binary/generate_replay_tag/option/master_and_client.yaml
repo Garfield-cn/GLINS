@@ -2,18 +2,18 @@ client:
   path: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/02_inner_loop/gnss_rover.bin
   type: gnss-raw
   sub_type: tersus
-  start_time: 2023.01.05.06
+  start_time: 2023.01.05
 
 # client:
 #   path: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/02_inner_loop/gnss_reference.bin
 #   type: gnss-rtcm-3
-#   start_time: 2023.01.05.06
+#   start_time: 2023.01.05
 #   major_gnss_type: observation
 
 # client:
 #   path: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/02_inner_loop/gnss_ssr.bin
 #   type: gnss-rtcm-3
-#   start_time: 2023.01.05.06
+#   start_time: 2023.01.05
 
 # client:
 #   path: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/02_inner_loop/camera.bin

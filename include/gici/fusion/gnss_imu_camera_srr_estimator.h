@@ -91,6 +91,9 @@ protected:
   bool visual_initialized_ = false;
   std::deque<FrameBundlePtr> init_keyframes_;
   std::deque<Solution> init_solution_store_;
+
+  // Status control
+  int num_cotinuous_reject_visual_ = 0;
 };
 
 }

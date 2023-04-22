@@ -70,6 +70,9 @@ void publishOdometry(ros::Publisher& pub, tf::TransformBroadcaster& broadcaster,
   const Eigen::Matrix<double, 9, 9>& covariance, const ros::Time time, 
   std::string frame_id, std::string child_frame_id);
 
+void publishNavSatFix(ros::Publisher& pub, const Eigen::Vector3d& lla, 
+  Eigen::Matrix3d& covariance, const ros::Time time, GnssSolutionStatus status);
+
 // Path publisher
 class PathPublisher {
 public:

@@ -252,7 +252,21 @@ bool GnssImuCameraSrrEstimator::estimate()
     // update states to frontend
     updateFrameStateToFrontend(states_[latest_state_index_], curFrame());
     // reject landmark outliers
+    size_t n_reprojection = numReprojectionError(curFrame());
     rejectReprojectionErrorOutlier(curFrame());
+    // check if we rejected too many reprojection errors
+    double ratio_reprojection = n_reprojection == 0.0 ? 0.0 : 1.0 - 
+      getDivide(numReprojectionError(curFrame()), n_reprojection);
+    if (ratio_reprojection > visual_base_options_.diverge_max_reject_ratio) {
+      num_cotinuous_reject_visual_++;
+    }
+    else num_cotinuous_reject_visual_ = 0;
+    if (num_cotinuous_reject_visual_ > 
+        visual_base_options_.diverge_min_num_continuous_reject) {
+      LOG(WARNING) << "Estimator diverge: Too many visual outliers rejected!";
+      status_ = EstimatorStatus::Diverged;
+      num_cotinuous_reject_visual_ = 0;
+    }
   }
 
   // Apply marginalization

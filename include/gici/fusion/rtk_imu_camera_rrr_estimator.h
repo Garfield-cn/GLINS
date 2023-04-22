@@ -14,7 +14,7 @@
 
 namespace gici {
 
-// GNSS/IMU/Camera SRR couple options
+// RTK/IMU/Camera RRR couple options
 struct RtkImuCameraRrrEstimatorOptions {
   // Frame state window length
   // We only keep GNSS measurements near to keyframes (one-to-one) and throw the others 
@@ -102,9 +102,6 @@ protected:
   bool visual_initialized_ = false;
   std::deque<FrameBundlePtr> init_keyframes_;
   std::deque<Solution> init_solution_store_;
-
-  // SPP estimator to get initial states
-  std::unique_ptr<SppEstimator> spp_estimator_;
 
   // Measurement alignment handle
   DifferentialMeasurementsAlign meausrement_align_;

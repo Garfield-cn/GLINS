@@ -180,5 +180,11 @@ inline double getAverage(std::vector<T>& seq) {
   return sum / static_cast<double>(seq.size());
 }
 
+// Compute x/y
+template<typename T>
+inline double getDivide(T x, T y) {
+  return static_cast<double>(x) / static_cast<double>(y);
+}
+
 }
 

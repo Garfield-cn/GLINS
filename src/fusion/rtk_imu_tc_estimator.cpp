@@ -28,9 +28,6 @@ RtkImuTcEstimator::RtkImuTcEstimator(
   is_use_phase_ = true;
   shiftMemory();
 
-  // SPP estimator for setting initial states
-  spp_estimator_.reset(new SppEstimator(gnss_base_options));
-
   // Ambiguity resolution
   ambiguity_resolution_.reset(new AmbiguityResolution(ambiguity_options, graph_));
 
@@ -142,7 +139,8 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
   addDdPhaserangeResidualBlocks(curGnssRov(), curGnssRef(), index_pairs, curState());
 
   // Add doppler residual blocks
-  addDopplerResidualBlocks(curGnssRov(), curState(), num_valid_satellite);
+  addDopplerResidualBlocks(curGnssRov(), curState(), num_valid_satellite, 
+    false, getImuMeasurementNear(timestamp).angular_velocity);
 
   // Add relative errors
   if (!isFirstEpoch()) {
@@ -171,9 +169,9 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
 bool RtkImuTcEstimator::estimate()
 {
   // Optimize with FDE
-    size_t n_pseudorange = numPseudorangeError(curState());
-    size_t n_phaserange = numPhaserangeError(curState());
-    size_t n_doppler = numDopplerError(curState());
+  size_t n_pseudorange = numPseudorangeError(curState());
+  size_t n_phaserange = numPhaserangeError(curState());
+  size_t n_doppler = numDopplerError(curState());
   if (gnss_base_options_.use_outlier_rejection)
   while (1)
   {
@@ -195,14 +193,11 @@ bool RtkImuTcEstimator::estimate()
 
   // Check if we rejected too many GNSS residuals
   double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
-    static_cast<double>(numPseudorangeError(curState())) / 
-    static_cast<double>(n_pseudorange);
+    getDivide(numPseudorangeError(curState()), n_pseudorange);
   double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
-    static_cast<double>(numPhaserangeError(curState())) / 
-    static_cast<double>(n_phaserange);
+    getDivide(numPhaserangeError(curState()), n_phaserange);
   double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
-    static_cast<double>(numDopplerError(curState())) / 
-    static_cast<double>(n_doppler);
+    getDivide(numDopplerError(curState()), n_doppler);
   const double thr = gnss_base_options_.diverge_max_reject_ratio;
   if (isGnssGoodObservation() && 
       (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {

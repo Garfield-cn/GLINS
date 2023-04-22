@@ -121,7 +121,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
     Eigen::Vector3d t_WR_W = t_WS_W + q_WS * t_SR_S;
 
     // receiver velocity
-    Eigen::Vector3d v_WR = v_WS - skewSymmetric(angular_velocity_) * q_WS * t_SR_S;
+    Eigen::Vector3d v_WR = v_WS + skewSymmetric(angular_velocity_) * q_WS * t_SR_S;
 
     if (!coordinate_) {
       LOG(FATAL) << "Coordinate not set!";
@@ -187,8 +187,8 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
 
       // Body rotation in ENU
       Eigen::Matrix<double, 1, 3> J_q_WS = J_v_W * 
-        (-skewSymmetric(angular_velocity_)) * 
-        skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
+        skewSymmetric(angular_velocity_) * 
+        -skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
 
       // Body pose in ENU
       J_T_WS.setZero();
@@ -200,7 +200,7 @@ bool DopplerError<Ns ...>::EvaluateWithMinimalJacobians(
       J_speed_and_bias.topLeftCorner(1, 3) = J_v_W;
 
       // Relative position 
-      J_t_SR_S = J_v_W * (-skewSymmetric(angular_velocity_)) * 
+      J_t_SR_S = J_v_W * skewSymmetric(angular_velocity_) * 
                  q_WS.toRotationMatrix();
     }
 

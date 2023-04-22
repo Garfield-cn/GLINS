@@ -174,7 +174,8 @@ bool SppEstimator::estimate()
       false, nullptr, residual, nullptr);
     chi_square += square(residual[0]);
   }
-  if (chi_square > chisqr[n_residual - n_parameter - 1]) {
+  int chisqr_degree = n_residual - n_parameter - 1;
+  if (chisqr_degree > 0 && chi_square > chisqr[n_residual - n_parameter - 1]) {
     LOG(INFO) << "High chi-square! Chi-square is " << chi_square
       << ". Chi-square threshold is " << chisqr[n_residual - n_parameter - 1] << ".";
   }

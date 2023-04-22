@@ -109,10 +109,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
       gnss_local_->observation == NULL || gnss_local_->antenna == NULL) return;
 
   // Get role
-  if (behaviors_.find(formator_tag) == behaviors_.end()) {
-    LOG(ERROR) << "Formator tag " << formator_tag << " not registered!";
-    return;
-  }
+  if (behaviors_.find(formator_tag) == behaviors_.end()) return;
   std::vector<GnssRole> roles;
   GnssRole role_out;
   for (size_t i = 0; i < behaviors_.at(formator_tag).size(); i++) {
@@ -169,10 +166,10 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
       gnss_common::updateAntennaPosition(gnss->antenna, gnss_local_);
     }
 
-    if (it == GnssDataType::IonPara) {
+    if (it == GnssDataType::IonAndUtcPara) {
       bool found = false;
       for (auto it_role : roles) {
-        if (it_role == GnssRole::Ephemeris) 
+        if (it_role == GnssRole::IonAndUtc) 
         { found = true; break; }
       }
       if (!found) continue;

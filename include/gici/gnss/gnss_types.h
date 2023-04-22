@@ -28,6 +28,7 @@ enum class GnssRole {
   Reference,
   Ephemeris,
   SsrEphemeris,
+  IonAndUtc,
   CodeBias,
   PhaseBias,
   Heading,

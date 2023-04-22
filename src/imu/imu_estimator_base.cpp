@@ -402,7 +402,7 @@ void ImuEstimatorBase::addHMCResidualBlock(const State& state)
   if (speed.norm() < imu_base_options_.car_motion_min_velocity) return;
   double angular_velocity_norm = 
     getImuMeasurementNear(state.timestamp).angular_velocity.norm();
-  if (angular_velocity_norm > 
+  if (angular_velocity_norm * R2D > 
     imu_base_options_.car_motion_max_anguler_velocity) return;
 
   double std = sqrt(square(imu_base_options_.body_to_imu_rotation_std * D2R) + 
@@ -424,7 +424,7 @@ void ImuEstimatorBase::addNHCResidualBlock(const State& state)
   if (speed.norm() < imu_base_options_.car_motion_min_velocity) return;
   double angular_velocity_norm = 
     getImuMeasurementNear(state.timestamp).angular_velocity.norm();
-  if (angular_velocity_norm > 
+  if (angular_velocity_norm * R2D > 
     imu_base_options_.car_motion_max_anguler_velocity) return;
 
   double std = imu_base_options_.body_to_imu_rotation_std * D2R;

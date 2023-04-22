@@ -1,7 +1,7 @@
 <package>
   <name>gici_tools</name>
   <version>1.0.0</version>
-  <description>GICI tools</description>
+  <description>gici_tools</description>
   <license>BSD</license>
   <maintainer email="chichengcn@sjtu.edu.cn">Cheng Chi</maintainer>
 
@@ -20,7 +20,9 @@
   <build_depend>libpcl-all-dev</build_depend>
   <build_depend>pcl_conversions</build_depend>
   <build_depend>pcl_ros</build_depend>
+  <build_depend>rosbag</build_depend>
   <build_depend>message_generation</build_depend>
+  <build_depend>gici_ros</build_depend>
 
   <run_depend>roscpp</run_depend>
   <run_depend>std_msgs</run_depend>
@@ -35,7 +37,9 @@
   <run_depend>libpcl-all</run_depend>
   <run_depend>pcl_conversions</run_depend>
   <run_depend>pcl_ros</run_depend>
+  <run_depend>ros_bag</run_depend>
   <run_depend>message_runtime</run_depend>
   <run_depend>message_generation</run_depend>
+  <run_depend>gici_ros</run_depend>
 </package>
 

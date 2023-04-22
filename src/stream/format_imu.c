@@ -77,7 +77,7 @@ extern int encode_imu(imu_t *imu)
     tmp = imu->acc[j]*acc_encode_factor;
     setbits(imu->buff,i,20,tmp); i+=20;
   }
-  /* angular rate, range: -2000~2000 deg/s, precision: 3.8e-3 deg/s*/
+  /* angular rate, range: -2000~2000 deg/s, precision: 3.8e-3 deg/s */
   for (j=0;j<3;j++) {
     tmp = imu->gyro[j]*gyro_encode_factor;
     setbits(imu->buff,i,20,tmp); i+=20;

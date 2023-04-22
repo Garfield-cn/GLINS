@@ -196,6 +196,9 @@ bool PppEstimator::addGnssMeasurementAndState(
 bool PppEstimator::estimate()
 {
   // Optimize with FDE
+  size_t n_pseudorange = numPseudorangeError(curState());
+  size_t n_phaserange = numPhaserangeError(curState());
+  size_t n_doppler = numDopplerError(curState());
   if (gnss_base_options_.use_outlier_rejection)
   while (1)
   {
@@ -213,6 +216,26 @@ bool PppEstimator::estimate()
   // Optimize without FDE
   else {
     optimize();
+  }
+
+  // Check if we rejected too many residuals
+  double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
+    getDivide(numPseudorangeError(curState()), n_pseudorange);
+  double ratio_phaserange = n_phaserange == 0.0 ? 0.0 : 1.0 - 
+    getDivide(numPhaserangeError(curState()), n_phaserange);
+  double ratio_doppler = n_doppler == 0.0 ? 0.0 : 1.0 - 
+    getDivide(numDopplerError(curState()), n_doppler);
+  const double thr = gnss_base_options_.diverge_max_reject_ratio;
+  if (isGnssGoodObservation() && 
+      (ratio_pseudorange > thr || ratio_phaserange > thr || ratio_doppler > thr)) {
+    num_cotinuous_reject_gnss_++;
+  }
+  else num_cotinuous_reject_gnss_ = 0;
+  if (num_cotinuous_reject_gnss_ > 
+      gnss_base_options_.diverge_min_num_continuous_reject) {
+    LOG(WARNING) << "Estimator diverge: Too many outliers rejected!";
+    status_ = EstimatorStatus::Diverged;
+    num_cotinuous_reject_gnss_ = 0;
   }
 
   // Ambiguity resolution

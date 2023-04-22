@@ -74,7 +74,7 @@ bool NHCError::EvaluateWithMinimalJacobians(double const* const * parameters,
       Eigen::Matrix<double, 3, 6> J0_full;
       J0_full.setZero();
       J0_full.bottomRightCorner(3, 3) = 
-        skewSymmetric(T_WS.getRotationMatrix().transpose() * v_WS_W);
+        T_WS.getRotationMatrix().transpose() * skewSymmetric(v_WS_W);
 
       J0_minimal = J_lower * J0_full;
       J0_minimal = (square_root_information_ * J0_minimal).eval();

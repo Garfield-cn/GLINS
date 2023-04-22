@@ -39,7 +39,7 @@ enum class GnssDataType {
   Ephemeris = 2,
   Observation = 1,
   AntePos = 5,  // Antenna position
-  IonPara = 9,  // Ionosphere parameters
+  IonAndUtcPara = 9,  // Ionosphere and UTC parameters
   SSR = 10,
   PhaseCenter   // PCVs and PCOs
 };
@@ -358,9 +358,10 @@ public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
   struct Option {
-    bool use_gga = true;
-    bool use_rmc = true;
-    bool use_esa = false;
+    bool use_gga = true;  // Use GxGGA message
+    bool use_rmc = true;  // Use GxRMC message
+    bool use_esa = false; // Use GxESA message (see encodeESA)
+    bool use_esd = false; // Use GxESD message (see encodeESD)
     std::string talker_id = "GN";
   };
 
@@ -385,6 +386,11 @@ protected:
   // Encode GNESA (self-defined Extended Speed and Attitude) message
   // Format: $GNESA,tod,Ve,Vn,Vu,Ar,Ap,Ay*checksum
   int encodeESA(const Solution& solution, uint8_t* buf);
+
+  // Encode GNESD (self-defined Extended STD) message
+  // Format: $GNESD,tod,STD_Pe,STD_Pn,STD_Pu,STD_Ve,STD_Vn,STD_Vu,
+  //         STD_Ar,STD_Ap,STD_Py*checksum
+  int encodeESD(const Solution& solution, uint8_t* buf);
 
   // Convert Solution to sol_t
   void convertSolution(const Solution& solution, sol_t& sol);

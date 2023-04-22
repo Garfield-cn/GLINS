@@ -73,9 +73,6 @@ protected:
   RtkImuTcEstimatorOptions tc_options_;
   RtkEstimatorOptions rtk_options_;
 
-  // SPP estimator to get initial states
-  std::unique_ptr<SppEstimator> spp_estimator_;
-
   // Measurement alignment handle
   DifferentialMeasurementsAlign meausrement_align_;
 

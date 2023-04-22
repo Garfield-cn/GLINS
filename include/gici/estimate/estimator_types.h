@@ -432,9 +432,15 @@ enum class EstimatorType {
   Rtk, 
   Ppp,
   GnssImuLc,
+  SppImuTc,
+  DgnssImuTc, 
   RtkImuTc,
+  PppImuTc, 
   GnssImuCameraSrr,
-  RtkImuCameraRrr
+  SppImuCameraRrr,
+  DgnssImuCameraRrr,
+  RtkImuCameraRrr,
+  PppImuCameraRrr
 };
 
 // Convert from estimator type to string

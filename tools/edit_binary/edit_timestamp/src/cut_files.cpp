@@ -71,7 +71,7 @@ int main(int argc, char** argv)
   start_timestamp = gnss_common::utcTimeToGpsTime(start_timestamp);
   end_timestamp = gnss_common::utcTimeToGpsTime(end_timestamp);
 
-  // initialize files
+  // Initialize files
   std::vector<file_t *> in_files, out_files;
   std::shared_ptr<FormatorBase> master_formator;
   size_t master_file_index = 0;

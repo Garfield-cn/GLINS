@@ -161,7 +161,7 @@ double getTimestamp(const std::shared_ptr<DataCluster>& data, const YAML::Node& 
           SET_TIMESTAMP(gnss_common::gtimeToDouble(t_utc));
         }
       }
-      if (type == GnssDataType::AntePos || type == GnssDataType::IonPara || 
+      if (type == GnssDataType::AntePos || type == GnssDataType::IonAndUtcPara || 
           type == GnssDataType::PhaseCenter) {
         // output current timestamp
       }

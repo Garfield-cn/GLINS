@@ -227,6 +227,58 @@ int decodeESA(char *buff, sol_t *sol, esa_t *esa)
     return 1;
 }
 
+// Decode GNESD message
+int decodeESD(char *buff, sol_t *sol, esd_t *esd)
+{
+    gtime_t time;
+    double tod=0.0,ep[6],tt;
+    char *p,*q,*val[MAXFIELD],**v;
+    int n=0, i=0;
+    
+    trace(4,"decode_nmea: buff=%s\n",buff);
+    
+    /* parse fields */
+    for (p=buff;*p&&n<MAXFIELD;p=q+1) {
+        if ((q=strchr(p,','))||(q=strchr(p,'*'))) {
+            val[n++]=p; *q='\0';
+        }
+        else break;
+    }
+    if (n<1) {
+        return 0;
+    }
+    
+    v = val + 1;
+    for (i=0;i<n;i++) {
+        switch (i) {
+            case  0: tod =atof(v[i]); break; /* UTC of position (hhmmss) */
+            case  1: esd->std_pos[0] = atof(v[i]); break;
+            case  2: esd->std_pos[1] = atof(v[i]); break;
+            case  3: esd->std_pos[2] = atof(v[i]); break;
+            case  4: esd->std_vel[0] = atof(v[i]); break;
+            case  5: esd->std_vel[1] = atof(v[i]); break;
+            case  6: esd->std_vel[2] = atof(v[i]); break;
+            case  7: esd->std_att[0] = atof(v[i]) * D2R; break;
+            case  8: esd->std_att[1] = atof(v[i]) * D2R; break;
+            case  9: esd->std_att[2] = atof(v[i]) * D2R; break;
+        }
+    }
+    if (sol->time.time==0) {
+        trace(3,"no date info for nmea gga\n");
+        return 0;
+    }
+
+    time2epoch(sol->time,ep);
+    septime(tod,ep+3,ep+4,ep+5);
+    time=utc2gpst(epoch2time(ep));
+    tt=timediff(time,sol->time);
+    if      (tt<-43200.0) esd->time=timeadd(time, 86400.0);
+    else if (tt> 43200.0) esd->time=timeadd(time,-86400.0);
+    else esd->time=time;
+
+    return 1;
+}
+
 // Encode GNRMC message
 int encodeRMC(const sol_t *sol, char *buff)
 {
@@ -309,7 +361,7 @@ int encodeGGA(const sol_t *sol, char *buff)
 int encodeESA(const sol_t *sol, const esa_t *esa, char* buf)
 {
   gtime_t time;
-  double h,ep[6],pos[3],dms1[3],dms2[3],dop=1.0;
+  double ep[6];
   int solq,refid=0;
   char *p=(char *)buf,*q,sum;
   
@@ -319,14 +371,44 @@ int encodeESA(const sol_t *sol, const esa_t *esa, char* buf)
     p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
     return p-(char *)buf;
   }
-  for (solq=0;solq<8;solq++) if (nmea_solq[solq]==sol->stat) break;
-  if (solq>=8) solq=0;
   time=gpst2utc(sol->time);
   time2epoch(time,ep);
   p+=sprintf(p,"$%sESA,%02.0f%02.0f%06.3f,%+.3f,%+.3f,%+.3f,"
              "%+.3f,%+.3f,%+.3f",
              NMEA_TID,ep[3],ep[4],ep[5],sol->rr[3],sol->rr[4],sol->rr[5],
              esa->att[0]*R2D,esa->att[1]*R2D,esa->att[2]*R2D);
+  for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
+  p+=sprintf(p,"*%02X\r\n",sum);
+  return p-(char *)buf;
+}
+
+// Encode GNESD (self-defined Extended Speed and Attitude) message
+// Format: $GNESD,tod,STD_Pe,STD_Pn,STD_Pu,STD_Ve,STD_Vn,STD_Vu,
+//         STD_Ar,STD_Ap,STD_Py*checksum
+int encodeESD(const sol_t *sol, const esd_t *esd, char* buf)
+{
+  gtime_t time;
+  double ep[6], std_p[3], std_v[3], std_a[3];
+  int solq,refid=0;
+  char *p=(char *)buf,*q,sum;
+
+  for (size_t i = 0; i < 3; i++) {
+    std_p[i] = esd->std_pos[i];
+    std_v[i] = esd->std_vel[i];
+    std_a[i] = esd->std_att[i] * R2D;
+  }
+
+  if (sol->stat<=SOLQ_NONE) {
+    p+=sprintf(p,"$%sESD,,,,,,,",NMEA_TID);
+    for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q;
+    p+=sprintf(p,"*%02X%c%c",sum,0x0D,0x0A);
+    return p-(char *)buf;
+  }
+  time=gpst2utc(sol->time);
+  time2epoch(time,ep);
+  p+=sprintf(p,"$%sESD,%02.0f%02.0f%06.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f",
+             NMEA_TID,ep[3],ep[4],ep[5],std_p[0],std_p[1],std_p[2],
+             std_v[0],std_v[1],std_v[2],std_a[0],std_a[1],std_a[2]);
   for (q=(char *)buf+1,sum=0;*q;q++) sum^=*q; /* check-sum */
   p+=sprintf(p,"*%02X\r\n",sum);
   return p-(char *)buf;
@@ -341,8 +423,10 @@ bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
     char buf[1024];
     sol_t sol = {0};
     esa_t esa = {0};
+    esd_t esd = {0};
     std::vector<sol_t> sols;
     std::vector<esa_t> esas;
+    std::vector<esd_t> esds;
     while (!(fgets(buf, 1034 * sizeof(char), fp_nmea) == NULL))
     {
         std::vector<std::string> strs;
@@ -365,10 +449,13 @@ bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
         else if (strs[0].substr(3, 3) == "ESA") {
             if (decodeESA(buf, &sol, &esa)) esas.push_back(esa);
         }
+        else if (strs[0].substr(3, 3) == "ESD") {
+            if (decodeESD(buf, &sol, &esd)) esds.push_back(esd);
+        }
     }
     fclose(fp_nmea);
 
-    int esa_index = 0;
+    int esa_index = 0, esd_index = 0;
     for (int i = 0; i < sols.size(); i++) {
         epochs.push_back(NmeaEpoch());
         epochs.back().sol = sols[i];
@@ -377,6 +464,15 @@ bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
             if (dt == 0.0) {
                 epochs.back().esa = esas[j];
                 esa_index = j;
+                break;
+            }
+            if (dt > 0.0) break;
+        }
+        for (int j = esd_index; j < esds.size(); j++) {
+            double dt = timediff(esds[j].time, sols[i].time);
+            if (dt == 0.0) {
+                epochs.back().esd = esds[j];
+                esd_index = j;
                 break;
             }
             if (dt > 0.0) break;
@@ -399,6 +495,7 @@ bool writeNmeaFile(const std::vector<NmeaEpoch>& epochs, char *path)
         p += encodeRMC(&epoch.sol, p);
         p += encodeGGA(&epoch.sol, p);
         p += encodeESA(&epoch.sol, &epoch.esa, p);
+        p += encodeESD(&epoch.sol, &epoch.esd, p);
         *(p + 1) = '\0';
         fprintf(fp_nmea, "%s", buf);
     }

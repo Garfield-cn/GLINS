@@ -26,8 +26,10 @@
 #include "gici/gnss/gnss_loose_estimator_base.h"
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/fusion/gnss_imu_initializer.h"
+#include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/spp_imu_camera_rrr_estimator.h"
 #include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
 namespace gici {
@@ -107,6 +109,7 @@ void convert<std::string, GnssRole>
   MAP_IN_OUT("reference", GnssRole::Reference);
   MAP_IN_OUT("ephemeris", GnssRole::Ephemeris);
   MAP_IN_OUT("ssr_ephemeris", GnssRole::SsrEphemeris);
+  MAP_IN_OUT("ion_utc", GnssRole::IonAndUtc);
   MAP_IN_OUT("code_bias", GnssRole::CodeBias);
   MAP_IN_OUT("phase_bias", GnssRole::PhaseBias);
   MAP_IN_OUT("heading", GnssRole::Heading);
@@ -144,9 +147,14 @@ void convert<std::string, EstimatorType>
   MAP_IN_OUT("rtk", EstimatorType::Rtk);
   MAP_IN_OUT("ppp", EstimatorType::Ppp);
   MAP_IN_OUT("gnss_imu_lc", EstimatorType::GnssImuLc);
+  MAP_IN_OUT("spp_imu_tc", EstimatorType::SppImuTc);
+  MAP_IN_OUT("dgnss_imu_tc", EstimatorType::DgnssImuTc);
   MAP_IN_OUT("rtk_imu_tc", EstimatorType::RtkImuTc);
   MAP_IN_OUT("gnss_imu_camera_srr", EstimatorType::GnssImuCameraSrr);
+  MAP_IN_OUT("spp_imu_camera_rrr", EstimatorType::SppImuCameraRrr);
+  MAP_IN_OUT("dgnss_imu_camera_rrr", EstimatorType::DgnssImuCameraRrr);
   MAP_IN_OUT("rtk_imu_camera_rrr", EstimatorType::RtkImuCameraRrr);
+  MAP_IN_OUT("Ppp_imu_camera_rrr", EstimatorType::PppImuCameraRrr);
   LOG_INVALId;
 }
 
@@ -222,6 +230,7 @@ SensorType sensorType(std::string in)
   MAP_IN_RET("rover", SensorType::GNSS);
   MAP_IN_RET("reference", SensorType::GNSS);
   MAP_IN_RET("ephemeris", SensorType::GNSS);
+  MAP_IN_RET("ion_utc", SensorType::GNSS);
   MAP_IN_RET("heading", SensorType::GNSS);
   MAP_IN_RET("code_bias", SensorType::GNSS);
   MAP_IN_RET("phase_bias", SensorType::GNSS);
@@ -748,6 +757,13 @@ void loadOptions<GnssImuLcEstimatorOptions>(
 }
 
 template <>
+void loadOptions<SppImuTcEstimatorOptions>(
+    YAML::Node& node, SppImuTcEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+}
+
+template <>
 void loadOptions<RtkImuTcEstimatorOptions>(
     YAML::Node& node, RtkImuTcEstimatorOptions& options)
 {
@@ -800,6 +816,15 @@ void loadOptions<GnssImuCameraSrrEstimatorOptions>(
 }
 
 template <>
+void loadOptions<SppImuCameraRrrEstimatorOptions>(
+    YAML::Node& node, SppImuCameraRrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_keyframes);
+  LOAD_COMMON(max_gnss_window_length_minor);
+  LOAD_COMMON(min_yaw_std_init_visual);
+}
+
+template <>
 void loadOptions<RtkImuCameraRrrEstimatorOptions>(
     YAML::Node& node, RtkImuCameraRrrEstimatorOptions& options)
 {
@@ -815,6 +840,8 @@ void loadOptions<VisualEstimatorBaseOptions>(
   LOAD_COMMON(feature_error_std);
   LOAD_COMMON(landmark_outlier_rejection_threshold);
   LOAD_COMMON(max_frequency);
+  LOAD_COMMON(diverge_max_reject_ratio);
+  LOAD_COMMON(diverge_min_num_continuous_reject);
 }
 
 // Copy the options with the same name from in to out

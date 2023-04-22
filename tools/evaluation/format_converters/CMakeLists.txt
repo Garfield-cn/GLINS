@@ -36,11 +36,6 @@ target_link_libraries(nmea_to_ie
                       rtklib
                       glog::glog)
 
-add_executable(ie_to_tum src/ie_to_tum.cpp)
-target_link_libraries(ie_to_tum
-                      rtklib
-                      glog::glog)
-
 add_executable(ie_to_nmea src/ie_to_nmea.cpp src/nmea_formator.cpp)
 target_link_libraries(ie_to_nmea
                       rtklib
