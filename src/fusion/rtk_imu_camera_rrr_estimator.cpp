@@ -746,7 +746,6 @@ bool RtkImuCameraRrrEstimator::estimateAmbiguityCovariance(
 {
   // Computing the ambiguity covariance directly is very time-consuming, so we run a parallel
   // optimizer and forcely set some empirical constraints to estimate a coarse covariance.
-  // Add a position constraint to ambiguity covariance estimator empirically
   Transformation T_WS = getPoseEstimate(state);
   Eigen::Vector3d t_SR_S = getGnssExtrinsicsEstimate();
   Eigen::Vector3d t_WR_W = T_WS.getPosition() + T_WS.getRotationMatrix() * t_SR_S;
@@ -754,13 +753,6 @@ bool RtkImuCameraRrrEstimator::estimateAmbiguityCovariance(
     coordinate_->convert(t_WR_W, GeoType::ENU, GeoType::ECEF);
   std::shared_ptr<Graph> sub_graph = ambiguity_covariance_estimator_->getGraph();
   const State sub_state = ambiguity_covariance_estimator_->getState();
-  const double position_error_std = 0.01;
-  Eigen::Vector3d info;
-  for (size_t i = 0; i < 3; i++) info(i) = square(1.0 / position_error_std);
-  std::shared_ptr<PositionError<3>> position_error = 
-    std::make_shared<PositionError<3>>(position, info.asDiagonal());
-  sub_graph->addResidualBlock(position_error, nullptr,
-    sub_graph->parameterBlockPtr(sub_state.id.asInteger()));
 
   // Compute covariance
   std::vector<uint64_t> parameter_block_ids;
