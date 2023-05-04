@@ -5,33 +5,33 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_rover.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_rover.bin
   # - streamer:
   #     tag: str_gnss_rov_file
   #     output_tags: [fmt_gnss_ion]
   #     type: file
-  #     path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/ionosphere_parameter.bin
+  #     path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/ionosphere_parameter.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_reference.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_ephemeris.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/imu.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/camera.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
@@ -43,7 +43,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/5.1/solution.txt
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_ros_imu
@@ -427,7 +427,7 @@ estimate:
 #       time_window_length_dynamic_motion: 0.5
 #       min_acceleration: 0.5
 #     feature_handler_options:
-#       max_features_per_frame: 200
+#       max_features_per_frame: 60
 #       max_n_kfs: 30
 #       kfselect_min_numkfs: 30
 #       kfselect_min_disparity: 30.0
@@ -533,7 +533,7 @@ estimate:
 #       time_window_length_dynamic_motion: 0.5
 #       min_acceleration: 0.5
 #     feature_handler_options:
-#       max_features_per_frame: 200
+#       max_features_per_frame: 60
 #       max_n_kfs: 30
 #       kfselect_min_numkfs: 30
 #       kfselect_min_disparity: 30.0
@@ -541,7 +541,7 @@ estimate:
 #       kfselect_min_angle: 30.0
 #       kfselect_min_dt: 5.0
 #       detector:
-#         cell_size: 30
+#         cell_size: 40
 #       initialization:
 #       camera_parameters:
 #         label: "gici-board"
@@ -643,7 +643,7 @@ estimate:
       time_window_length_dynamic_motion: 0.5
       min_acceleration: 0.5
     feature_handler_options:
-      max_features_per_frame: 150
+      max_features_per_frame: 60
       max_n_kfs: 30
       kfselect_min_numkfs: 30
       kfselect_min_disparity: 30.0
@@ -651,7 +651,7 @@ estimate:
       kfselect_min_angle: 30.0
       kfselect_min_dt: 5.0
       detector:
-        cell_size: 30
+        cell_size: 40
       initialization:
       camera_parameters:
         label: "gici-board"
