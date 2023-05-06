@@ -107,9 +107,10 @@ void NodeHandle::bindStreamerToFormatorToEstimator(const NodeOptionHandlePtr& no
     CHECK(input_tags.size() == input_tag_roles.size());
 
     // distinguish sensors
-    std::vector<std::string> gnss_tags, imu_tags, image_tags;
-    std::vector<std::vector<std::string>> gnss_roles, imu_roles, image_roles;
-    std::vector<std::shared_ptr<Streaming>> gnss_streamings, imu_streamings, image_streamings;
+    std::vector<std::string> gnss_tags, imu_tags, image_tags, solution_tags;
+    std::vector<std::vector<std::string>> gnss_roles, imu_roles, image_roles, solution_roles;
+    std::vector<std::shared_ptr<Streaming>> 
+      gnss_streamings, imu_streamings, image_streamings, solution_streamings;
     for (size_t i = 0; i < input_tags.size(); i++) {
       const std::string& input_tag = input_tags[i];
       const std::vector<std::string>& roles = input_tag_roles[i];
@@ -153,6 +154,18 @@ void NodeHandle::bindStreamerToFormatorToEstimator(const NodeOptionHandlePtr& no
         }
         if (!found) image_streamings.push_back(streaming_from_formator);
       }
+      else if (option_tools::sensorType(roles[0]) == SensorType::GeneralSolution) {
+        solution_tags.push_back(input_tag);
+        solution_roles.push_back(roles);
+        auto streaming_from_formator = getStreamFromFormatorTag(input_tag);
+        bool found = false;
+        for (auto streaming : solution_streamings) {
+          if (streaming_from_formator->getTag() == streaming->getTag()) {
+            found = true; break;
+          }
+        }
+        if (!found) solution_streamings.push_back(streaming_from_formator);
+      }
     }
 
     // initialize data integration handles
@@ -163,6 +176,8 @@ void NodeHandle::bindStreamerToFormatorToEstimator(const NodeOptionHandlePtr& no
       estimating, imu_streamings, imu_tags, imu_roles));
     data_integrations.push_back(std::make_shared<ImageDataIntegration>(
       estimating, image_streamings, image_tags, image_roles));
+    data_integrations.push_back(std::make_shared<SolutionDataIntegration>(
+      estimating, solution_streamings, solution_tags, solution_roles));
     data_integrations_.back() = data_integrations;
   }
 }
@@ -224,7 +239,7 @@ void NodeHandle::bindEstimatorToEstimator(const NodeOptionHandlePtr& nodes)
       for (auto estimating_input : estimatings_) {
         if (estimating_input->getTag() != input_tag) continue;
         data_integrations.push_back(std::make_shared<SolutionDataIntegration>(
-          estimating, estimating_input, input_tag, roles, true));
+          estimating, estimating_input, input_tag, roles));
       }
     }
   }

@@ -127,12 +127,22 @@ protected:
 class SolutionDataIntegration : public DataIntegrationBase {
 public:
   // The tag can be formator tag, streamer tag (only for ROS), or estimator tag.
+  // input from estimator
   SolutionDataIntegration(
     const std::shared_ptr<EstimatingBase>& estimating, 
     const std::shared_ptr<EstimatingBase>& input_estimating,
     const std::string& input_tag,
-    const std::vector<std::string>& roles,
-    const bool from_estimator = false);
+    const std::vector<std::string>& roles);
+  // input from streamer
+  SolutionDataIntegration(
+    const std::shared_ptr<EstimatingBase>& estimating, 
+    const std::vector<std::shared_ptr<Streaming>>& streamings,
+    const std::vector<std::string>& formator_tags,
+    const std::vector<std::vector<std::string>>& roles) :
+    DataIntegrationBase(estimating, streamings, formator_tags, roles) {
+    is_from_estimator_ = true;
+    valid_ = true;
+  }
 
   // Data callback
   void dataCallback(

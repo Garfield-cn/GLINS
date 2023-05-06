@@ -179,9 +179,10 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
     CHECK(input_tags.size() == input_tag_roles.size());
 
     // distinguish sensors
-    std::vector<std::string> gnss_tags, imu_tags, image_tags;
-    std::vector<std::vector<std::string>> gnss_roles, imu_roles, image_roles;
-    std::vector<std::shared_ptr<Streaming>> gnss_streamings, imu_streamings, image_streamings;
+    std::vector<std::string> gnss_tags, imu_tags, image_tags, solution_tags;
+    std::vector<std::vector<std::string>> gnss_roles, imu_roles, image_roles, solution_roles;
+    std::vector<std::shared_ptr<Streaming>> 
+      gnss_streamings, imu_streamings, image_streamings, solution_streamings;
     for (size_t i = 0; i < input_tags.size(); i++) {
       const std::string& input_tag = input_tags[i];
       const std::vector<std::string>& roles = input_tag_roles[i];
@@ -238,6 +239,22 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
         }
         else image_streamings.push_back(stream);
       }
+      else if (option_tools::sensorType(roles[0]) == SensorType::GeneralSolution) {
+        solution_tags.push_back(input_tag);
+        solution_roles.push_back(roles);
+        std::shared_ptr<Streaming> stream = is_ros ? 
+          getRosStreamFromTag(input_tag) : getStreamFromFormatorTag(input_tag);
+        if (!is_ros) {  
+          bool found = false;
+          for (auto streaming : solution_streamings) {
+            if (stream->getTag() == streaming->getTag()) {
+              found = true; break;
+            }
+          }
+          if (!found) solution_streamings.push_back(stream);
+        }
+        else solution_streamings.push_back(stream);
+      }
     }
 
     // initialize data integration handles
@@ -248,6 +265,8 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
       estimating, imu_streamings, imu_tags, imu_roles));
     data_integrations.push_back(std::make_shared<ImageDataIntegration>(
       estimating, image_streamings, image_tags, image_roles));
+    data_integrations.push_back(std::make_shared<SolutionDataIntegration>(
+      estimating, solution_streamings, solution_tags, solution_roles));
     pushBatchBack(data_integrations_[i], data_integrations);
   }
 }

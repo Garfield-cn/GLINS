@@ -553,8 +553,7 @@ SolutionDataIntegration::SolutionDataIntegration(
   const std::shared_ptr<EstimatingBase>& estimating, 
   const std::shared_ptr<EstimatingBase>& input_estimating,
   const std::string& input_tag,
-  const std::vector<std::string>& roles,
-  const bool from_estimator) : is_from_estimator_(from_estimator)
+  const std::vector<std::string>& roles)
 {
   // Bind this->dataCallback to input estimating handle
   Streaming::DataCallback callback = std::bind(
@@ -571,7 +570,8 @@ SolutionDataIntegration::SolutionDataIntegration(
   // Declare behaviors for stream input
   behaviors_.insert(std::make_pair(input_tag, roles));
 
-  // set valid
+  // set flags
+  is_from_estimator_ = true;
   valid_ = true;
 }
 
