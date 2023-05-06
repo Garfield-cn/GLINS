@@ -242,6 +242,12 @@ SensorType sensorType(std::string in)
   MAP_IN_RET("stereo-major", SensorType::Camera);
   MAP_IN_RET("stereo-minor", SensorType::Camera);
   MAP_IN_RET("array", SensorType::Camera);
+  MAP_IN_RET("position", SensorType::GeneralSolution);
+  MAP_IN_RET("attitude", SensorType::GeneralSolution);
+  MAP_IN_RET("velocity", SensorType::GeneralSolution);
+  MAP_IN_RET("pose", SensorType::GeneralSolution);
+  MAP_IN_RET("pose_and_velocity", SensorType::GeneralSolution);
+  MAP_IN_RET("position_and_velocity", SensorType::GeneralSolution);
   MAP_IN_RET("option", SensorType::Option);
 
   // From formator type

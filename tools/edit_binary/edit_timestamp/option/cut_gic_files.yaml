@@ -5,32 +5,32 @@ stream:
       tag: str_gnss_rov
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230327_various/10/gnss_rover.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230327_various/10/gnss_reference.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230327_various/10/gnss_ephemeris.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230327_various/10/imu.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/imu.bin
   - streamer:
       tag: str_fog_imu
       output_tags: [fmt_fog_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230327_various/10/fog_imu.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/fog_imu.bin
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230327_various/10/camera.bin
+      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
 
   formators:
@@ -67,6 +67,6 @@ stream:
 
 edit:
   master_file_tag: str_gnss_rov
-  start_timestamp: 1679895401
-  end_timestamp: 1679895621
-  output_folder: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.2
+  start_timestamp: 0
+  end_timestamp: 1679901051
+  output_folder: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1-2

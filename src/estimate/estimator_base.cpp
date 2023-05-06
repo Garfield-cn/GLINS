@@ -71,6 +71,14 @@ bool EstimatorBase::eraseOldMarginalization()
 // Apply new marginalization
 bool EstimatorBase::applyMarginalization()
 {
+  // Check if there are any residuals we forgot to add
+  for (auto id : marginalization_parameter_ids_) {
+    auto residuals = graph_->residuals(id.asInteger());
+    for (auto residual : residuals) {
+      marginalization_error_->addResidualBlock(residual.residual_block_id);
+    }
+  }
+
   // Apply marginalization
   std::vector<uint64_t> parameter_blocks_to_be_marginalized;
   for (auto margin_id : marginalization_parameter_ids_) {

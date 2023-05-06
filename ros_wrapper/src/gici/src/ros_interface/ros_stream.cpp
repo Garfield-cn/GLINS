@@ -846,6 +846,7 @@ void RosStream::navSatFixCallback(const sensor_msgs::NavSatFixConstPtr& msg)
   if (input_coordinate_ == nullptr) {
     input_coordinate_.reset(new GeoCoordinate(lla, GeoType::LLA));
   }
+  solution.coordinate = input_coordinate_;
   solution.pose = Transformation(
     input_coordinate_->convert(lla, GeoType::LLA, GeoType::ENU), 
     Eigen::Quaterniond::Identity());
@@ -856,10 +857,11 @@ void RosStream::navSatFixCallback(const sensor_msgs::NavSatFixConstPtr& msg)
     solution.status = GnssSolutionStatus::Float;
   }
   solution.covariance.setZero();
-  if (msg->position_covariance_type == sensor_msgs::NavSatFix::COVARIANCE_TYPE_KNOWN)
-  for (size_t i = 0; i < 3; i++) {
-    for (size_t j = 0; i < 3; j++) {
-      solution.covariance(i, j) = msg->position_covariance[j + i * 3];
+  if (msg->position_covariance_type != sensor_msgs::NavSatFix::COVARIANCE_TYPE_UNKNOWN) {
+    for (size_t i = 0; i < 3; i++) {
+      for (size_t j = 0; j < 3; j++) {
+        solution.covariance(i, j) = msg->position_covariance[j + i * 3];
+      }
     }
   }
   else {

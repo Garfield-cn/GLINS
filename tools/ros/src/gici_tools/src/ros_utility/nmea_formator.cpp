@@ -427,7 +427,7 @@ bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
     std::vector<sol_t> sols;
     std::vector<esa_t> esas;
     std::vector<esd_t> esds;
-    while (!(fgets(buf, 1034 * sizeof(char), fp_nmea) == NULL))
+    while (!(fgets(buf, 1024 * sizeof(char), fp_nmea) == NULL))
     {
         std::vector<std::string> strs;
         strs.push_back("");
