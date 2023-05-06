@@ -52,25 +52,28 @@ enum class IdType : uint8_t
 using SensorType = option_tools::SensorType;
 
 // The BackendID for multiple types
+// Common bits ----
 // bit 0-5:   IdType
-// bit 6-13:  CameraIdx, GNSS system
-// bit 14-21: GNSS PRN number
-// bit 22-49: BundleID (0 ~ 2^25-1 for Image, 2^25 ~ 2^26-1 for GNSS)
-// bit 50-55: GNSS PhaseID
-// bit 50-56: GNSS CodeID
-// bit 32-63: Landmark ID
 #define BITS_IDTYPE 0, 5
-#define BITS_CAMERA_IDX 6, 13
-#define BITS_GNSS_SYSTEM 6, 13
-#define BITS_GNSS_PRN 14, 21
+// bit 22-49: BundleID 
 #define BITS_BUNDLEID 22, 49
+#define RANGE_BUNDLE_ID_MIN 0
+#define RANGE_BUNDLE_ID_MAX 67108863  // 2^26 - 1
+// GNSS relevant bits ----
+// bit 6-13: GNSS system
+#define BITS_GNSS_SYSTEM 6, 13
+// bit 14-21: GNSS PRN number
+#define BITS_GNSS_PRN 14, 21
+// bit 50-55: GNSS PhaseID
 #define BITS_GNSS_PHASEID 50, 55
+// bit 50-56: GNSS CodeID
 #define BITS_GNSS_CODEID 50, 56
+// Visual relevant bits ----
+// bit 6-13: CameraIdx
+#define BITS_CAMERA_IDX 6, 13
+// bit 32-63: Landmark ID
 #define BITS_LANDMARKID 32, 63
-#define RANGE_IMAGE_MIN 0
-#define RANGE_IMAGE_MAX 33554431
-#define RANGE_GNSS_MIN 33554432
-#define RANGE_GNSS_MAX 67108863
+
 class BackendId
 {
 public:
@@ -139,16 +142,9 @@ public:
   // Adjust bundle_id for sensor types
   inline static int32_t adjustBundleId(int32_t bundle_id, IdType type) {
     int32_t out = bundle_id;
-    if (sensorType(type) == SensorType::Camera) {
-      const int32_t length = RANGE_IMAGE_MAX - RANGE_IMAGE_MIN + 1;
-      while (out < RANGE_IMAGE_MIN) out += length;
-      while (out > RANGE_IMAGE_MAX) out -= length;
-    }
-    if (sensorType(type) == SensorType::GNSS) {
-      const int32_t length = RANGE_GNSS_MAX - RANGE_GNSS_MIN + 1;
-      while (out < RANGE_GNSS_MIN) out += length;
-      while (out > RANGE_GNSS_MAX) out -= length;
-    }
+    const int32_t length = RANGE_BUNDLE_ID_MAX - RANGE_BUNDLE_ID_MIN + 1;
+    while (out < RANGE_BUNDLE_ID_MIN) out += length;
+    while (out > RANGE_BUNDLE_ID_MAX) out -= length;
     return out;
   }
 
