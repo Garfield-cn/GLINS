@@ -5,45 +5,45 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_rover.bin
   # - streamer:
   #     tag: str_gnss_rov_file
   #     output_tags: [fmt_gnss_ion]
   #     type: file
-  #     path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/ionosphere_parameter.bin
+  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/ionosphere_parameter.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: /home/cc/Work/Codes/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_ros_imu
@@ -144,7 +144,7 @@ stream:
 
   replay:
     enable: true
-    speed: 1.0
+    speed: 2.0
     start_offset: 0.0
 
 estimate:
@@ -455,7 +455,7 @@ estimate:
 #                 cols: 1
 #                 rows: 4
 #                 data: [-0.36472323465957157, 0.11530151924890532, 0.0006024586154990503, 0.0020184970860498133]
-#             mask: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/gici-mask.png
+#             mask: /media/cc/T7/ubuntu/datasets/gici/20230105_campus/gici-mask.png
 #           # Transform of camera in body (IMU) frame
 #           T_B_C:
 #             cols: 4
@@ -561,7 +561,7 @@ estimate:
 #                 cols: 1
 #                 rows: 4
 #                 data: [-0.36472323465957157, 0.11530151924890532, 0.0006024586154990503, 0.0020184970860498133]
-#             mask: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/gici-mask.png
+#             mask: /media/cc/T7/ubuntu/datasets/gici/20230105_campus/gici-mask.png
 #           # Transform of camera in body (IMU) frame
 #           T_B_C:
 #             cols: 4
@@ -671,7 +671,7 @@ estimate:
                 cols: 1
                 rows: 4
                 data: [-0.36472323465957157, 0.11530151924890532, 0.0006024586154990503, 0.0020184970860498133]
-            mask: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/gici-mask.png
+            mask: /media/cc/T7/ubuntu/datasets/gici/20230105_campus/gici-mask.png
           # Transform of camera in body (IMU) frame
           T_B_C:
             cols: 4
@@ -684,5 +684,5 @@ estimate:
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  log_to_stderr: false
+  file_directory: /home/cc/Work/Data/Log

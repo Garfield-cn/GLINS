@@ -71,36 +71,3 @@ target_include_directories(${PROJECT_NAME}
 add_executable(gici_main src/gici_main.cpp)
 target_link_libraries(gici_main 
                       ${PROJECT_NAME})
-
-# # test
-# add_executable(test_common test/test_common.cpp)
-# target_link_libraries(test_common 
-#                       ${PROJECT_NAME})
-
-# add_executable(test_stream_handle test/test_stream_handle.cpp)
-# target_link_libraries(test_stream_handle 
-#                       ${PROJECT_NAME})
-
-# add_executable(test_spp test/test_spp.cpp)
-# target_link_libraries(test_spp 
-#                       ${PROJECT_NAME})
-
-# add_executable(test_sdgnss test/test_sdgnss.cpp)
-# target_link_libraries(test_sdgnss 
-#                       ${PROJECT_NAME})
-
-# add_executable(test_dgnss test/test_dgnss.cpp)
-# target_link_libraries(test_dgnss 
-#                       ${PROJECT_NAME})
-
-# add_executable(test_rtk test/test_rtk.cpp)
-# target_link_libraries(test_rtk
-#                       ${PROJECT_NAME})
-
-# add_executable(test_gnss_imu_lc test/test_gnss_imu_lc.cpp)
-# target_link_libraries(test_gnss_imu_lc
-#                       ${PROJECT_NAME})
-
-# add_executable(test_pose test/test_pose.cpp)
-# target_link_libraries(test_pose
-#                       ${PROJECT_NAME})

@@ -21,6 +21,7 @@ SET(CMAKE_VERBOSE_MAKEFILE ON)
 # Build type and flags
 # SET(CMAKE_BUILD_TYPE Release) # Options:  Debug, RelWithDebInfo, Release
 SET(CMAKE_CXX_FLAGS "-Wall -Werror -Wno-unknown-pragmas")
+set(CMAKE_CXX_STANDARD 11)
 # SET(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS} -O0 -g")
 # IF(IS_ARM)
 #   SET(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} -O3 -mfpu=neon -march=armv7-a")
