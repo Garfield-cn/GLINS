@@ -5,33 +5,33 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_rover.bin
   # - streamer:
   #     tag: str_gnss_rov_file
   #     output_tags: [fmt_gnss_ion]
   #     type: file
-  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/ionosphere_parameter.bin
+  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/ionosphere_parameter.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
@@ -43,7 +43,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_ros_imu
@@ -114,12 +114,12 @@ stream:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -156,7 +156,7 @@ estimate:
 #     fmt_gnss_ref_roles: [reference]
 #     fmt_gnss_eph_roles: [ephemeris]
 #     fmt_dcb_file_roles: [code_bias]
-#     # output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
+#     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
 #     output_align_tag: fmt_gnss_rov
 #     compute_covariance: true
 #     rtk_options:
@@ -165,7 +165,7 @@ estimate:
 #       estimate_velocity: true
 #     gnss_estimator_base_options:
 #       gnss_common:
-#         # system_exclude: [R, E, C]
+#         # system_exclude: [G, R, E]
 #         # code_exclude: [G|5Q]
 #         # mw_slip_thres: 0.5
 #         # gf_slip_thres: 0.05
@@ -204,7 +204,7 @@ estimate:
 #     output_align_tag: fmt_gnss_rov
 #     compute_covariance: true
 #     dgnss_options:
-#       estimate_velocity: true
+#       estimate_velocity: false
 #     gnss_estimator_base_options:
 #       gnss_common:
 #         min_elevation: 12.0
@@ -684,5 +684,5 @@ estimate:
 logging:
   enable: true
   min_log_level: 0
-  log_to_stderr: false
+  log_to_stderr: true
   file_directory: /home/cc/Work/Data/Log

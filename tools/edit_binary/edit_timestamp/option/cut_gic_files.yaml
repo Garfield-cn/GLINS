@@ -5,32 +5,37 @@ stream:
       tag: str_gnss_rov
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/gnss_ephemeris.bin
+  - streamer:
+      tag: str_gnss_ssr
+      output_tags: [fmt_gnss_ssr]
+      type: file
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/gnss_ssr.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/imu.bin
   - streamer:
       tag: str_fog_imu
       output_tags: [fmt_fog_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/fog_imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/fog_imu.bin
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/20230521/3/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
 
   formators:
@@ -39,17 +44,22 @@ stream:
       tag: fmt_gnss_rov
       type: gnss-raw
       sub_type: tersus
-      start_time: 2023.03.27
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.05.21
+  - formator:
+      io: input
+      tag: fmt_gnss_ssr
+      type: gnss-rtcm-3
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_imu
@@ -67,6 +77,6 @@ stream:
 
 edit:
   master_file_tag: str_gnss_rov
-  start_timestamp: 0
-  end_timestamp: 1679901051
-  output_folder: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/4.1-2
+  start_timestamp: 1684645885
+  end_timestamp: 1684648424
+  output_folder: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1
