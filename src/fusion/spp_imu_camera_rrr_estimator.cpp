@@ -127,6 +127,15 @@ bool SppImuCameraRrrEstimator::addGnssMeasurementAndState(
   }
   num_satellites_ = num_valid_satellite;
 
+  // No satellite
+  if (num_satellites_ == 0) {
+    // erase parameters in current state
+    eraseFrequencyParameterBlocks(states_[index]);
+    eraseImuState(states_[index]);
+    eraseClockParameterBlocks(states_[index]);
+    return false;
+  }
+
   // Add doppler residual blocks
   addDopplerResidualBlocks(curGnss(), curState(), num_valid_satellite, 
     true, getImuMeasurementNear(timestamp).angular_velocity);
