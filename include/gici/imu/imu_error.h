@@ -306,10 +306,6 @@ protected:
   mutable Eigen::Vector3d acc_doubleintegral_ = Eigen::Vector3d::Zero();
   ///< Intermediate result
 
-  // cross matrix accumulatrion
-  mutable Eigen::Matrix3d cross_ = Eigen::Matrix3d::Zero();
-  ///< Intermediate result
-
   // sub-Jacobians
   mutable Eigen::Matrix3d dalpha_db_g_ = Eigen::Matrix3d::Zero();
   ///< Intermediate result

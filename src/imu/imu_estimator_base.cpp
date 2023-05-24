@@ -88,11 +88,13 @@ bool ImuEstimatorBase::imuIntegration(
   if (checkEqual(timestamp, last_timestamp)) return true;
 
   // Integrate to desired timestamp
+  Eigen::Matrix<double, 15, 15> delta_P, F;
   imu_mutex_.lock();
   ImuError::propagation(
     imu_measurements_, imu_base_options_.imu_parameters, T_WS, speed_and_bias,
-    last_timestamp, timestamp, &covariance, nullptr);
+    last_timestamp, timestamp, &delta_P, &F);
   imu_mutex_.unlock();
+  covariance = F * covariance * F.transpose() + delta_P;
   T_WS.getRotation().normalize();
 
   return true;
