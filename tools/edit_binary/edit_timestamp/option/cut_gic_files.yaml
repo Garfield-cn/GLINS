@@ -77,6 +77,6 @@ stream:
 
 edit:
   master_file_tag: str_gnss_rov
-  start_timestamp: 1684645885
+  start_timestamp: 1684646035
   end_timestamp: 1684648424
   output_folder: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1

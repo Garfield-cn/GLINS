@@ -844,6 +844,8 @@ void loadOptions<VisualEstimatorBaseOptions>(
     YAML::Node& node, VisualEstimatorBaseOptions& options)
 {
   LOAD_COMMON(feature_error_std);
+  LOAD_COMMON(stable_feature_error_std);
+  LOAD_COMMON(min_observation_stable);
   LOAD_COMMON(landmark_outlier_rejection_threshold);
   LOAD_COMMON(max_frequency);
   LOAD_COMMON(diverge_max_reject_ratio);
