@@ -168,6 +168,15 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
   }
   num_satellites_ = num_valid_satellite;
 
+  // No satellite
+  if (num_satellites_ == 0) {
+    // erase parameters in current state
+    eraseFrequencyParameterBlocks(states_[index]);
+    eraseImuState(states_[index]);
+    eraseAmbiguityParameterBlocks(curAmbiguityState());
+    return false;
+  }
+
   // Add phaserange residual blocks
   addDdPhaserangeResidualBlocks(curGnssRov(), curGnssRef(), index_pairs, states_[index]);
 
@@ -299,6 +308,7 @@ bool RtkImuCameraRrrEstimator::visualInitialization(const FrameBundlePtr& frame_
   }
   // initialize landmarks
   feature_handler_->initializeLandmarks(init_keyframes_.back()->at(0));
+  feature_handler_->setGlobalScaleInitialized();
   // add two keyframes
   CHECK(addImageMeasurementAndState(init_keyframes_.front(), speed_and_biases.front()));
   CHECK(addImageMeasurementAndState(init_keyframes_.back(), speed_and_biases.back()));

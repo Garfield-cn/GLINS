@@ -90,9 +90,6 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
   acc_integral_ = Eigen::Vector3d::Zero();
   acc_doubleintegral_ = Eigen::Vector3d::Zero();
 
-  // cross matrix accumulation
-  cross_ = Eigen::Matrix3d::Zero();
-
   // sub-Jacobians
   dalpha_db_g_ = Eigen::Matrix3d::Zero();
   dv_db_g_ = Eigen::Matrix3d::Zero();
@@ -201,35 +198,25 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
         acc_integral_ * dt + 0.25 * (C + C_1) * acc_S_true * dt * dt;
 
     // Jacobian parts
-    dalpha_db_g_ += C_1 * expmapDerivativeSO3(omega_S_true * dt) * dt;
-    const Eigen::Matrix3d cross_1 =
-        dq.inverse().toRotationMatrix() * cross_
-        + expmapDerivativeSO3(omega_S_true * dt) * dt;
+    Eigen::Matrix3d dalpha_db_g_0 = dalpha_db_g_;
+    dalpha_db_g_ += -C_1.transpose() * expmapDerivativeSO3(omega_S_true) * dt;
     const Eigen::Matrix3d acc_S_x = skewSymmetric(acc_S_true);
-    Eigen::Matrix3d dv_db_g_1 =
-        dv_db_g_ + 0.5 * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
+    Eigen::Matrix3d dv_db_g_1 = dv_db_g_ - 
+      0.5 * dt * (C * acc_S_x * dalpha_db_g_0 + C_1 * acc_S_x * dalpha_db_g_);
     dp_db_g_ +=
         dt * dv_db_g_
-        + 0.25 * dt * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
+        - 0.25 * dt * dt * (C * acc_S_x * dalpha_db_g_0 + C_1 * acc_S_x * dalpha_db_g_);
 
     // covariance propagation
     Eigen::Matrix<double, 15, 15> F_delta =
         Eigen::Matrix<double, 15, 15>::Identity();
     // transform
-    F_delta.block<3, 3>(0, 3) =
-        -skewSymmetric(acc_integral_ * dt
-                       + 0.25 * (C + C_1) * acc_S_true * dt * dt);
     F_delta.block<3, 3>(0, 6) = Eigen::Matrix3d::Identity() * dt;
-    F_delta.block<3, 3>(0, 9) =
-        dt * dv_db_g_
-        + 0.25 * dt * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
-    F_delta.block<3, 3>(0, 12) = -C_integral_ * dt + 0.25 * (C + C_1) * dt * dt;
-    F_delta.block<3, 3>(3, 9) = -dt * C_1;
+    F_delta.block<3, 3>(3, 3) = -skewSymmetric(omega_S_true * dt);
+    F_delta.block<3, 3>(3, 9) = -C * dt;
     F_delta.block<3, 3>(6, 3) =
         -skewSymmetric(0.5 * (C + C_1) * acc_S_true * dt);
-    F_delta.block<3, 3>(6, 9) =
-        0.5 * dt * (C * acc_S_x * cross_ + C_1 * acc_S_x * cross_1);
-    F_delta.block<3, 3>(6, 12) = -0.5 * (C + C_1) * dt;
+    F_delta.block<3, 3>(6, 12) = -C * dt;
     P_delta_ = F_delta * P_delta_ * F_delta.transpose();
     // add noise. Note that transformations with rotation matrices can be
     // ignored, since the noise is isotropic.
@@ -261,7 +248,6 @@ int ImuError::redoPreintegration(const Transformation& /*T_WS*/,
     Delta_q_ = Delta_q_1;
     C_integral_ = C_integral_1;
     acc_integral_ = acc_integral_1;
-    cross_ = cross_1;
     dv_db_g_ = dv_db_g_1;
     time = nexttime;
 
@@ -320,13 +306,8 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   Eigen::Vector3d acc_integral = Eigen::Vector3d::Zero();
   Eigen::Vector3d acc_doubleintegral = Eigen::Vector3d::Zero();
 
-  // cross matrix accumulatrion
-  Eigen::Matrix3d cross = Eigen::Matrix3d::Zero();
-
-  // sub-Jacobians
-  Eigen::Matrix3d dalpha_db_g = Eigen::Matrix3d::Zero();
-  Eigen::Matrix3d dv_db_g = Eigen::Matrix3d::Zero();
-  Eigen::Matrix3d dp_db_g = Eigen::Matrix3d::Zero();
+  // jacobian
+  Eigen::Matrix<double, 15, 15> F = Eigen::Matrix<double, 15, 15>::Identity();
 
   // the Jacobian of the increment (w/o biases)
   Eigen::Matrix<double,15,15> P_delta = Eigen::Matrix<double,15,15>::Zero();
@@ -429,38 +410,27 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
     acc_doubleintegral +=
         acc_integral * dt + 0.25 * (C + C_1) * acc_S_true * dt * dt;
 
-    // Jacobian parts
-    dalpha_db_g += dt * C_1;
-    const Eigen::Matrix3d cross_1 =
-        dq.inverse().toRotationMatrix()* cross +
-        expmapDerivativeSO3(omega_S_true * dt)* dt;
-    const Eigen::Matrix3d acc_S_x = skewSymmetric(acc_S_true);
-    Eigen::Matrix3d dv_db_g_1 =
-        dv_db_g + 0.5 * dt * (C * acc_S_x * cross + C_1 * acc_S_x * cross_1);
-    dp_db_g +=
-        dt * dv_db_g
-        + 0.25 * dt * dt *(C * acc_S_x * cross + C_1 * acc_S_x * cross_1);
+    // Jacobian 
+    Eigen::Matrix<double,15,15> F_delta =
+        Eigen::Matrix<double,15,15>::Identity();
+    if (jacobian || covariance)
+    {
+      F_delta.block<3, 3>(0, 6) = Eigen::Matrix3d::Identity() * dt;
+      F_delta.block<3, 3>(3, 3) = -skewSymmetric(omega_S_true * dt);
+      F_delta.block<3, 3>(3, 9) = -C * dt;
+      F_delta.block<3, 3>(6, 3) =
+          -skewSymmetric(0.5 * (C + C_1) * acc_S_true * dt);
+      F_delta.block<3, 3>(6, 12) = -C * dt;
+    }
+    if (jacobian)
+    {
+      F = F_delta * F;
+    }
 
     // covariance propagation
     if (covariance)
     {
-      Eigen::Matrix<double,15,15> F_delta =
-          Eigen::Matrix<double,15,15>::Identity();
       // transform
-      F_delta.block<3,3>(0,3) =
-          -skewSymmetric(acc_integral * dt + 0.25 * (C + C_1)
-                         * acc_S_true * dt * dt);
-      F_delta.block<3,3>(0,6) = Eigen::Matrix3d::Identity()* dt;
-      F_delta.block<3,3>(0,9) =
-          dt *dv_db_g
-          + 0.25 * dt * dt *(C * acc_S_x * cross + C_1 * acc_S_x * cross_1);
-      F_delta.block<3,3>(0,12) = -C_integral* dt + 0.25 *(C + C_1) * dt * dt;
-      F_delta.block<3,3>(3,9) = -dt * C_1;
-      F_delta.block<3,3>(6,3) =
-          -skewSymmetric(0.5 *(C + C_1) * acc_S_true * dt);
-      F_delta.block<3,3>(6,9) =
-          0.5 * dt *(C * acc_S_x * cross + C_1 * acc_S_x * cross_1);
-      F_delta.block<3,3>(6,12) = -0.5 *(C + C_1) * dt;
       P_delta = F_delta * P_delta * F_delta.transpose();
       // add noise. Note that transformations with rotation matrices can be
       // ignored, since the noise is isotropic.
@@ -493,8 +463,6 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
     Delta_q = Delta_q_1;
     C_integral = C_integral_1;
     acc_integral = acc_integral_1;
-    cross = cross_1;
-    dv_db_g = dv_db_g_1;
     time = nexttime;
 
     ++num_propagated;
@@ -519,16 +487,7 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   // assign Jacobian, if requested
   if (jacobian)
   {
-    Eigen::Matrix<double,15,15>& F = *jacobian;
-    F.setIdentity(); // holds for all states, including d/dalpha, d/db_g, d/db_a
-    F.block<3,3>(0,3) = -skewSymmetric(C_WS_0 * acc_doubleintegral);
-    F.block<3,3>(0,6) = Eigen::Matrix3d::Identity() * Delta_t;
-    F.block<3,3>(0,9) = C_WS_0 * dp_db_g;
-    F.block<3,3>(0,12) = -C_WS_0 * C_doubleintegral;
-    F.block<3,3>(3,9) = -C_WS_0 * dalpha_db_g;
-    F.block<3,3>(6,3) = -skewSymmetric(C_WS_0 * acc_integral);
-    F.block<3,3>(6,9) = C_WS_0 * dv_db_g;
-    F.block<3,3>(6,12) = -C_WS_0 * C_integral;
+    *jacobian = F;
   }
 
   // overall covariance, if requested
@@ -619,7 +578,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
     const Eigen::Vector3d delta_v_est_W = speed_and_biases_0.head<3>()
         - speed_and_biases_1.head<3>() - g_W * delta_t;
     const Eigen::Quaterniond Dq =
-        deltaQ(-dalpha_db_g_*Delta_b.head<3>())*Delta_q_;
+        deltaQ(dalpha_db_g_*Delta_b.head<3>())*Delta_q_;
     F0.block<3,3>(0,0) = C_S0_W;
     F0.block<3,3>(0,3) = C_S0_W * skewSymmetric(delta_p_est_W);
     F0.block<3,3>(0,6) = C_S0_W * Eigen::Matrix3d::Identity()* delta_t;
@@ -631,7 +590,7 @@ bool ImuError::EvaluateWithMinimalJacobians(double const* const * parameters,
     F0.block<3,3>(3,9) =
         (quaternionOplusMatrix(T_WS_1.getEigenQuaternion().inverse() *
                                T_WS_0.getEigenQuaternion()) *
-         quaternionOplusMatrix(Dq)).topLeftCorner<3,3>() * (-dalpha_db_g_);
+         quaternionOplusMatrix(Dq)).topLeftCorner<3,3>() * (dalpha_db_g_);
     F0.block<3,3>(6,3) = C_S0_W * skewSymmetric(delta_v_est_W);
     F0.block<3,3>(6,6) = C_S0_W;
     F0.block<3,3>(6,9) = dv_db_g_;

@@ -135,6 +135,15 @@ bool RtkImuTcEstimator::addGnssMeasurementAndState(
   }
   num_satellites_ = num_valid_satellite;
 
+  // No satellite
+  if (num_satellites_ == 0) {
+    // erase parameters in current state
+    eraseFrequencyParameterBlocks(curState());
+    eraseImuState(curState());
+    eraseAmbiguityParameterBlocks(curAmbiguityState());
+    return false;
+  }
+
   // Add phaserange residual blocks
   addDdPhaserangeResidualBlocks(curGnssRov(), curGnssRef(), index_pairs, curState());
 

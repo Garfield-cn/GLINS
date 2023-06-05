@@ -116,6 +116,9 @@ struct MapPoint
   //! ceres::ResidualBlockId values of the reprojection error residual block.
   std::map<KeypointIdentifier, uint64_t> observations;
 
+  // Observation counter since the landmark has been initialized
+  size_t num_observations_historical = 0;
+
   //! Is the point position fixed by a loop closure?
   bool fixed_position;
 };

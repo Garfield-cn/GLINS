@@ -14,10 +14,17 @@ namespace gici {
 
 // Visual estimator common options
 struct VisualEstimatorBaseOptions {
-  // Feature error STD (pixel)
-  double feature_error_std = 2.0;
+  // Feature error STD for normal features (pixel)
+  double feature_error_std = 10.0;
 
-  // Landmark outliter rejection threshold (n sigma)
+  // Feature error STD for stable features (pixel)
+  double stable_feature_error_std = 1.0;
+
+  // Minimum number of tracked frames for a landmark after triangulation to judge as a
+  // stable landmark
+  int min_observation_stable = 20;
+
+  // Landmark outliter rejection threshold (pixel)
   double landmark_outlier_rejection_threshold = 2.0;
 
   // Maximum frequency of visual backend processing (Hz)

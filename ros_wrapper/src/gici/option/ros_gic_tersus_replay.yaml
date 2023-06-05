@@ -5,45 +5,45 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/gnss_rover.bin
   # - streamer:
   #     tag: str_gnss_rov_file
   #     output_tags: [fmt_gnss_ion]
   #     type: file
-  #     path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/ionosphere_parameter.bin
+  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/ionosphere_parameter.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: /home/cc/Work/Codes/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/gici_dataset_open/3.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_ros_imu
@@ -114,12 +114,12 @@ stream:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -165,7 +165,7 @@ estimate:
 #       estimate_velocity: true
 #     gnss_estimator_base_options:
 #       gnss_common:
-#         # system_exclude: [R, E, C]
+#         # system_exclude: [G, R, E]
 #         # code_exclude: [G|5Q]
 #         # mw_slip_thres: 0.5
 #         # gf_slip_thres: 0.05
@@ -204,7 +204,7 @@ estimate:
 #     output_align_tag: fmt_gnss_rov
 #     compute_covariance: true
 #     dgnss_options:
-#       estimate_velocity: true
+#       estimate_velocity: false
 #     gnss_estimator_base_options:
 #       gnss_common:
 #         min_elevation: 12.0
@@ -455,7 +455,7 @@ estimate:
 #                 cols: 1
 #                 rows: 4
 #                 data: [-0.36472323465957157, 0.11530151924890532, 0.0006024586154990503, 0.0020184970860498133]
-#             mask: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/gici-mask.png
+#             mask: /media/cc/T7/ubuntu/datasets/gici/20230105_campus/gici-mask.png
 #           # Transform of camera in body (IMU) frame
 #           T_B_C:
 #             cols: 4
@@ -561,7 +561,7 @@ estimate:
 #                 cols: 1
 #                 rows: 4
 #                 data: [-0.36472323465957157, 0.11530151924890532, 0.0006024586154990503, 0.0020184970860498133]
-#             mask: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/gici-mask.png
+#             mask: /media/cc/T7/ubuntu/datasets/gici/20230105_campus/gici-mask.png
 #           # Transform of camera in body (IMU) frame
 #           T_B_C:
 #             cols: 4
@@ -591,21 +591,24 @@ estimate:
     enable_backend_data_spasify: true
     pending_num_threshold: 5
     rtk_imu_camera_rrr_options:
-      max_keyframes: 5
+      max_keyframes: 3
       min_yaw_std_init_visual: 0.5
     rtk_options:
       use_ambiguity_resolution: true
     gnss_estimator_base_options:
       use_outlier_rejection: true
       reject_one_outlier_once: false
-      max_pesudorange_error: 4.0
-      max_phaserange_error: 0.06
+      max_pesudorange_error: 4.0          
+      max_phaserange_error: 0.06       
+      max_doppler_error: 0.5
       gnss_common:
         min_elevation: 12.0
         min_SNR: [35.0, 30.0]
     gnss_loose_estimator_base_options:
     visual_estimator_base_options:
-      feature_error_std: 0.01
+      feature_error_std: 10.0
+      stable_feature_error_std: 1.0
+      min_observation_stable: 20
       landmark_outlier_rejection_threshold: 2.0
     imu_estimator_base_options:
       imu_parameters:
@@ -643,13 +646,13 @@ estimate:
       time_window_length_dynamic_motion: 0.5
       min_acceleration: 0.5
     feature_handler_options:
-      max_features_per_frame: 60
+      max_features_per_frame: 100
       max_n_kfs: 30
       kfselect_min_numkfs: 30
-      kfselect_min_disparity: 30.0
-      kfselect_min_dist_metric: 20.0
-      kfselect_min_angle: 30.0
-      kfselect_min_dt: 5.0
+      kfselect_min_disparity: 10.0
+      kfselect_min_dist_metric: 0.5
+      kfselect_min_angle: 5.0  
+      kfselect_min_dt: 1.0
       detector:
         cell_size: 40
       initialization:
@@ -671,7 +674,7 @@ estimate:
                 cols: 1
                 rows: 4
                 data: [-0.36472323465957157, 0.11530151924890532, 0.0006024586154990503, 0.0020184970860498133]
-            mask: /media/cc/T72/ubuntu/datasets/gici/20230105_campus/gici-mask.png
+            mask: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/mask/gici-mask.png
           # Transform of camera in body (IMU) frame
           T_B_C:
             cols: 4
@@ -685,4 +688,4 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  file_directory: /home/cc/Work/Data/Log

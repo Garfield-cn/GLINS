@@ -1414,6 +1414,14 @@ static int decode_type1042(rtcm_t *rtcm)
         trace(2,"rtcm3 1042 satellite number error: prn=%d\n",prn);
         return -1;
     }
+
+    /* adjust time to fix IGS ephemeris BUG */
+    if (eph.toes>604800) {
+        eph.toes-=604800;
+        toc-=604800;
+        week+=1;
+    }
+
     eph.sat=sat;
     eph.week=adjbdtweek(week);
     if (rtcm->time.time==0) rtcm->time=utc2gpst(timeget());

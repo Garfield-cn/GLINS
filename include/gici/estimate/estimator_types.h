@@ -56,9 +56,12 @@ using SensorType = option_tools::SensorType;
 // bit 0-5:   IdType
 #define BITS_IDTYPE 0, 5
 // bit 22-49: BundleID 
-#define BITS_BUNDLEID 22, 49
+#define BITS_BUNDLEID 22, 49  // only for time-relevant parameters
 #define RANGE_BUNDLE_ID_MIN 0
 #define RANGE_BUNDLE_ID_MAX 67108863  // 2^26 - 1
+// IMU relevant bits ----
+// bit 6-11: Sub-IdType, defining the corresponding pose type.
+#define BITS_IMU_SUBID 6, 11
 // GNSS relevant bits ----
 // bit 6-13: GNSS system
 #define BITS_GNSS_SYSTEM 6, 13
@@ -336,6 +339,12 @@ inline BackendId changeIdType(BackendId id, IdType type, size_t cam_index = 0)
   uint64_t out = id.asInteger();
   out = BackendId::resetBits(out, cam_index, BITS_CAMERA_IDX);
   out = BackendId::resetBits(out, type, BITS_IDTYPE);
+  if (type == IdType::ImuStates) {
+    out = BackendId::resetBits(out, id.type(), BITS_IMU_SUBID);
+  }
+  else if (id.type() == IdType::ImuStates) {
+    out = BackendId::resetBits(out, 0, BITS_IMU_SUBID);
+  }
   return BackendId(out);
 }
 

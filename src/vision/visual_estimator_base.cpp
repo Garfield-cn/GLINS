@@ -125,7 +125,10 @@ ceres::ResidualBlockId VisualEstimatorBase::addReprojectionErrorResidualBlock(
   // get Landmark ID.
   const BackendId landmark_backend_id = createLandmarkId(
         frame->track_id_vec_[keypoint_idx]);
-  CHECK(isLandmarkInEstimator(landmark_backend_id)) << "landmark not added";
+  if (!isLandmarkInEstimator(landmark_backend_id)) {
+    LOG(WARNING) << "Landmark " << landmark_backend_id << " not added!";
+    return nullptr;
+  }
 
   KeypointIdentifier kid(frame, keypoint_idx);
   // check for double observations
@@ -135,8 +138,15 @@ ceres::ResidualBlockId VisualEstimatorBase::addReprojectionErrorResidualBlock(
   }
 
   Eigen::Matrix2d information = Eigen::Matrix2d::Identity();
-  information *= visual_base_options_.feature_error_std / 
-    static_cast<double>(1 << frame->level_vec_(keypoint_idx));
+  if (landmarks_map_.at(landmark_backend_id).num_observations_historical > 
+      visual_base_options_.min_observation_stable) {
+    information /= square(visual_base_options_.stable_feature_error_std * 
+      static_cast<double>(1 << frame->level_vec_(keypoint_idx)));
+  }
+  else {
+    information /= square(visual_base_options_.feature_error_std * 
+      static_cast<double>(1 << frame->level_vec_(keypoint_idx)));
+  }
 
   // create error term
   std::shared_ptr<ReprojectionError> reprojection_error =
@@ -154,6 +164,7 @@ ceres::ResidualBlockId VisualEstimatorBase::addReprojectionErrorResidualBlock(
   landmarks_map_.at(landmark_backend_id).observations.insert(
         std::pair<KeypointIdentifier, uint64_t>(
           kid, reinterpret_cast<uint64_t>(ret_val)));
+  landmarks_map_.at(landmark_backend_id).num_observations_historical++;
 
   return ret_val;
 }
@@ -229,9 +240,12 @@ bool VisualEstimatorBase::rejectReprojectionErrorOutlier(const FramePtr& frame)
       if (obs.first.frame_id != frame->id()) continue;
 
       ceres::ResidualBlockId residual_block_id = ceres::ResidualBlockId(obs.second);
+      std::shared_ptr<ErrorInterface> interface = 
+        graph_->residualBlockIdToResidualBlockSpecMap().at(residual_block_id).error_interface_ptr;
       Eigen::VectorXd Residuals = Eigen::VectorXd::Zero(2);
       graph_->problem()->EvaluateResidualBlock(
           residual_block_id, false, nullptr, Residuals.data(), nullptr);
+      interface->deNormalizeResidual(Residuals.data());
       // outlier detected
       if (Residuals.norm() > outlier_threshold) {
         rejected_landmarks.push_back(it->second.point);
