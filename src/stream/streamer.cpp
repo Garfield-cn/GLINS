@@ -237,6 +237,7 @@ int V4l2Streamer::open(StreamerRWType type)
   v4l2_buffer buffer;
 
   // Open video device
+  option_.dev = "/dev/" + option_.dev;
   if ((dev_ = ::open(option_.dev.data(), O_RDWR)) < 0) {
     LOG(ERROR) << "V4L2 device open failed!"; return 0;
   }

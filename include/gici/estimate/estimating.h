@@ -32,7 +32,7 @@ public:
   // Frame: Features outputs to ROS
   // Map: Landmarks outputs to ROS
   using OutputDataCallback = std::function<
-    void(const std::string&, const std::shared_ptr<DataCluster>&)>;;
+    void(const std::string&, const std::shared_ptr<DataCluster>&)>;
   // We do not need to store tags here because if any client registered this callback, 
   // we will send solution to it without tag check. The tag check is defined to distingush
   // input streams, see EstimateHandle::bindWithStreams.
