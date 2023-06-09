@@ -1066,10 +1066,6 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
 {
   sol_t sol;
   convertSolution(solution, sol);
-  const GeoCoordinatePtr coordinate = solution.coordinate;
-  Eigen::Matrix3d rot = coordinate->rotationMatrix(GeoType::ENU, GeoType::NED);
-  Eigen::Quaterniond quat_frd(rot * solution.pose.getEigenQuaternion().toRotationMatrix());
-  std::cout << ":::::::::::::::" << quat_frd.coeffs().transpose() << " ------------------" << std::endl;
   Eigen::Vector3d rpy = quaternionToEulerAngle(solution.pose.getEigenQuaternion());
   rpy *= R2D;
 
