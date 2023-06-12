@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #ifndef FORMAT_IMU_H
 #define FORMAT_IMU_H

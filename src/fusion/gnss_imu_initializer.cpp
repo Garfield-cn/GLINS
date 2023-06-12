@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #include "gici/fusion/gnss_imu_initializer.h"
 #include "gici/gnss/gnss_estimator_base.h"
@@ -206,28 +208,8 @@ bool GnssImuInitializer::addGnssSolutionMeasurement(
   // Add dynamic initialization items to graphs
   double initial_yaw = 0.0;
   speed_and_bias_0_.head<3>() = initial_velocity;
-  if (!imu_base_options_.car_motion) {
-    // we try different initial yaws to find one with minimum total cost
-    std::map<double, double> cost_to_yaws;
-    for (double init_yaw = 0.0; init_yaw < 360.0; init_yaw += 90.0) 
-    {
-      // get initial values
-      Eigen::Vector3d rpy = quaternionToEulerAngle(T_WS_0_.getEigenQuaternion());
-      rpy.z() = init_yaw * D2R;
-      Eigen::Quaterniond q_WS = eulerAngleToQuaternion(rpy);
-
-      // fill graph
-      putMeasurementAndStateToGraph(q_WS, speed_and_bias_0_);
-
-      // evaluate and store total cost
-      double total_cost = graph_->computeTotalCost(false);
-      cost_to_yaws.insert(std::make_pair(total_cost, init_yaw));
-    }
-    // select initial yaw with minimum cost
-    initial_yaw = cost_to_yaws.begin()->second;
-  }
-  else {
-    // use GNSS velocity
+  if (imu_base_options_.car_motion) {
+    // compute initial yaw from GNSS velocity
     initial_yaw = -atan2(initial_velocity(0), initial_velocity(1)) * R2D;
   }
   // set initial yaw and put items to graph
