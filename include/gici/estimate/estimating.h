@@ -92,7 +92,7 @@ protected:
   bool enable_input_align_ = false;
   double input_align_latency_ = 0.0;
   // through some data when backend is pending
-  bool enable_backend_data_spasify_ = false;
+  bool enable_backend_data_sparsify_ = false;
   int pending_num_threshold_ = 0;
   int pending_sparsify_num_ = 0;
   // if user setted "loop_duration" as zero, we align the output rate to this input stream

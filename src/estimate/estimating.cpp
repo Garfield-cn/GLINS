@@ -62,12 +62,12 @@ EstimatingBase::EstimatingBase(
 
   // backend pending check and measurement data sparsifying
   if (option_tools::safeGet(node, 
-    "enable_backend_data_spasify", &enable_backend_data_spasify_)) {
-    if (enable_backend_data_spasify_)
+    "enable_backend_data_sparsify", &enable_backend_data_sparsify_)) {
+    if (enable_backend_data_sparsify_)
     if (!option_tools::safeGet(node, 
       "pending_num_threshold", &pending_num_threshold_)) {
       LOG(FATAL) << "Unable to load pending_num_threshold "
-                 << "while enable_backend_data_spasify is setted!";
+                 << "while enable_backend_data_sparsify is setted!";
       return;
     }
   }

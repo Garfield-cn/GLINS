@@ -642,7 +642,7 @@ void MultiSensorEstimating::handleNonTimePropagationSensors(EstimatorDataCluster
     measurements_.push_back(measurement);
 
     // check pending, sparcify if needed
-    if (enable_backend_data_spasify_)
+    if (enable_backend_data_sparsify_)
     {
       if (measurements_.size() > pending_num_threshold_) {
         pending_sparsify_num_++;
