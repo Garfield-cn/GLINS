@@ -310,7 +310,7 @@ bool VisualEstimatorBase::rejectReprojectionErrorOutlier(const FramePtr& frame)
     for (size_t i = 0; i < residual_vec.size(); i++) {
       LOG(INFO) << "Rejected landmark outlier " 
         << std::fixed << residual_vec[i].first 
-        << ": nomalized residual = " << residual_vec[i].second;
+        << ": residual = " << residual_vec[i].second;
     }
   }
 
