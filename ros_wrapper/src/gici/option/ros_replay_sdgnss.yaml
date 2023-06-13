@@ -5,28 +5,28 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_ephemeris.bin
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: /home/cc/Work/Codes/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/gici/20230320_campus/2/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -57,17 +57,16 @@ stream:
       tag: fmt_gnss_rov
       type: gnss-raw
       sub_type: tersus
-      start_time: 2023.03.20
   - formator:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.20
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.20
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -87,7 +86,7 @@ stream:
 estimate:
 - estimator:
     tag: est_gnss
-    type: dgnss
+    type: sdgnss
     input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
     fmt_gnss_rov_roles: [rover]
     fmt_gnss_ref_roles: [reference]
@@ -96,15 +95,14 @@ estimate:
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_rov
     compute_covariance: false
-    dgnss_options:
+    sdgnss_options:
       estimate_velocity: true
     gnss_estimator_base_options:
       gnss_common:
-        # system_exclude: [R, E, C]
         min_elevation: 12.0
         min_SNR: [35.0, 30.0]
       use_outlier_rejection: true
-      max_pesudorange_error: 4.0
+      max_pesudorange_error: 10.0
     estimator_base_options:
       max_iteration: 10
       num_threads: 2
@@ -112,37 +110,9 @@ estimate:
       verbose_output: true
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
-# - estimator:
-#     tag: est_gnss
-#     type: sdgnss
-#     input_tags: [fmt_gnss_rov, fmt_gnss_ref, fmt_gnss_eph, fmt_dcb_file]
-#     fmt_gnss_rov_roles: [rover]
-#     fmt_gnss_ref_roles: [reference]
-#     fmt_gnss_eph_roles: [ephemeris]
-#     fmt_dcb_file_roles: [code_bias]
-#     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
-#     output_align_tag: fmt_gnss_rov
-#     compute_covariance: false
-#     sdgnss_options:
-#       estimate_velocity: true
-#     gnss_estimator_base_options:
-#       gnss_common:
-#         # system_exclude: [R, E, C]
-#         min_elevation: 12.0
-#         min_SNR: [35.0, 30.0]
-#       use_outlier_rejection: true
-#       max_pesudorange_error: 4.0
-#       max_phaserange_error: 0.03
-#     estimator_base_options:
-#       max_iteration: 10
-#       num_threads: 2
-#       max_solver_time: 0.05
-#       verbose_output: true
-#       solver_type: dense_schur
-#       trust_region_strategy_type: dogleg
 
 logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  file_directory: /home/cc/Work/Data/Log

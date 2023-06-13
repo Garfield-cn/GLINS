@@ -36,7 +36,7 @@ void StreamerBase::enableReplay(StreamerReplayOptions option)
   // Only file streams are enabled
   for (auto it : static_this_) {
     if (it->getType() != StreamerType::File) {
-      it->disable();
+      // it->disable();
     }
     else {
       it->replay_options_ = option;

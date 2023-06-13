@@ -1306,6 +1306,7 @@ AtxFileFormator::AtxFileFormator(Option& option)
   if (!(pcvs_ = (pcvs_t *)malloc(sizeof(pcvs_t)))) {
     free(pcvs_); return;
   }
+  memset(pcvs_, 0, sizeof(pcvs_t));
 }
 
 AtxFileFormator::AtxFileFormator(YAML::Node& node)
@@ -1315,6 +1316,7 @@ AtxFileFormator::AtxFileFormator(YAML::Node& node)
   if (!(pcvs_ = (pcvs_t *)malloc(sizeof(pcvs_t)))) {
     free(pcvs_); return;
   }
+  memset(pcvs_, 0, sizeof(pcvs_t));
 }
 
 AtxFileFormator::~AtxFileFormator()

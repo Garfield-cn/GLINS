@@ -5,33 +5,33 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_rover.bin
   # - streamer:
   #     tag: str_gnss_rov_file
   #     output_tags: [fmt_gnss_ion]
   #     type: file
-  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/ionosphere_parameter.bin
+  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/ionosphere_parameter.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
@@ -43,8 +43,13 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/1.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/solution.txt
       enable_time_tag: false
+  - streamer:
+      tag: str_solution_stream
+      input_tags: [fmt_solution_stream]
+      type: tcp-server
+      port: 9001
   - streamer:
       tag: str_ros_imu
       input_tags: [fmt_imu]
@@ -114,12 +119,12 @@ stream:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.03.20
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.20
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -137,6 +142,13 @@ stream:
   - formator:
       io: output
       tag: fmt_solution_file
+      type: nmea 
+      use_esa: true
+      use_esd: true
+      talker_id: GP
+  - formator:
+      io: output
+      tag: fmt_solution_stream
       type: nmea 
       use_esa: true
       use_esd: true
@@ -582,7 +594,7 @@ estimate:
     fmt_camera_roles: [mono]
     fmt_imu_roles: [major]
     est_gnss_roles: [position]
-    output_tags: [str_solution, str_solution_odometry, str_solution_path, str_featured_image, str_landmarks, fmt_solution_file]
+    output_tags: [str_solution, str_solution_odometry, str_solution_path, str_featured_image, str_landmarks, fmt_solution_file, fmt_solution_stream]
     output_align_tag: fmt_imu
     output_downsample_rate: 40
     compute_covariance: false
