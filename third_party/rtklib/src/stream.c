@@ -1134,7 +1134,7 @@ static int send_nb(socket_t sock, uint8_t *buff, int n)
     FD_ZERO(&ws); FD_SET(sock,&ws);
     ret=select(sock+1,NULL,&ws,NULL,&tv);
     if (ret<=0) return ret;
-    ns=send(sock,(char *)buff,n,0);
+    ns=send(sock,(char *)buff,n,MSG_NOSIGNAL);
     return ns<n?-1:ns;
 }
 /* generate tcp socket -------------------------------------------------------*/

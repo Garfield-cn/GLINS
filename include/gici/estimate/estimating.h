@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #pragma once
 
@@ -32,7 +34,7 @@ public:
   // Frame: Features outputs to ROS
   // Map: Landmarks outputs to ROS
   using OutputDataCallback = std::function<
-    void(const std::string&, const std::shared_ptr<DataCluster>&)>;;
+    void(const std::string&, const std::shared_ptr<DataCluster>&)>;
   // We do not need to store tags here because if any client registered this callback, 
   // we will send solution to it without tag check. The tag check is defined to distingush
   // input streams, see EstimateHandle::bindWithStreams.
@@ -90,7 +92,7 @@ protected:
   bool enable_input_align_ = false;
   double input_align_latency_ = 0.0;
   // through some data when backend is pending
-  bool enable_backend_data_spasify_ = false;
+  bool enable_backend_data_sparsify_ = false;
   int pending_num_threshold_ = 0;
   int pending_sparsify_num_ = 0;
   // if user setted "loop_duration" as zero, we align the output rate to this input stream

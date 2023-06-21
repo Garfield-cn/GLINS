@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #include "gici/stream/streamer.h"
 
@@ -34,7 +36,7 @@ void StreamerBase::enableReplay(StreamerReplayOptions option)
   // Only file streams are enabled
   for (auto it : static_this_) {
     if (it->getType() != StreamerType::File) {
-      it->disable();
+      // it->disable();
     }
     else {
       it->replay_options_ = option;
@@ -237,6 +239,7 @@ int V4l2Streamer::open(StreamerRWType type)
   v4l2_buffer buffer;
 
   // Open video device
+  option_.dev = "/dev/" + option_.dev;
   if ((dev_ = ::open(option_.dev.data(), O_RDWR)) < 0) {
     LOG(ERROR) << "V4L2 device open failed!"; return 0;
   }

@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_initializer.h"

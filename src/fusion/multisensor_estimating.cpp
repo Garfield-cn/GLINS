@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #include "gici/fusion/multisensor_estimating.h"
 
@@ -640,7 +642,7 @@ void MultiSensorEstimating::handleNonTimePropagationSensors(EstimatorDataCluster
     measurements_.push_back(measurement);
 
     // check pending, sparcify if needed
-    if (enable_backend_data_spasify_)
+    if (enable_backend_data_sparsify_)
     {
       if (measurements_.size() > pending_num_threshold_) {
         pending_sparsify_num_++;

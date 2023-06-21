@@ -61,12 +61,20 @@ ImuError::ImuError(const ImuMeasurements &imu_measurements,
   setImuParameters(imu_parameters);
   setImuMeasurements(imu_measurements);
 
-  CHECK(t0_ >= imu_measurements_.front().timestamp)
-      << "First IMU measurement included in ImuError is not old enough: "
+  double dt0 = t0_ - imu_measurements_.front().timestamp;
+  double dt1 = t1_ - imu_measurements_.back().timestamp;
+  if (dt0 < 0.0) {
+    LOG(ERROR) << "First IMU measurement included in ImuError is not old enough: "
       << std::fixed << t0_ << " vs " << imu_measurements_.front().timestamp;
-  CHECK(t1_ <= imu_measurements_.back().timestamp)
-      << "Last IMU measurement included in ImuError is not new enough!"
+    imu_measurements_.push_front(imu_measurements_.front());
+    imu_measurements_.front().timestamp = t0_;
+  }
+  if (dt1 > 0.0) {
+    LOG(ERROR) << "Last IMU measurement included in ImuError is not new enough: "
       << std::fixed << t1_ << " vs " << imu_measurements_.back().timestamp;
+    imu_measurements_.push_back(imu_measurements_.back());
+    imu_measurements_.back().timestamp = t1_;
+  }
 }
 
 // Propagates pose, speeds and biases with given IMU measurements.
@@ -291,8 +299,33 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   const double t_start_adjusted = t_start - imu_params.delay_imu_cam;
   const double t_end_adjusted = t_end - imu_params.delay_imu_cam;
   // sanity check:
-  CHECK_LE(imu_measurements.front().timestamp, t_start_adjusted);
-  CHECK_GE(imu_measurements.back().timestamp, t_end_adjusted);
+  bool modify_front = false, modify_back = false;;
+  ImuMeasurements imu_measurements_modified;
+  double dt0 = t_start_adjusted - imu_measurements.front().timestamp;
+  double dt1 = t_end_adjusted - imu_measurements.back().timestamp;
+  if (dt0 < 0.0) {
+    LOG(ERROR) << "First IMU measurement included in imu_measurements is not old enough: "
+      << std::fixed << t_start_adjusted << " vs " << imu_measurements.front().timestamp;
+    modify_front = true;
+  }
+  if (dt1 > 0.0) {
+    LOG(ERROR) << "Last IMU measurement included in imu_measurements is not new enough: "
+      << std::fixed << t_end_adjusted << " vs " << imu_measurements.back().timestamp;
+    modify_back = true;
+  }
+  if (modify_front || modify_back) imu_measurements_modified = imu_measurements;
+  if (modify_front) {
+    imu_measurements_modified.push_front(imu_measurements.front());
+    imu_measurements_modified.front().timestamp = t_start_adjusted;
+  }
+  if (modify_back) {
+    imu_measurements_modified.push_back(imu_measurements.back());
+    imu_measurements_modified.back().timestamp = t_end_adjusted;
+  }
+  const ImuMeasurements *imu_measurements_ptr = 
+    (modify_front || modify_back) ? &imu_measurements_modified : &imu_measurements;
+  CHECK_LE(imu_measurements_ptr->front().timestamp, t_start_adjusted);
+  CHECK_GE(imu_measurements_ptr->back().timestamp, t_end_adjusted);
 
   // initial condition
   Eigen::Vector3d r_0 = T_WS.getPosition();
@@ -317,17 +350,18 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
   int num_propagated = 0;
 
   double time = t_start_adjusted;
-  for (size_t i = 0; i < imu_measurements.size() - 1; i++)
+  const ImuMeasurements& imu = *imu_measurements_ptr;
+  for (size_t i = 0; i < imu.size() - 1; i++)
   {
     if (!has_started && 
-        !(imu_measurements[i].timestamp <= t_start_adjusted && 
-        imu_measurements[i + 1].timestamp >= t_start_adjusted)) continue;
+        !(imu[i].timestamp <= t_start_adjusted && 
+        imu[i + 1].timestamp >= t_start_adjusted)) continue;
 
-    Eigen::Vector3d omega_S_0 = imu_measurements[i].angular_velocity;
-    Eigen::Vector3d acc_S_0 = imu_measurements[i].linear_acceleration;
-    Eigen::Vector3d omega_S_1 = imu_measurements[i + 1].angular_velocity;
-    Eigen::Vector3d acc_S_1 = imu_measurements[i + 1].linear_acceleration;
-    double nexttime = imu_measurements[i + 1].timestamp;
+    Eigen::Vector3d omega_S_0 = imu[i].angular_velocity;
+    Eigen::Vector3d acc_S_0 = imu[i].linear_acceleration;
+    Eigen::Vector3d omega_S_1 = imu[i + 1].angular_velocity;
+    Eigen::Vector3d acc_S_1 = imu[i + 1].linear_acceleration;
+    double nexttime = imu[i + 1].timestamp;
 
     // time delta
     double dt = nexttime - time;
@@ -335,7 +369,7 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
     // interpolate to end time point
     if (t_end_adjusted < nexttime)
     {
-      double interval = nexttime - imu_measurements[i].timestamp;
+      double interval = nexttime - imu[i].timestamp;
       nexttime = t_end_adjusted;
       dt = nexttime - time;
       const double r = dt / interval;
@@ -353,7 +387,7 @@ int ImuError::propagation(const ImuMeasurements& imu_measurements,
     if (!has_started)
     {
       has_started = true;
-      const double r = dt / (nexttime - imu_measurements[i].timestamp);
+      const double r = dt / (nexttime - imu[i].timestamp);
       omega_S_0 = (r * omega_S_0 + (1.0 - r) * omega_S_1).eval();
       acc_S_0 = (r * acc_S_0 + (1.0 - r) * acc_S_1).eval();
     }

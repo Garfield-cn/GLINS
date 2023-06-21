@@ -3,6 +3,8 @@
 *
 * @Author  : Cheng Chi
 * @Email   : chichengcn@sjtu.edu.cn
+*
+* Copyright (C) 2023 by Cheng Chi, All rights reserved.
 **/
 #include "gici/stream/formator.h"
 
@@ -1066,10 +1068,6 @@ int NmeaFormator::encodeESA(const Solution& solution, uint8_t* buf)
 {
   sol_t sol;
   convertSolution(solution, sol);
-  const GeoCoordinatePtr coordinate = solution.coordinate;
-  Eigen::Matrix3d rot = coordinate->rotationMatrix(GeoType::ENU, GeoType::NED);
-  Eigen::Quaterniond quat_frd(rot * solution.pose.getEigenQuaternion().toRotationMatrix());
-  std::cout << ":::::::::::::::" << quat_frd.coeffs().transpose() << " ------------------" << std::endl;
   Eigen::Vector3d rpy = quaternionToEulerAngle(solution.pose.getEigenQuaternion());
   rpy *= R2D;
 
@@ -1308,6 +1306,7 @@ AtxFileFormator::AtxFileFormator(Option& option)
   if (!(pcvs_ = (pcvs_t *)malloc(sizeof(pcvs_t)))) {
     free(pcvs_); return;
   }
+  memset(pcvs_, 0, sizeof(pcvs_t));
 }
 
 AtxFileFormator::AtxFileFormator(YAML::Node& node)
@@ -1317,6 +1316,7 @@ AtxFileFormator::AtxFileFormator(YAML::Node& node)
   if (!(pcvs_ = (pcvs_t *)malloc(sizeof(pcvs_t)))) {
     free(pcvs_); return;
   }
+  memset(pcvs_, 0, sizeof(pcvs_t));
 }
 
 AtxFileFormator::~AtxFileFormator()
