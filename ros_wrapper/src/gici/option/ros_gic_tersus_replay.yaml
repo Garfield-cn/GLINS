@@ -5,33 +5,33 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/gnss_rover.bin
   # - streamer:
   #     tag: str_gnss_rov_file
   #     output_tags: [fmt_gnss_ion]
   #     type: file
-  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/ionosphere_parameter.bin
+  #     path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/ionosphere_parameter.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
@@ -43,7 +43,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/4.3/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution_stream
@@ -100,7 +100,7 @@ stream:
       type: ros
       topic_name: landmarks
       queue_size: 3
-      marker_scale: 0.2
+      marker_scale: 0.3
       io: output
       format: marker
 
@@ -119,12 +119,12 @@ stream:
       io: input
       tag: fmt_gnss_ref
       type: gnss-rtcm-3
-      start_time: 2023.05.21
+      start_time: 2023.03.27
   - formator:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.05.21
+      start_time: 2023.03.27
   - formator:
       io: input
       tag: fmt_dcb_file
@@ -156,7 +156,7 @@ stream:
 
   replay:
     enable: true
-    speed: 1.0
+    speed: 1.5
     start_offset: 0.0
 
 estimate:
@@ -659,7 +659,7 @@ estimate:
       min_acceleration: 0.5
     feature_handler_options:
       max_features_per_frame: 100
-      max_n_kfs: 30
+      max_n_kfs: 100000
       kfselect_min_numkfs: 30
       kfselect_min_disparity: 10.0
       kfselect_min_dist_metric: 0.5

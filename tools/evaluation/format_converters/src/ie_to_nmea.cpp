@@ -208,7 +208,7 @@ int main(int argc, char ** argv)
     std::vector<std::string> strs;
     strs.push_back("");
     for (int i = 0; i < strlen(buf); i++) {
-      if (buf[i] == ' ') {
+      if (buf[i] == ' ' || buf[i] == '\t') {
         if (strs.back().size() > 0) strs.push_back("");
         continue;
       }
