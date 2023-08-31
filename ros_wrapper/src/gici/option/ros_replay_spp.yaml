@@ -80,7 +80,7 @@ stream:
 
   replay:
     enable: true
-    speed: 3.0
+    speed: 10.0
     start_offset: 0.0
 
 estimate:
@@ -99,7 +99,7 @@ estimate:
     gnss_estimator_base_options:
       gnss_common:
         min_elevation: 12.0
-        min_SNR: [35.0, 30.0]
+        min_SNR: [30.0, 30.0]
       use_outlier_rejection: true
       max_pesudorange_error: 10.0
     estimator_base_options:

@@ -133,8 +133,11 @@ bool SppImuTcEstimator::addGnssMeasurementAndState(
   // Add relative errors
   if (!isFirstEpoch()) {
     // frequency
-    addRelativeFrequencyBlock(lastState(), curState());
+    addRelativeFrequencyResidualBlock(lastState(), curState());
   }
+
+  // ZUPT
+  addZUPTResidualBlock(curState());
 
   // Car motion
   if (imu_base_options_.car_motion) {

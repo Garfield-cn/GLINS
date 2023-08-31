@@ -14,6 +14,9 @@
 #include "gici/gnss/phaserange_error.h"
 #include "gici/gnss/doppler_error.h"
 #include "gici/gnss/gnss_relative_errors.h"
+#include "gici/gnss/relative_isb_error.h"
+#include "gici/gnss/position_error.h"
+#include "gici/gnss/velocity_error.h"
 #include "gici/gnss/code_phase_maps.h"
 
 namespace gici {
@@ -112,7 +115,8 @@ void GnssEstimatorBase::addClockParameterBlocks(
     }
   }
 
-  // add pseudo-measurement for all systems to avoid rank deficiancy
+  // add pseudo-measurement for systems that do not have observations 
+  // to avoid rank deficiancy
   num_valid_system = 0;
   for (auto it_system : system_observation_cnt)
   {
@@ -120,12 +124,17 @@ void GnssEstimatorBase::addClockParameterBlocks(
     bool valid = it_system.second;
     if (valid) {
       num_valid_system++;
+      continue;
     }
 
     BackendId clock_id = createGnssClockId(system, id);
     Eigen::VectorXd measurement = Eigen::VectorXd::Zero(1);
-    if (prior.find(system) != prior.end()) measurement[0] = prior.at(system);
-    Eigen::MatrixXd information = Eigen::MatrixXd::Identity(1, 1) * 1e-6;
+    Eigen::MatrixXd information = Eigen::MatrixXd::Identity(1, 1) * 1.0e-6;
+    if (prior.find(system) != prior.end()) {
+      measurement[0] = prior.at(system);
+      information = Eigen::MatrixXd::Identity(1, 1) * 
+        square(1.0 / gnss_base_options_.error_parameter.initial_clock);
+    }
     std::shared_ptr<ClockError> clock_error = 
       std::make_shared<ClockError>(measurement, information);
     graph_->addResidualBlock(clock_error, nullptr, 
@@ -201,9 +210,16 @@ void GnssEstimatorBase::addIfbParameterBlocks(
         CHECK(graph_->addParameterBlock(ifb_parameter_block));
         ifbs_.push_back(ifb);
 
-        // if base frequency, set as constant
+        // if base frequency, add constraint
         if (is_base) {
           graph_->setParameterBlockConstant(ifb_id.asInteger());
+          
+          // Eigen::VectorXd measurement = Eigen::VectorXd::Zero(1);
+          // Eigen::MatrixXd information = Eigen::MatrixXd::Identity(1, 1) * 1.0e-4;
+          // std::shared_ptr<IfbError> ifb_error = 
+          //   std::make_shared<IfbError>(measurement, information);
+          // graph_->addResidualBlock(ifb_error, nullptr, 
+          //   graph_->parameterBlockPtr(ifb_id.asInteger()));
         }
       }
     }
@@ -325,7 +341,15 @@ void GnssEstimatorBase::addIonosphereParameterBlocks(
     state.ids.push_back(iono_id);
 
     // add initial prior measurement
-    if (isFirstEpoch()) {
+    bool has_last = false;
+    if (ionosphere_states_.size() > 1) {
+      for (size_t j = 0; j < lastIonosphereState().ids.size(); j++) {
+        if (!sameIonosphere(lastIonosphereState().ids[j], iono_id)) continue;
+        has_last = true;
+        break;
+      }
+    }
+    if (!has_last && satellite.ionosphere_type == IonoType::DualFrequency) {
       addIonosphereResidualBlock(iono_id, init[0], 
         gnss_base_options_.error_parameter.initial_ionosphere);
     }
@@ -377,8 +401,30 @@ void GnssEstimatorBase::addAmbiguityParameterBlocks(
       state.ids.push_back(ambiguity_id);
 
       // add initial prior measurement
-      if (isFirstEpoch()) {
-        addAmbiguityResidualBlock(ambiguity_id, init[0], 
+      bool has_last = false;
+      if (ambiguity_states_.size() > 1)
+      for (size_t j = 0; j < lastAmbiguityState().ids.size(); j++) {
+        if (!sameAmbiguity(lastAmbiguityState().ids[j], ambiguity_id)) continue;
+
+        // check cycle slip
+        std::string prn = ambiguity_id.gPrn();
+        int phase_id = ambiguity_id.gPhaseId();
+        bool slip = false;
+
+        for (auto obs : satellite.observations) {
+          if (gnss_common::getPhaseID(satellite.getSystem(), obs.first) == phase_id) {
+            slip = obs.second.slip;
+          }
+        }
+        // if slip happened, we do not add ambiguity time constraint
+        if (slip) continue;
+
+        has_last = true;
+        break;
+      }
+      if (!has_last && satellite.ionosphere_type == IonoType::DualFrequency) {
+        addAmbiguityResidualBlock(ambiguity_id, 
+          *graph_->parameterBlockPtr(ambiguity_id.asInteger())->parameters(), 
           gnss_base_options_.error_parameter.initial_ambiguity);
       }
     }
@@ -573,6 +619,33 @@ void GnssEstimatorBase::computeIonosphereDelay(
     satellite.ionosphere_type = type;
     satellite.ionosphere = ionosphere_delay;
   }
+}
+
+// Add position residual block to graph
+void GnssEstimatorBase::addGnssPositionResidualBlock(
+  const State& state, const Eigen::Vector3d& position, const double std)
+{
+  Eigen::Matrix3d information = Eigen::Matrix3d::Identity() * (1.0 / square(std));
+  std::shared_ptr<PositionError<3>> position_error = 
+    std::make_shared<PositionError<3>>(position, information);
+  ceres::ResidualBlockId residual_id = 
+    graph_->addResidualBlock(position_error, 
+      nullptr,   
+      graph_->parameterBlockPtr(state.id_in_graph.asInteger()));
+}
+
+// Add velocity residual block to graph
+void GnssEstimatorBase::addGnssVelocityResidualBlock(
+  const State& state, const Eigen::Vector3d& velocity, const double std)
+{
+  BackendId velocity_id = createGnssVelocityId(state.id_in_graph.bundleId());
+  Eigen::Matrix3d information = Eigen::Matrix3d::Identity() * (1.0 / square(std));
+  std::shared_ptr<VelocityError<3>> velocity_error = 
+    std::make_shared<VelocityError<3>>(velocity, information);
+  ceres::ResidualBlockId residual_id = 
+    graph_->addResidualBlock(velocity_error, 
+      nullptr,   
+      graph_->parameterBlockPtr(velocity_id.asInteger()));
 }
 
 // Add pseudorange residual blocks to graph
@@ -822,6 +895,7 @@ void GnssEstimatorBase::addDopplerResidualBlocks(
       if (use_single_frequency) {
         CodeBias::BaseFrequencies bases = measurement.code_bias->getBase();
         std::pair<int, int> base_pair = bases.at(system);
+        if (system == 'C') base_pair.first = CODE_L2I;  // use B1I for BDS
         int phase_id_base = gnss_common::getPhaseID(system, base_pair.first);
         int phase_id = gnss_common::getPhaseID(system, obs.first);
         if (phase_id_base != phase_id) continue;
@@ -942,7 +1016,7 @@ void GnssEstimatorBase::addRelativePositionResidualBlock(
 }
 
 // Add relative position and velocity block to graph
-void GnssEstimatorBase::addRelativePositionAndVelocityBlock(
+void GnssEstimatorBase::addRelativePositionAndVelocityResidualBlock(
   const State& last_state, const State& cur_state)
 {
   const BackendId last_id = last_state.id;
@@ -970,8 +1044,45 @@ void GnssEstimatorBase::addRelativePositionAndVelocityBlock(
     graph_->parameterBlockPtr(cur_velocity_id.asInteger()));
 }
 
+// Add relative ISB block to graph
+void GnssEstimatorBase::addRelativeIsbResidualBlock(
+  const State& last_state, const State& cur_state)
+{
+  const BackendId last_id = last_state.id;
+  const BackendId cur_id = cur_state.id;
+
+  std::vector<BackendId> cur_clock_ids, last_clock_ids;
+  for (auto system : getGnssSystemList()) {
+    if (system == 'R') continue;  // GLONASS clock is considered as unstable
+    BackendId last_clock_id = changeIdType(last_id, IdType::gClock, system);
+    BackendId cur_clock_id = changeIdType(cur_id, IdType::gClock, system);
+    if (!graph_->parameterBlockExists(last_clock_id.asInteger())) continue;
+    if (!graph_->parameterBlockExists(cur_clock_id.asInteger())) continue;
+    cur_clock_ids.push_back(cur_clock_id);
+    last_clock_ids.push_back(last_clock_id);
+  }
+  CHECK(cur_clock_ids.size() == last_clock_ids.size());
+  if (cur_clock_ids.size() < 2) return;
+
+  double dt = cur_state.timestamp - last_state.timestamp;
+  CHECK(dt >= 0.0);
+  double disb_error = gnss_base_options_.error_parameter.relative_isb;
+  CHECK(disb_error != 0.0);
+  double disb_covariance = square(disb_error) * dt;
+
+  for (size_t i = 1; i < cur_clock_ids.size(); i++) {
+    std::shared_ptr<RelativeIsbError> relative_isb_error = 
+      std::make_shared<RelativeIsbError>(1.0 / disb_covariance);
+    graph_->addResidualBlock(relative_isb_error, nullptr,
+      graph_->parameterBlockPtr(last_clock_ids[0].asInteger()),
+      graph_->parameterBlockPtr(last_clock_ids[i].asInteger()), 
+      graph_->parameterBlockPtr(cur_clock_ids[0].asInteger()),
+      graph_->parameterBlockPtr(cur_clock_ids[i].asInteger()));
+  }
+}
+
 // Add relative frequency block to graph
-void GnssEstimatorBase::addRelativeFrequencyBlock(
+void GnssEstimatorBase::addRelativeFrequencyResidualBlock(
   const State& last_state, const State& cur_state)
 {
   const BackendId last_id = last_state.id;
@@ -1045,7 +1156,6 @@ void GnssEstimatorBase::addRelativeIonosphereResidualBlock(
     Eigen::Matrix<double, 1, 1>::Identity() * square(diono_error) * dt;
 
   for (size_t i = 0; i < cur_state.ids.size(); i++) {
-    bool has_last = false;
     for (size_t j = 0; j < last_state.ids.size(); j++) {
       if (!sameIonosphere(last_state.ids[j], cur_state.ids[i])) continue;
 
@@ -1060,15 +1170,7 @@ void GnssEstimatorBase::addRelativeIonosphereResidualBlock(
         *graph_->parameterBlockPtr(last_state.ids[j].asInteger())->parameters();
       graph_->setParameterBlockVariable(cur_state.ids[i].asInteger());
 
-      has_last = true;
       break;
-    }
-
-    // Add initial prior
-    if (!has_last) {
-      addIonosphereResidualBlock(cur_state.ids[i], 
-        *graph_->parameterBlockPtr(cur_state.ids[i].asInteger())->parameters(), 
-        gnss_base_options_.error_parameter.initial_ionosphere);
     }
   }
 }
@@ -1087,7 +1189,6 @@ void GnssEstimatorBase::addRelativeAmbiguityResidualBlock(
     Eigen::Matrix<double, 1, 1>::Identity() * square(damb_error) * dt;
 
   for (size_t i = 0; i < cur_state.ids.size(); i++) {
-    bool has_last = false;
     for (size_t j = 0; j < last_state.ids.size(); j++) {
       if (!sameAmbiguity(last_state.ids[j], cur_state.ids[i])) continue;
 
@@ -1122,15 +1223,7 @@ void GnssEstimatorBase::addRelativeAmbiguityResidualBlock(
         *graph_->parameterBlockPtr(last_state.ids[j].asInteger())->parameters();
       graph_->setParameterBlockVariable(cur_state.ids[i].asInteger());
 
-      has_last = true;
       break;
-    }
-
-    // Add initial prior
-    if (!has_last) {
-      addAmbiguityResidualBlock(cur_state.ids[i], 
-        *graph_->parameterBlockPtr(cur_state.ids[i].asInteger())->parameters(), 
-        gnss_base_options_.error_parameter.initial_ambiguity);
     }
   }
 }
@@ -1662,7 +1755,6 @@ size_t GnssEstimatorBase::rejectPhaserangeOutlier(
         it != ambiguity_state.ids.end(); ) {
       BackendId id = *it;
       Graph::ResidualBlockCollection residuals = graph_->residuals(id.asInteger());
-      CHECK(residuals.size() > 0);
       int num_phaserange_block = 0;
       for (size_t r = 0; r < residuals.size(); ++r) {
         ErrorType type = residuals[r].error_interface_ptr->typeInfo();
@@ -2063,7 +2155,7 @@ void GnssEstimatorBase::eraseFrequencyParameterBlocks(
     }
   }
   if (reform && index_lhs != -1 && index_rhs != -1) {
-    addRelativeFrequencyBlock(states_[index_lhs], states_[index_rhs]);
+    addRelativeFrequencyResidualBlock(states_[index_lhs], states_[index_rhs]);
   }
 }
 
