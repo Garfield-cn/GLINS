@@ -1166,15 +1166,12 @@ static int ppp_res(int post, const obsd_t *obs, int n, const double *rs,
             dcb=bias=0.0;
             
             if (opt->ionoopt==IONOOPT_IFLC) {
-                if ((y=j%2==0?Lc:Pc)==0.0) 
-                continue;
+                if ((y=j%2==0?Lc:Pc)==0.0) continue;
             }
             else {
-                if ((y=j%2==0?L[j/2]:P[j/2])==0.0) 
-                continue;
+                if ((y=j%2==0?L[j/2]:P[j/2])==0.0) continue;
                 
-                if ((freq=sat2freq(sat,obs[i].code[j/2],nav))==0.0) 
-                continue;
+                if ((freq=sat2freq(sat,obs[i].code[j/2],nav))==0.0) continue;
                 C=SQR(FREQ1/freq)*ionmapf(pos,azel+i*2)*(j%2==0?-1.0:1.0);
             }
             for (k=0;k<nx;k++) H[k+nx*nv]=k<3?-e[k]:0.0;
@@ -1196,8 +1193,7 @@ static int ppp_res(int post, const obsd_t *obs, int n, const double *rs,
                 }
             }
             if (opt->ionoopt==IONOOPT_EST) {
-                if (rtk->x[II(sat,opt)]==0.0) 
-                continue;
+                if (rtk->x[II(sat,opt)]==0.0) continue;
                 H[II(sat,opt)+nx*nv]=C;
             }
             if (j/2==2&&j%2==1) { /* L5-receiver-dcb */
@@ -1205,8 +1201,7 @@ static int ppp_res(int post, const obsd_t *obs, int n, const double *rs,
                 H[ID(opt)+nx*nv]=1.0;
             }
             if (j%2==0) { /* phase bias */
-                if ((bias=x[IB(sat,j/2,opt)])==0.0) 
-                continue;
+                if ((bias=x[IB(sat,j/2,opt)])==0.0) continue;
                 H[IB(sat,j/2,opt)+nx*nv]=1.0;
             }
             /* residual */
@@ -1352,11 +1347,6 @@ extern void pppos(rtk_t *rtk, const obsd_t *obs, int n, const nav_t *nav)
     
     /* satellite positions and clocks */
     satposs(obs[0].time,obs,n,nav,rtk->opt.sateph,rs,dts,var,svh);
-
-    int nvalideph = 0;
-    for (i = 0; i < n; i++) {
-        if (rs[i * 6] != 0 && dts[i * 2] != 0) nvalideph++;
-    }
     
     /* exclude measurements of eclipsing satellite (block IIA) */
     if (rtk->opt.posopt[3]) {

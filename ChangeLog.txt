@@ -45,3 +45,15 @@ gici version 1.0.4 (2023.04.07)
   CHANGED : No longer need to enter the hour item for start_time option in RTCM formator.
   ADDED   : SPP/IMU TC estimator and SPP/IMU/Camera RRR estimator.
   ADDED   : Some tools to support converting data to rosbag.
+--------------------------------------------------------------------------------
+gici version 1.0.5 (2023.08.31)
+  CHANGED : Modify GNSS constraints and initial value computation to improve PPP 
+            performance for receivers with large code biases.
+  CHANGED : 
+  ADDED   : Support RINEX input. 
+  ADDED   : Support zero motion update (ZUPT)
+  ADDED   : Translation check when initializing landmark positions.
+  ADDED   : FDE for GNSS loose factors.
+  ADDED   : Support camera extrinsics estimator.
+  CHANGED : Seperate pseudorange and phaserange pair selection to improve RTK performance
+            for cheap grade receivers.
