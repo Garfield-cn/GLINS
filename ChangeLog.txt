@@ -49,7 +49,7 @@ gici version 1.0.4 (2023.04.07)
 gici version 1.0.5 (2023.08.31)
   CHANGED : Modify GNSS constraints and initial value computation to improve PPP 
             performance for receivers with large code biases.
-  CHANGED : 
+  FIXED   : BUG in computing BDS IOD.
   ADDED   : Support RINEX input. 
   ADDED   : Support zero motion update (ZUPT)
   ADDED   : Translation check when initializing landmark positions.
