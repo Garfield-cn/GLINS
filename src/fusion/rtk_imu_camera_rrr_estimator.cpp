@@ -119,6 +119,11 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
     const GnssMeasurement& measurement_rov, 
     const GnssMeasurement& measurement_ref)
 {
+  // if (visual_initialized_) {
+  //   static int cnt = 0;
+  //   if (cnt++ > 10) return false;
+  // }
+
   // Get prior states
   Eigen::Vector3d position_prior = coordinate_->convert(
     getPoseEstimate().getPosition(), GeoType::ENU, GeoType::ECEF);
@@ -456,6 +461,11 @@ bool RtkImuCameraRrrEstimator::estimate()
       << ", Sat number: " << std::setw(2) << num_satellites_
       << ", GDOP: " << std::setprecision(1) << std::fixed << gdop_
       << ", Fix status: " << std::setw(1) << static_cast<int>(new_state.status);
+  }
+
+  if (new_state_type == IdType::cPose) {
+    LOG(INFO) << "Bias: " << getSpeedAndBiasEstimate(states_[latest_state_index_]).tail<6>().transpose();
+    LOG(INFO) << "Extrinsics: " << getCameraExtrinsicsEstimate().getPosition().transpose() << " " << quaternionToEulerAngle(getCameraExtrinsicsEstimate().getEigenQuaternion()).transpose() * R2D;
   }
 
   // Apply marginalization

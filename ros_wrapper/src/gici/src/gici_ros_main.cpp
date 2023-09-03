@@ -16,19 +16,25 @@
 using namespace gici;
 
 // Process streamers and estimators which defined in config.yaml file.
-// Usage: rosrun gici_ros ros_gici_main <path-to-config> 
+// Usage: rosrun gici_ros ros_gici_main <path-to-config> <ros-node-name>
 int main(int argc, char** argv)
 {
+  // Check input
+  if (argc != 2 && argc != 3) {
+    std::cerr << "Invalid input variables! Supported variables are: "
+      << std::endl << "<path-to-executable> <path-to-config>" << " OR "
+      << std::endl << "<path-to-executable> <path-to-config> <ros-node-name>"
+      << std::endl;
+    return -1;
+  }
+
   // Initialize ROS
-  ros::init(argc, argv, "gici");
+  std::string node_name = "gici";
+  if (argc == 3) node_name = argv[2];
+  ros::init(argc, argv, node_name);
   ros::NodeHandle nh("~");
 
   // Get config file
-  if (argc != 2) {
-    std::cerr << "Invalid input variables! Supported variables are: "
-              << "<path-to-executable> <path-to-config>" << std::endl;
-    return -1;
-  }
   std::string config_file_path = argv[1];
   YAML::Node yaml_node;
   try {
