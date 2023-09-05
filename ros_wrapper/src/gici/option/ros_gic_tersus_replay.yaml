@@ -399,7 +399,7 @@ estimate:
     output_align_tag: fmt_imu
     output_downsample_rate: 40
     compute_covariance: false
-    enable_input_align: false
+    enable_input_align: false  # ture: Group 3; false Group 4.
     input_align_latency: 0.2
     enable_backend_data_sparsify: true
     pending_num_threshold: 5

@@ -87,8 +87,14 @@ bool GnssImuCameraSrrEstimator::addGnssSolutionMeasurementAndState(
 {
   // Set to local measurement handle
   curGnssSolution() = measurement;
+  
+  // // Group 1
+  // // Align
+  // double desired_timestamp = measurement.timestamp + 0.014;
+  // curGnssSolution().timestamp = desired_timestamp;
 
-  // !!! Interpolate GNSS measurement
+  // // Group 2
+  // // !!! Interpolate GNSS measurement
   // double desired_timestamp = measurement.timestamp + 0.014;
   // Transformation T_WS;
   // SpeedAndBias speed_and_bias;
@@ -104,6 +110,7 @@ bool GnssImuCameraSrrEstimator::addGnssSolutionMeasurementAndState(
   //   }
   //   curGnssSolution().timestamp = desired_timestamp;
   // }
+
 
   // Add parameter blocks
   double timestamp = curGnssSolution().timestamp;

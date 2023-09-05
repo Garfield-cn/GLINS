@@ -102,6 +102,8 @@ estimate:
     fmt_gnss_eph_roles: [ephemeris]
     fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias]
     fmt_dcb_file_roles: [option]
+    # fmt_gnss_ssr_roles: [ssr_ephemeris]  # 5.21 dataset
+    # fmt_dcb_file_roles: [code_bias] 
     fmt_gnss_atx_roles: [phase_center]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_rov
@@ -120,7 +122,7 @@ estimate:
       gnss_common:
         min_elevation: 12.0
         min_SNR: [30.0, 30.0]
-        # system_exclude: [C]
+        system_exclude: [C]
         code_exclude: [G|5Q, E|7Q, C|7I]
     estimator_base_options:
       max_iteration: 10
