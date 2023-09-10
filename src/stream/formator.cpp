@@ -66,21 +66,23 @@ void DataCluster::GNSS::init()
   if (!(observation = (obs_t *)malloc(sizeof(obs_t))) ||
     !(observation->data = (obsd_t *)malloc(sizeof(obsd_t) * MAXOBS)) ||
     !(ephemeris = (nav_t *)malloc(sizeof(nav_t))) ||
-    !(ephemeris->eph = (eph_t  *)malloc(sizeof(eph_t) * MAXSAT * 2)) ||
-    !(ephemeris->geph = (geph_t *)malloc(sizeof(geph_t) * NSATGLO * 2)) ||
     !(antenna = (sta_t *)malloc(sizeof(sta_t))) ) {
     free();
   }
+
+  memset(ephemeris, 0, sizeof(nav_t));
+  if (!(ephemeris->eph = (eph_t  *)malloc(sizeof(eph_t) * MAXSAT * 2)) ||
+      !(ephemeris->geph = (geph_t *)malloc(sizeof(geph_t) * NSATGLO * 2))) {
+    free();
+  }
+
   eph_t  eph0 = {0, -1, -1};
   geph_t geph0 = {0, -1};
   for (int i = 0; i < MAXSAT *2; i++) ephemeris->eph[i] = eph0;
   for (int i = 0; i < NSATGLO * 2 ; i++) ephemeris->geph[i] = geph0;
   ephemeris->n = MAXSAT * 2;
   ephemeris->ng = NSATGLO * 2;
-  memset(ephemeris->ssr, 0, sizeof(ssr_t) * MAXSAT);
   memset(antenna, 0, sizeof(sta_t));
-  memset(ephemeris->utc_gps, 0, sizeof(double) * 8);
-  memset(ephemeris->ion_gps, 0, sizeof(double) * 8);
 }
 
 void DataCluster::GNSS::free()

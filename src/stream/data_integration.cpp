@@ -335,7 +335,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
 
   static rtk_t *rtk = NULL;
   prcopt_t prcopt={ /* defaults processing options */
-      PMODE_PPP_KINEMA,0,2,SYS_ALL,   /* mode,soltype,nf,navsys */
+      PMODE_PPP_KINEMA,0,2,SYS_GPS|SYS_GAL|SYS_GLO,   /* mode,soltype,nf,navsys */
       12.0*D2R,{{0,0}},           /* elmin,snrmask */
       EPHOPT_SSRAPC,0,0,0,                    /* sateph,modear,glomodear,bdsmodear */
       5,0,10,1,                   /* maxout,minlock,minfix,armaxiter */
@@ -402,6 +402,7 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
         " ",""                      /* separator/program name */
     };
     outsol(fp_sol, &rtk->sol, rtk->sol.rr, &solopt);
+    fflush(fp_sol);
   }
 }
 
