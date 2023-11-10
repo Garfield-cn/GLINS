@@ -129,6 +129,8 @@ bool GnssImuCameraSrrEstimator::addGnssSolutionMeasurementAndState(
   // GNSS velocity
   addGnssVelocityResidualBlock(curGnssSolution(), states_[index], 
     getImuMeasurementNear(timestamp).angular_velocity);
+  // ZUPT
+  addZUPTResidualBlock(states_[index]);
   // Car motion
   if (imu_base_options_.car_motion) {
     // heading measurement constraint
@@ -195,9 +197,6 @@ bool GnssImuCameraSrrEstimator::addImageMeasurementAndState(
 
   // Add landmark observations
   addReprojectionErrorResidualBlocks(states_[index], curFrame());
-
-  // ZUPT
-  addZUPTResidualBlock(states_[index]);
 
   return true;
 }

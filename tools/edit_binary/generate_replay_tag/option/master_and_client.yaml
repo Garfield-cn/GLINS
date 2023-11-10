@@ -1,7 +1,7 @@
 client:
-  path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380300_01H_01S_MO.obs
+  path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380000_01D_GN.nav
   type: gnss-rinex
 
 master:
-  path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/20210518.dense-urban.mk.ublox.f9p.splitter.obs
+  path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/20210518.dense-urban.mk.ublox.f9p.splitter_cutted.obs
   type: gnss-rinex

@@ -138,10 +138,11 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
   gnss_common::rearrangePhasesAndCodes(curGnssRef());
 
   // Form double difference pair
-  GnssMeasurementDDIndexPairs code_index_pairs = gnss_common::formPseudorangeDDPair(
-    curGnssRov(), curGnssRef(), gnss_base_options_.common);
+  std::map<char, std::string> system_to_base_prn;
   GnssMeasurementDDIndexPairs phase_index_pairs = gnss_common::formPhaserangeDDPair(
-    curGnssRov(), curGnssRef(), gnss_base_options_.common);
+    curGnssRov(), curGnssRef(), system_to_base_prn, gnss_base_options_.common);
+  GnssMeasurementDDIndexPairs code_index_pairs = gnss_common::formPseudorangeDDPair(
+    curGnssRov(), curGnssRef(), system_to_base_prn, gnss_base_options_.common);
 
   // Cycle-slip detection
   if (!isFirstEpoch()) {
@@ -461,11 +462,6 @@ bool RtkImuCameraRrrEstimator::estimate()
       << ", Sat number: " << std::setw(2) << num_satellites_
       << ", GDOP: " << std::setprecision(1) << std::fixed << gdop_
       << ", Fix status: " << std::setw(1) << static_cast<int>(new_state.status);
-  }
-
-  if (new_state_type == IdType::cPose) {
-    LOG(INFO) << "Bias: " << getSpeedAndBiasEstimate(states_[latest_state_index_]).tail<6>().transpose();
-    LOG(INFO) << "Extrinsics: " << getCameraExtrinsicsEstimate().getPosition().transpose() << " " << quaternionToEulerAngle(getCameraExtrinsicsEstimate().getEigenQuaternion()).transpose() * R2D;
   }
 
   // Apply marginalization

@@ -442,6 +442,9 @@ bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
             strs.back().push_back(buf[i]);
         }
 
+        if (strs.size() < 2) continue;
+        if (strs[0].size() < 6) continue;
+
         if (strs[0].substr(3, 3) == "GGA") {
             if (decodeGGA(buf, &sol)) sols.push_back(sol);
         }

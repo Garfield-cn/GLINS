@@ -5,17 +5,17 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_rover.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_ephemeris.bin
   - streamer:
       tag: str_gnss_ssr
       output_tags: [fmt_gnss_ssr]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/gnss_ssr.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_ssr.bin
   - streamer:
       tag: str_gnss_atx
       output_tags: [fmt_gnss_atx]
@@ -32,7 +32,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/3.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -67,12 +67,12 @@ stream:
       io: input
       tag: fmt_gnss_eph
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_ssr
       type: gnss-rtcm-3
-      start_time: 2023.03.27
+      start_time: 2023.05.21
   - formator:
       io: input
       tag: fmt_gnss_atx
@@ -90,7 +90,7 @@ stream:
 
   replay:
     enable: true
-    speed: 3.0
+    speed: 2.0
     start_offset: 0.0
 
 estimate:
@@ -100,10 +100,10 @@ estimate:
     input_tags: [fmt_gnss_rov, fmt_gnss_eph, fmt_gnss_ssr, fmt_dcb_file, fmt_gnss_atx]
     fmt_gnss_rov_roles: [rover]
     fmt_gnss_eph_roles: [ephemeris]
-    fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias]
-    fmt_dcb_file_roles: [option]
-    # fmt_gnss_ssr_roles: [ssr_ephemeris]  # 5.21 dataset
-    # fmt_dcb_file_roles: [code_bias] 
+    # fmt_gnss_ssr_roles: [ssr_ephemeris, code_bias]
+    # fmt_dcb_file_roles: [option]
+    fmt_gnss_ssr_roles: [ssr_ephemeris]  # 5.21 dataset
+    fmt_dcb_file_roles: [code_bias] 
     fmt_gnss_atx_roles: [phase_center]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
     output_align_tag: fmt_gnss_rov
@@ -122,8 +122,8 @@ estimate:
       gnss_common:
         min_elevation: 12.0
         min_SNR: [30.0, 30.0]
-        system_exclude: [C]
-        code_exclude: [G|5Q, E|7Q, C|7I]
+        # system_exclude: [C]
+        # code_exclude: [G|5Q, E|7Q, C|7I]
     estimator_base_options:
       max_iteration: 10
       num_threads: 2
