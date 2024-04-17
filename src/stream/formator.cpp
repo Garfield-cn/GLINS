@@ -20,8 +20,8 @@ namespace gici {
 DataCluster::DataCluster(FormatorType type)
 {
   if (type == FormatorType::RTCM2 || type == FormatorType::RTCM3 ||
-    type == FormatorType::GnssRaw || type == FormatorType::DcbFile || 
-    type == FormatorType::AtxFile) {
+    type == FormatorType::GnssRaw || type == FormatorType::RINEX ||
+    type == FormatorType::DcbFile || type == FormatorType::AtxFile) {
     gnss = std::make_shared<GNSS>();
     gnss->init();
     return;
@@ -66,18 +66,22 @@ void DataCluster::GNSS::init()
   if (!(observation = (obs_t *)malloc(sizeof(obs_t))) ||
     !(observation->data = (obsd_t *)malloc(sizeof(obsd_t) * MAXOBS)) ||
     !(ephemeris = (nav_t *)malloc(sizeof(nav_t))) ||
-    !(ephemeris->eph = (eph_t  *)malloc(sizeof(eph_t) * MAXSAT * 2)) ||
-    !(ephemeris->geph = (geph_t *)malloc(sizeof(geph_t) * NSATGLO * 2)) ||
     !(antenna = (sta_t *)malloc(sizeof(sta_t))) ) {
     free();
   }
+
+  memset(ephemeris, 0, sizeof(nav_t));
+  if (!(ephemeris->eph = (eph_t  *)malloc(sizeof(eph_t) * MAXSAT * 2)) ||
+      !(ephemeris->geph = (geph_t *)malloc(sizeof(geph_t) * NSATGLO * 2))) {
+    free();
+  }
+
   eph_t  eph0 = {0, -1, -1};
   geph_t geph0 = {0, -1};
   for (int i = 0; i < MAXSAT *2; i++) ephemeris->eph[i] = eph0;
   for (int i = 0; i < NSATGLO * 2 ; i++) ephemeris->geph[i] = geph0;
   ephemeris->n = MAXSAT * 2;
   ephemeris->ng = NSATGLO * 2;
-  memset(ephemeris->ssr, 0, sizeof(ssr_t) * MAXSAT);
   memset(antenna, 0, sizeof(sta_t));
 }
 
@@ -218,26 +222,57 @@ extern void updateSsr(
       // check consistency between iods of orbit and clock
       if (ssr[i].iod[0] != ssr[i].iod[1]) continue;
 
-      // TODO: check corresponding ephemeris exists
-      for (int j = 0; j < 4; j++) {
-        gnss_data->ephemeris->ssr[i].t0[j] = ssr[i].t0[j];
-        gnss_data->ephemeris->ssr[i].udi[j] = ssr[i].udi[j];
-        gnss_data->ephemeris->ssr[i].iod[j] = ssr[i].iod[j];
-      }
+      // common
       gnss_data->ephemeris->ssr[i].iode = ssr[i].iode;
       gnss_data->ephemeris->ssr[i].iodcrc = ssr[i].iodcrc;
-      gnss_data->ephemeris->ssr[i].ura = ssr[i].ura;
       gnss_data->ephemeris->ssr[i].refd = ssr[i].refd;
-      for (int j = 0; j < 3; j++) {
-        gnss_data->ephemeris->ssr[i].deph[j] = ssr[i].deph[j];
-        gnss_data->ephemeris->ssr[i].ddeph[j] = ssr[i].ddeph[j];
-        gnss_data->ephemeris->ssr[i].dclk[j] = ssr[i].dclk[j];
+      
+      // ephemeris
+      if (ssr[i].t0[0].time) {
+        gnss_data->ephemeris->ssr[i].t0[0] = ssr[i].t0[0];
+        gnss_data->ephemeris->ssr[i].udi[0] = ssr[i].udi[0];
+        gnss_data->ephemeris->ssr[i].iod[0] = ssr[i].iod[0];
+        for (int j = 0; j < 3; j++) {
+          gnss_data->ephemeris->ssr[i].deph[j] = ssr[i].deph[j];
+          gnss_data->ephemeris->ssr[i].ddeph[j] = ssr[i].ddeph[j];
+        }
       }
-      gnss_data->ephemeris->ssr[i].hrclk = ssr[i].hrclk;
+
+      // clock
+      if (ssr[i].t0[1].time) {
+        gnss_data->ephemeris->ssr[i].t0[1] = ssr[i].t0[1];
+        gnss_data->ephemeris->ssr[i].udi[1] = ssr[i].udi[1];
+        gnss_data->ephemeris->ssr[i].iod[1] = ssr[i].iod[1];
+        for (int j = 0; j < 3; j++) {
+          gnss_data->ephemeris->ssr[i].dclk[j] = ssr[i].dclk[j];
+        }
+      }
+
+      // high rate clock
+      if (ssr[i].t0[2].time) {
+        gnss_data->ephemeris->ssr[i].t0[2] = ssr[i].t0[2];
+        gnss_data->ephemeris->ssr[i].udi[2] = ssr[i].udi[2];
+        gnss_data->ephemeris->ssr[i].iod[2] = ssr[i].iod[2];
+        gnss_data->ephemeris->ssr[i].hrclk = ssr[i].hrclk;
+      }
+
+      // ura
+      if (ssr[i].t0[3].time) {
+        gnss_data->ephemeris->ssr[i].t0[3] = ssr[i].t0[3];
+        gnss_data->ephemeris->ssr[i].udi[3] = ssr[i].udi[3];
+        gnss_data->ephemeris->ssr[i].iod[3] = ssr[i].iod[3];
+        gnss_data->ephemeris->ssr[i].hrclk = ssr[i].hrclk;
+        gnss_data->ephemeris->ssr[i].ura = ssr[i].ura;
+      }
+
+      if (satsys(i + 1, NULL) == SYS_CMP && (!gnss_data->ephemeris->ssr[i].t0[0].time || !gnss_data->ephemeris->ssr[i].t0[1].time)) {
+        int a = 0;
+      }
     }
     // update code bias
     if (std::find(type.begin(), type.end(), 
-        UpdateSsrType::CodeBias) != type.end()) 
+        UpdateSsrType::CodeBias) != type.end() && 
+        ssr[i].t0[4].time) 
     {
       gnss_data->ephemeris->ssr[i].t0[4] = ssr[i].t0[4];
       gnss_data->ephemeris->ssr[i].udi[4] = ssr[i].udi[4];
@@ -247,7 +282,8 @@ extern void updateSsr(
     }
     // update phase bias
     if (std::find(type.begin(), type.end(), 
-        UpdateSsrType::PhaseBias) != type.end()) 
+        UpdateSsrType::PhaseBias) != type.end() && 
+        ssr[i].t0[5].time) 
     {
       gnss_data->ephemeris->ssr[i].t0[5] = ssr[i].t0[5];
       gnss_data->ephemeris->ssr[i].udi[5] = ssr[i].udi[5];
@@ -676,6 +712,221 @@ int GnssRawFormator::decode(const uint8_t *buf, int size,
 int GnssRawFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
 {
   LOG(ERROR) << "GNSS-Raw Encoding not supported!";
+  return 0;
+}
+
+// GNSS Rinex --------------------------------------------------------
+RINEXFormator::RINEXFormator(Option& option)
+{
+  type_ = FormatorType::RINEX;
+  
+  if (!(buf_memory_ = (char *)malloc(sizeof(char) * option.buffer_length))) {
+    LOG(FATAL) << __FUNCTION__ << ": Buffer malloc error!";
+    return;
+  }
+  p_memory_ = buf_memory_;
+  fp_memory_ = fmemopen(buf_memory_, option.buffer_length, "w+");
+
+  init_rnxctr(&rnx_);
+  for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
+    data_.push_back(std::make_shared<DataCluster>(type_));
+  }
+}
+  
+RINEXFormator::RINEXFormator(YAML::Node& node)
+{
+  type_ = FormatorType::RINEX;
+
+  Option option;
+  LOAD_COMMON(buffer_length);
+  if (!(buf_memory_ = (char *)malloc(sizeof(char) * option.buffer_length))) {
+    LOG(FATAL) << __FUNCTION__ << ": Buffer malloc error!";
+    return;
+  }
+  p_memory_ = buf_memory_;
+  fp_memory_ = fmemopen(buf_memory_, option.buffer_length, "r");
+
+  init_rnxctr(&rnx_);
+  for (int i = 0; i < MaxDataSize::GnssRaw; i++) {
+    data_.push_back(std::make_shared<DataCluster>(type_));
+  }
+} 
+
+RINEXFormator::~RINEXFormator()
+{
+  free_rnxctr(&rnx_);
+  fclose(fp_memory_);
+  free(buf_memory_);
+}
+
+// Decode stream to data
+int RINEXFormator::decode(const uint8_t *buf, int size, 
+    std::vector<std::shared_ptr<DataCluster>>& data)
+{
+  // Clear old informations and get GNSS data handle
+  std::vector<std::shared_ptr<DataCluster::GNSS>> gnss_data;
+  for (size_t i = 0; i < data_.size(); i++) {
+    data_[i]->gnss->types.clear();
+    gnss_data.push_back(data_[i]->gnss);
+  }
+
+  bool is_observation = false;
+  bool has_others = false;
+  int iobs = 0;
+  obs_t *obs = &rnx_.obs;
+  nav_t *nav = &rnx_.nav;
+  sta_t *sta = &rnx_.sta;
+  int *sat = &rnx_.ephsat;
+  eph_t eph = {0};
+  geph_t geph = {0};
+  seph_t seph = {0};
+  for (int i = 0; i < size; i++) {
+    // form a line
+    line_.push_back(buf[i]);
+    if (buf[i] != '\n') continue;
+
+    // add to memory
+    p_memory_ += sprintf(p_memory_, "%s", line_.data());
+    *p_memory_ = 0x00;
+    line_.clear();
+
+    // decode header
+    char buff[1024];
+    if (!header_decoded_)
+    {
+      if (readrnxh(fp_memory_, &rnx_.ver, &rnx_.type, 
+          &rnx_.sys, &rnx_.tsys, rnx_.tobs, &rnx_.nav, &rnx_.sta)) {
+        // handle new header data
+        int ret[] = {static_cast<int>(GnssDataType::IonAndUtcPara), 
+                     static_cast<int>(GnssDataType::AntePos)};
+        gnss_common::updateStreamData(
+          ret[0], obs, nav, sta, NULL, iobs, *sat, gnss_data);
+        gnss_common::updateStreamData(
+          ret[1], obs, nav, sta, NULL, iobs, *sat, gnss_data);
+        GnssDataType type[] = {static_cast<GnssDataType>(ret[0]), 
+                               static_cast<GnssDataType>(ret[1])};
+        std::shared_ptr<DataCluster::GNSS>& gnss =  gnss_data[0];
+        for (size_t k = 0; k < 2; k++)
+        if (std::find(gnss->types.begin(), gnss->types.end(), type[k])
+          == gnss->types.end()) {
+          gnss->types.push_back(type[k]);
+        }
+        has_others = true;
+        //set flag
+        header_decoded_ = true;
+        // clear memory
+        memset(buf_memory_, 0x00, p_memory_ - buf_memory_);
+        p_memory_ = buf_memory_;
+      }
+      rewind(fp_memory_);
+      continue;
+    }
+
+    // decode observation body
+    if (rnx_.type=='O') {
+      int n, flag;
+      if ((n = readrnxobsb(fp_memory_, rnx_.opt, rnx_.ver,
+        &rnx_.tsys, rnx_.tobs, &flag, rnx_.obs.data, &rnx_.sta)) > 0) {
+        // handle new epoch data
+        rnx_.time = rnx_.obs.data[0].time;
+        rnx_.obs.n = n;
+        int ret = static_cast<int>(GnssDataType::Observation);
+        gnss_common::updateStreamData(
+          ret, obs, nav, sta, NULL, iobs, *sat, gnss_data);
+        GnssDataType type = static_cast<GnssDataType>(ret);
+        std::shared_ptr<DataCluster::GNSS>& gnss = gnss_data[iobs];
+        if (std::find(gnss->types.begin(), gnss->types.end(), type)
+          == gnss->types.end()) {
+          gnss->types.push_back(type);
+        }
+        if (iobs < MaxDataSize::RINEX) iobs++;
+        if (iobs >= MaxDataSize::RINEX) {
+          LOG(WARNING) << "Max data length surpassed!";
+          break;
+        }
+        is_observation = true;
+
+        obs_t *obs = gnss->observation;
+        for (int i = 0; i < obs->n; i++) {
+          for (int j = 0; j < NFREQ+NEXOBS; j++) {
+            obs->data[i].D[j] = -obs->data[i].D[j];
+          }
+        }
+
+        // clear memory
+        memset(buf_memory_, 0x00, p_memory_ - buf_memory_);
+        p_memory_ = buf_memory_;
+      }
+      rewind(fp_memory_);
+      continue;
+    }
+    // decode ephemeris body
+    else {
+      int sys, stat, type, prn, set;
+      if ((stat = readrnxnavb(fp_memory_, rnx_.opt, 
+        rnx_.ver, rnx_.sys, &type, &eph, &geph, &seph)) > 0) {
+        // handle new ephemeris data
+        bool valid = true;
+        if (type == 1) { /* GLONASS ephemeris */
+          sys = satsys(geph.sat, &prn);
+          rnx_.nav.geph[prn-1] = geph;
+          rnx_.time = geph.tof;
+          rnx_.ephsat = geph.sat;
+          rnx_.ephset = 0;
+        }
+        else { /* other ephemeris */
+          sys = satsys(eph.sat, &prn);
+          if (sys == SYS_GAL) {
+            int sel = getseleph(sys);
+            if (sel == 0 && !(eph.code&(1<<9))) valid = false;
+            if (sel == 1 && !(eph.code&(1<<8))) valid = false;
+          }
+          if (valid) {
+            rnx_.nav.eph[eph.sat-1] = eph;
+            rnx_.time = eph.ttr;
+            rnx_.ephsat = eph.sat;
+            rnx_.ephset = 0;
+          }
+          else {
+            // clear memory and continue
+            memset(buf_memory_, 0x00, p_memory_ - buf_memory_);
+            p_memory_ = buf_memory_;
+            continue;
+          }
+        }
+
+        if (valid)
+        {
+          int ret = static_cast<int>(GnssDataType::Ephemeris);
+          gnss_common::updateStreamData(
+            ret, obs, nav, sta, NULL, iobs, *sat, gnss_data);
+          GnssDataType type = static_cast<GnssDataType>(ret);
+          std::shared_ptr<DataCluster::GNSS>& gnss =  gnss_data[0];
+          if (std::find(gnss->types.begin(), gnss->types.end(), type)
+            == gnss->types.end()) {
+            gnss->types.push_back(type);
+          }
+          has_others = true;
+        }
+
+        // clear memory
+        memset(buf_memory_, 0x00, p_memory_ - buf_memory_);
+        p_memory_ = buf_memory_;
+      }
+      rewind(fp_memory_);
+      continue;
+    }
+  }
+
+  data = data_;
+
+  return is_observation ? iobs : has_others;
+}
+
+// Encode data to stream
+int RINEXFormator::encode(const std::shared_ptr<DataCluster>& data, uint8_t *buf)
+{
+  LOG(ERROR) << "GNSS-Rinex Encoding not supported!";
   return 0;
 }
 
@@ -1275,6 +1526,7 @@ int DcbFileFormator::decode(const uint8_t *buf, int size,
       for (size_t i = 0; i < codes.size(); i++) {
         if (sat <= 0 || codes[i] <= 0) continue;
         if (x(i) == 0.0) x(i) = 1e-4;
+        ephemeris->ssr[sat - 1].t0[4] = timeget();
         ephemeris->ssr[sat - 1].cbias[codes[i] - 1] = x(i);
         ephemeris->ssr[sat - 1].update = 1;
         ephemeris->ssr[sat - 1].isdcb = 1;
@@ -1487,6 +1739,7 @@ std::shared_ptr<FormatorBase> makeFormator(YAML::Node& node)
   MAP_FORMATOR(FormatorType::RTCM2, RTCM2Formator);
   MAP_FORMATOR(FormatorType::RTCM3, RTCM3Formator);
   MAP_FORMATOR(FormatorType::GnssRaw, GnssRawFormator);
+  MAP_FORMATOR(FormatorType::RINEX, RINEXFormator);
   MAP_FORMATOR(FormatorType::ImagePack, ImagePackFormator);
   MAP_FORMATOR(FormatorType::ImageV4L2, ImageV4L2Formator);
   MAP_FORMATOR(FormatorType::IMUPack, IMUPackFormator);

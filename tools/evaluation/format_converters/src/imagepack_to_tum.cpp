@@ -13,8 +13,8 @@
 #include <string>
 #include <vector>
 
-const int image_width = 752;
-const int image_height = 480;
+const int image_width = 1920;
+const int image_height = 1200;
 const int image_step = 1;
 
 int main(int argc, char ** argv)

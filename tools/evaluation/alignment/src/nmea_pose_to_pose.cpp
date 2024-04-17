@@ -13,8 +13,12 @@
 
 using namespace gici;
 
-const Eigen::Vector3d t_AB_A(-0.00509546,    0.320372,   0.0669864);
-const Eigen::Vector3d rot_AB(179.928, -0.55273, -179.265);
+// gici-board
+// const Eigen::Vector3d t_AB_A(-0.00509546,    0.320372,   0.0669864);
+// const Eigen::Vector3d rot_AB(179.928, -0.55273, -179.265);
+// mvp-trek
+const Eigen::Vector3d t_AB_A(0.0853439, 0.0278747, 0.0145461);
+const Eigen::Vector3d rot_AB(58.9251, 12.9121, 172.558);
 
 int main(int argc, char ** argv)
 {

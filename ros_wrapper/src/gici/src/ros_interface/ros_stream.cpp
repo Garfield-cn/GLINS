@@ -15,6 +15,9 @@
 #include "gici/utility/spin_control.h"
 #include "gici/gnss/gnss_common.h"
 
+
+#include <opencv2/opencv.hpp>
+
 namespace gici {
 
 // Static variables for stream binding
@@ -491,7 +494,7 @@ void RosStream::imageCallback(const sensor_msgs::ImageConstPtr& msg)
     std::make_shared<DataCluster>(FormatorType::ImagePack, image.cols, image.rows, 1);
   data_cluster->image->time = timestamp;
   memcpy(data_cluster->image->image, image.data, image.cols * image.rows);
-  
+
   // Call Image processor
   for (auto it_image_callback : data_callbacks_) {
     it_image_callback(tag_, data_cluster);

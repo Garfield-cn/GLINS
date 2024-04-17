@@ -77,8 +77,11 @@ bool RtkEstimator::addGnssMeasurementAndState(
   gnss_common::rearrangePhasesAndCodes(curGnssRef());
 
   // Form double difference pair
-  GnssMeasurementDDIndexPairs index_pairs = gnss_common::formPhaserangeDDPair(
-    curGnssRov(), curGnssRef(), gnss_base_options_.common);
+  std::map<char, std::string> system_to_base_prn;
+  GnssMeasurementDDIndexPairs phase_index_pairs = gnss_common::formPhaserangeDDPair(
+    curGnssRov(), curGnssRef(), system_to_base_prn, gnss_base_options_.common);
+  GnssMeasurementDDIndexPairs code_index_pairs = gnss_common::formPseudorangeDDPair(
+    curGnssRov(), curGnssRef(), system_to_base_prn, gnss_base_options_.common);
 
   // Cycle-slip detection
   if (!isFirstEpoch()) {
@@ -95,7 +98,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
   curState().id_in_graph = position_id;
   // ambiguity blocks
   addSdAmbiguityParameterBlocks(curGnssRov(), 
-    curGnssRef(), index_pairs, curGnssRov().id, curAmbiguityState());
+    curGnssRef(), phase_index_pairs, curGnssRov().id, curAmbiguityState());
   if (rtk_options_.estimate_velocity) {
     // velocity block
     addGnssVelocityParameterBlock(curGnssRov().id, velocity_prior);
@@ -107,7 +110,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
   // Add pseudorange residual blocks
   int num_valid_satellite = 0;
   addDdPseudorangeResidualBlocks(curGnssRov(), 
-    curGnssRef(), index_pairs, curState(), num_valid_satellite);
+    curGnssRef(), code_index_pairs, curState(), num_valid_satellite);
 
   // Check if insufficient satellites
   if (!checkSufficientSatellite(num_valid_satellite, 0)) {
@@ -124,11 +127,22 @@ bool RtkEstimator::addGnssMeasurementAndState(
   num_satellites_ = num_valid_satellite;
 
   // Add phaserange residual blocks
-  addDdPhaserangeResidualBlocks(curGnssRov(), curGnssRef(), index_pairs, curState());
+  addDdPhaserangeResidualBlocks(
+    curGnssRov(), curGnssRef(), phase_index_pairs, curState());
 
   // Add doppler residual blocks
   if (rtk_options_.estimate_velocity) {
     addDopplerResidualBlocks(curGnssRov(), curState(), num_valid_satellite);
+  }
+
+  // Add position and velocity prior constraints
+  if (isFirstEpoch()) {
+    addGnssPositionResidualBlock(curState(), 
+      position_prior, gnss_base_options_.error_parameter.initial_position);
+    if (rtk_options_.estimate_velocity) {
+      addGnssVelocityResidualBlock(curState(), 
+        velocity_prior, gnss_base_options_.error_parameter.initial_velocity);
+    }
   }
 
   // Add relative errors
@@ -139,9 +153,9 @@ bool RtkEstimator::addGnssMeasurementAndState(
     }
     else {
       // position and velocity
-      addRelativePositionAndVelocityBlock(lastState(), curState());
+      addRelativePositionAndVelocityResidualBlock(lastState(), curState());
       // frequency
-      addRelativeFrequencyBlock(lastState(), curState());
+      addRelativeFrequencyResidualBlock(lastState(), curState());
     }
     // ambiguity
     addRelativeAmbiguityResidualBlock(
@@ -149,7 +163,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
   }
 
   // Compute DOP
-  updateGdop(curGnssRov(), index_pairs);
+  updateGdop(curGnssRov(), code_index_pairs);
 
   return true;
 }

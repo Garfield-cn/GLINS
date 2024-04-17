@@ -204,11 +204,11 @@ int main(int argc, char ** argv)
   std::vector<NmeaEpoch> epochs;
   while (!(fgets(buf, 1024 * sizeof(char), fp_ie) == NULL))
   {
-    if (!(buf[0] >= '1' && buf[0] <= '9')) continue;
+    if (!(buf[0] >= '0' && buf[0] <= '9')) continue;
     std::vector<std::string> strs;
     strs.push_back("");
     for (int i = 0; i < strlen(buf); i++) {
-      if (buf[i] == ' ') {
+      if (buf[i] == ' ' || buf[i] == '\t') {
         if (strs.back().size() > 0) strs.push_back("");
         continue;
       }
@@ -216,7 +216,7 @@ int main(int argc, char ** argv)
       strs.back().push_back(buf[i]);
     }
 
-    if (strs.size() == 0 || atoi(strs[0].data()) == 0) continue;
+    if (strs.size() == 0 || strs.size() < 9) continue;
 
     int gpsweek, status;
     double gpstow, lla[3], vel[3], rph[3], pos[3];

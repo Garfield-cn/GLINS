@@ -47,17 +47,17 @@ stream:
       tag: str_gnss_rov_file
       input_tags: [str_gnss_rov]
       type: file
-      path: /home/cc/datasets/tmp/gnss_rover.bin
+      path: /home/cc/Work/Data/tmp/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref_file
       input_tags: [str_gnss_ref]
       type: file
-      path: /home/cc/datasets/tmp/gnss_reference.bin
+      path: /home/cc/Work/Data/tmp/gnss_reference.bin
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/datasets/tmp/solution.txt
+      path: /home/cc/Work/Data/tmp/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution

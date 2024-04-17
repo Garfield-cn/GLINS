@@ -145,8 +145,11 @@ bool SppImuCameraRrrEstimator::addGnssMeasurementAndState(
   // Add relative errors
   if (lastGnssState().valid()) {  // maybe invalid here because of long term GNSS absent
     // frequency
-    addRelativeFrequencyBlock(lastGnssState(), states_[index]);
+    addRelativeFrequencyResidualBlock(lastGnssState(), states_[index]);
   }
+
+  // ZUPT
+  addZUPTResidualBlock(curState());
 
   // Car motion
   if (imu_base_options_.car_motion) {
@@ -199,6 +202,9 @@ bool SppImuCameraRrrEstimator::addImageMeasurementAndState(
   if (!camera_extrinsics_id_.valid()) {
     camera_extrinsics_id_ = 
       addCameraExtrinsicsParameterBlock(bundle_id, curFrame()->T_imu_cam());
+    addCameraExtrinsicsResidualBlock(camera_extrinsics_id_, curFrame()->T_imu_cam(), 
+      visual_base_options_.camera_extrinsics_initial_std.head<3>(), 
+      visual_base_options_.camera_extrinsics_initial_std.tail<3>() * D2R);
   }
 
   // Initialize landmarks
