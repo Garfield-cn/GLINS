@@ -33,6 +33,14 @@ RtkEstimator::RtkEstimator(const RtkEstimatorOptions& options,
 
   // Ambiguity resolution
   ambiguity_resolution_.reset(new AmbiguityResolution(ambiguity_options, graph_));
+
+  // Open intermediate data logging files
+  if (base_options_.log_intermediate_data) {
+    const std::string& directory = base_options_.log_intermediate_data_directory;
+    createAmbiguityLogger(directory);
+    createDdPseudorangeResidualLogger(directory);
+    createDdPhaserangeResidualLogger(directory);
+  }
 }
 
 // The default destructor
@@ -171,6 +179,8 @@ bool RtkEstimator::addGnssMeasurementAndState(
 // Solve current graph
 bool RtkEstimator::estimate()
 {
+  vk::Timer timer; timer.start();
+
   status_ = EstimatorStatus::Converged;
 
   // Optimize with FDE
@@ -195,6 +205,11 @@ bool RtkEstimator::estimate()
   else {
     optimize();
   }
+
+  timer.stop();
+  static FILE *fd_timer = fopen("/home/cc/Work/Data/Log/timer.txt", "w+");
+  fprintf(fd_timer, "%.3lf %.4lf\n", curState().timestamp, timer.getAccumulated());
+  fflush(fd_timer);
 
   // Check if we rejected too many residuals
   double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 
@@ -274,6 +289,15 @@ bool RtkEstimator::estimate()
   shiftMemory();
 
   return true;
+}
+
+// Log intermediate data
+void RtkEstimator::logIntermediateData()
+{
+  if (!base_options_.log_intermediate_data) return;
+  logAmbiguityEstimate();
+  logDdPseudorangeResidual();
+  logDdPhaserangeResidual();
 }
 
 // Marginalization
