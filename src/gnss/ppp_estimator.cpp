@@ -96,7 +96,7 @@ bool PppEstimator::addGnssMeasurementAndState(
   curGnss().phase_windup = phase_windup_;
 
   // Erase duplicated phases, arrange to one observation per phase
-  gnss_common::rearrangePhasesAndCodes(curGnss(), false);
+  gnss_common::rearrangePhasesAndCodes(curGnss(), true);
 
   // Correct code bias
   correctCodeBias(curGnss(), false);
