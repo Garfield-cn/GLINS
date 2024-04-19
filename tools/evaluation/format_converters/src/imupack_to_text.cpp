@@ -12,6 +12,11 @@
 #include <string>
 #include <vector>
 
+// !!! force setting of time
+static bool force_time_setting = true;
+static gtime_t initial_time = gpst2time(0, 444372.99);
+static double time_step = 0.001;
+
 int main(int argc, char ** argv)
 {
   char imu_pack_path[1024];
@@ -34,9 +39,20 @@ int main(int argc, char ** argv)
   {
     for (size_t i = 0; i < n; i++) {
       if (!(input_imu(&imu, buf[i]) == 1)) continue;
+
+      // !!! modify time
+      if (force_time_setting) {
+        static gtime_t current_time = initial_time;
+        imu.time = current_time;
+        current_time = timeadd(current_time, time_step);
+      }
+
       fprintf(fp_text, "%13.3lf\t%12.8f\t%12.8f\t%12.8f\t%13.9f\t%13.9f\t%13.9f\r\n",
         (double)imu.time.time + imu.time.sec,
         imu.acc[0], imu.acc[1], imu.acc[2], imu.gyro[0], imu.gyro[1], imu.gyro[2]);
+      // fprintf(fp_text, "%13.3lf\t%12.8f\t%12.8f\t%12.8f\t%13.9f\t%13.9f\t%13.9f\r\n",
+      //   time2gpst(imu.time, NULL),
+      //   imu.acc[0], imu.acc[1], imu.acc[2], imu.gyro[0], imu.gyro[1], imu.gyro[2]);
     }
   }
   

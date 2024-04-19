@@ -1,7 +1,7 @@
 %% Read
-path = '/home/cc/datasets/log_estimator/phaserange_residual-20230307-072641.log';
+path = '/home/cc/Work/Data/gici/log/dd_phaserange_residual-20240215-130229.log';
 fp = fopen(path, 'r');
-max_channel = 100;
+max_channel = 500;
 length_channel = 0;
 data = cell(max_channel, 1);
 prns = strings(max_channel, 1);
@@ -10,7 +10,7 @@ data_lengths = zeros(max_channel, 1);
 initial_time = 0;
 end_time = 0;
 for i = 1 : max_channel
-    data{i} = zeros(3600 * 6, 2);
+    data{i} = zeros(36000 * 6, 2);
 end
 while ~feof(fp)    
     line = fgetl(fp);                                 
@@ -53,7 +53,7 @@ fclose(fp);
 
 %% Plot
 plot_system = "G";
-plot_phase = "L2C";
+plot_phase = "L1";
 plot_y_range = 0.03;
 % plot_prn = "G01";
 
