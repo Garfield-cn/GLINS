@@ -119,11 +119,6 @@ bool RtkImuCameraRrrEstimator::addGnssMeasurementAndState(
     const GnssMeasurement& measurement_rov, 
     const GnssMeasurement& measurement_ref)
 {
-  // if (visual_initialized_) {
-  //   static int cnt = 0;
-  //   if (cnt++ > 10) return false;
-  // }
-
   // Get prior states
   Eigen::Vector3d position_prior = coordinate_->convert(
     getPoseEstimate().getPosition(), GeoType::ENU, GeoType::ECEF);
