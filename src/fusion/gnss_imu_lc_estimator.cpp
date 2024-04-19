@@ -9,6 +9,14 @@
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/fusion/gnss_imu_initializer.h"
 
+// !!!
+// #define TEST_NON_CONSTANT
+
+// !!!
+#ifdef TEST_NON_CONSTANT
+#include "gici/gnss/gnss_relative_errors.h"
+#endif  
+
 namespace gici {
 
 // The default constructor
@@ -106,12 +114,31 @@ bool GnssImuLcEstimator::addGnssSolutionMeasurementAndState(
     addNHCResidualBlock(curState());
   }
 
+  // !!!
+#ifdef TEST_NON_CONSTANT
+  {
+    BackendId last_id = gnss_extrinsics_id_;
+    gnss_extrinsics_id_ = addGnssExtrinsicsParameterBlock(bundle_id, getGnssExtrinsicsEstimate());
+
+    Eigen::Vector3d dp_error = Eigen::Vector3d::Ones() * 1.0e-8;
+    Eigen::Matrix3d dp_covariance = (cwiseSquare(dp_error)).asDiagonal();
+
+    std::shared_ptr<RelativeConstError<3, ErrorType::kRelativePositionError>> relative_position_error = 
+      std::make_shared<RelativeConstError<3, ErrorType::kRelativePositionError>>(dp_covariance.inverse());
+    graph_->addResidualBlock(relative_position_error, nullptr,
+      graph_->parameterBlockPtr(last_id.asInteger()),
+      graph_->parameterBlockPtr(gnss_extrinsics_id_.asInteger()));
+  }
+#endif
+
   return true;
 }
 
 // Solve current graph
 bool GnssImuLcEstimator::estimate()
 {
+  vk::Timer timer; timer.start();
+
   // Optimize
   int optimize_cnt = 0;
   if (gnss_loose_base_options_.use_outlier_rejection)
@@ -146,6 +173,12 @@ bool GnssImuLcEstimator::estimate()
       << "Initial cost: " << graph_->summary.initial_cost << ", "
       << "Final cost: " << graph_->summary.final_cost;
   }
+
+  timer.stop();
+  static FILE *fd = fopen("/home/cc/Work/Data/Log/test.txt", "w+");
+  std::stringstream stream;
+  stream << std::fixed << curState().timestamp << " " << getGnssExtrinsicsEstimate().transpose() << " " << timer.getAccumulated() << " " << graph_->summary.iterations.size() << std::endl;
+  fprintf(fd, "%s", stream.str().data()); fflush(fd);
 
   // Apply marginalization
   marginalization();
@@ -196,6 +229,34 @@ bool GnssImuLcEstimator::marginalization()
 
   // Erase old marginalization item
   if (!eraseOldMarginalization()) return false;
+
+  // !!!
+#ifdef TEST_NON_CONSTANT
+  auto residuals = graph_->residuals(oldestState().id_in_graph.asInteger());
+  for (auto residual : residuals) {
+    if (residual.error_interface_ptr->typeInfo() != ErrorType::kPositionError) continue;
+    auto parameters = graph_->parameters(residual.residual_block_id);
+    for (auto parameter : parameters) {
+      if (parameter.second->typeInfo() != "PositionParameterBlock") continue;
+      int num_position_residual = 0;
+      for (auto r : graph_->residuals(parameter.first)) {
+        if (r.error_interface_ptr->typeInfo() == ErrorType::kPositionError) num_position_residual++;
+      }
+      if (num_position_residual <= 1) {
+        BackendId id(parameter.first);
+        CHECK(graph_->parameterBlockExists(id.asInteger()));
+        Graph::ResidualBlockCollection rs = graph_->residuals(id.asInteger());
+        for (size_t r = 0; r < rs.size(); ++r) {
+          marginalization_error_->addResidualBlock(
+                residuals[r].residual_block_id);
+        }
+        marginalization_parameter_ids_.push_back(id);
+        marginalization_keep_parameter_blocks_.push_back(false);
+      }
+    }
+  }
+  // 0.326393 -0.0291516  0.0888827
+#endif
 
   // Add marginalization items
   // IMU states and residuals
