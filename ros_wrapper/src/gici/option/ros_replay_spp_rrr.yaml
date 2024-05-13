@@ -5,28 +5,28 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_rover.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.2/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_reference.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.2/gnss_reference.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/gnss_ephemeris.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.2/gnss_ephemeris.bin
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/imu.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.2/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/camera.bin
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.2/camera.bin
       buffer_length: 361472  # 752 * 480 + 512 
   - streamer:
       tag: str_dcb_file
@@ -38,7 +38,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.1/solution.txt
+      path: /media/cc/T7/ubuntu/datasets/gici/gici_dataset_open/5.2/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution_stream
@@ -147,7 +147,7 @@ stream:
   replay:
     enable: true
     speed: 2.0
-    start_offset: 80.0
+    start_offset: 0.0
 
 estimate:
 - estimator:
@@ -197,6 +197,7 @@ estimate:
       car_motion: true
       car_motion_min_velocity: 3.0
       car_motion_max_anguler_velocity: 5.0
+      use_zupt: true
     estimator_base_options:
       max_iteration: 5
       num_threads: 4
@@ -215,7 +216,10 @@ estimate:
       min_acceleration: 0.5
     feature_handler_options:
       max_features_per_frame: 100
-      max_n_kfs: 30
+      max_n_kfs: 10000
+      min_disparity_init_landmark: 5
+      min_translation_init_landmark: 0.1
+      min_parallax_angle_init_landmark: 1.0
       kfselect_min_numkfs: 30
       kfselect_min_disparity: 10.0
       kfselect_min_dist_metric: 0.5

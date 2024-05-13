@@ -1,6 +1,6 @@
 %% Read
 clear;
-path = '/home/cc/datasets/log_estimator/';
+path = '/home/cc/Work/Data/ppp/log/ambiguity-20240123-131029.log';
 fp = fopen(path, 'r');
 max_channel = 100;
 length_channel = 0;
@@ -73,6 +73,6 @@ end
 legend(legends);
 grid on;
 % xlim([0, end_time - initial_time]);
-xlim([0, 10800]);
+% xlim([0, 10800]);
 ylim([-1.0, 1.0]);
 

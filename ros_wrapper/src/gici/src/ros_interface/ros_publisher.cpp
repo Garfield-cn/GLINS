@@ -71,9 +71,9 @@ static void drawFeatures(
       case FeatureType::kMapPointSeedConverged: {
         size_t obs_size = frame.landmark_vec_[i]->obs_.size();
         cv::Scalar bgr = cv::Scalar(0, 0, 0);
-        const int thickness = 3;
-        const int max_size = 10;
-        const int min_size = 5;
+        const int thickness = 2;
+        const int max_size = 6;
+        const int min_size = 2;
         if (obs_size < min_size) obs_size = 0;
         else obs_size -= min_size;
         bgr(2) = 150 + obs_size * 105 / (max_size - min_size);
@@ -84,15 +84,20 @@ static void drawFeatures(
         }
         else  {
           cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), thickness, bgr, -1);
-          auto& obs = frame.landmark_vec_[i]->obs_[frame.landmark_vec_[i]->obs_.size() - 2];
-          if (obs_size >= max_size)
-          if (auto last_frame = obs.frame.lock()) {
-            const auto& px_last = last_frame->px_vec_.col(obs.keypoint_index_);
-            cv::Point2f begin = cv::Point2f(px_last(0), px_last(1));
-            cv::Point2f end = cv::Point2f(px(0), px(1));
-            cv::Point2f begin_extend = end - (begin - end) * 2.0;
-            cv::line(*img_rgb, begin_extend, end, bgr, 1);
-          }
+          // auto& obs = frame.landmark_vec_[i]->obs_[frame.landmark_vec_[i]->obs_.size() - 2];
+          // if (obs_size >= max_size)
+          // if (auto last_frame = obs.frame.lock()) {
+          //   const auto& px_last = last_frame->px_vec_.col(obs.keypoint_index_);
+          //   cv::Point2f begin = cv::Point2f(px_last(0), px_last(1));
+          //   cv::Point2f end = cv::Point2f(px(0), px(1));
+          //   cv::Point2f begin_extend = end - (begin - end) * 2.0;
+          //   cv::line(*img_rgb, begin_extend, end, bgr, 2);
+          // }
+        }
+        if (isSeed(frame.type_vec_[i])) {
+          const int radius = 5;
+          cv::rectangle(*img_rgb, cv::Point2f(px(0)-radius, px(1)-radius), 
+            cv::Point2f(px(0)+radius, px(1)+radius), bgr, 1);
         }
         break;
       }

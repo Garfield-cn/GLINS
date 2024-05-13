@@ -1,9 +1,9 @@
 clear; clc;
 
 %% Read
-path = '/home/cc/datasets/log_estimator/pseudorange_residual-20230307-082110.log';
+path = '/home/cc/Work/Data/gici/log/dd_pseudorange_residual-20240215-130229 (copy).log';
 fp = fopen(path, 'r');
-max_channel = 200;
+max_channel = 500;
 length_channel = 0;
 data = cell(max_channel, 1);
 prns = strings(max_channel, 1);
@@ -12,7 +12,7 @@ data_lengths = zeros(max_channel, 1);
 initial_time = 0;
 end_time = 0;
 for i = 1 : max_channel
-    data{i} = zeros(3600 * 6, 2);
+    data{i} = zeros(36000 * 6, 2);
 end
 while ~feof(fp)    
     line = fgetl(fp);                                 
@@ -55,7 +55,7 @@ fclose(fp);
 
 %% Plot
 plot_system = "G";
-plot_code = "2S";
+plot_code = "1C";
 plot_y_range = 1.5;
 % plot_prn = "G01";
 

@@ -1,5 +1,5 @@
 %% Read
-path = '/home/cc/datasets/log_estimator/ionosphere-20220721-121244.log';
+path = '/home/cc/Work/Data/ppp/log/ionosphere-20220721-121244.log';
 fp = fopen(path, 'r');
 max_prn = 100;
 length_prn = 0;

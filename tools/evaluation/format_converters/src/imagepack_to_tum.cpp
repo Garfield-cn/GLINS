@@ -13,8 +13,8 @@
 #include <string>
 #include <vector>
 
-const int image_width = 1920;
-const int image_height = 1200;
+const int image_width = 752;
+const int image_height = 480;
 const int image_step = 1;
 
 int main(int argc, char ** argv)
@@ -60,6 +60,7 @@ int main(int argc, char ** argv)
       sprintf(filepath_buf, "%s/%s", folder.data(), filename_buf);
       fprintf(fp_image_timestamp, "%s %s\r\n", timestamp_str, filename_buf);
       cv::Mat image_mat(img.height, img.width, CV_8UC(img.step), img.image);
+      // cv::convertScaleAbs(image_mat, image_mat, 1.5);
       cv::imwrite(filepath_buf, image_mat);
     }
   }

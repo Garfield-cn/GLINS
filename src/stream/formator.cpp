@@ -204,7 +204,7 @@ extern void updateAntennaPosition(
 // Update ssr corrections
 extern void updateSsr(
   ssr_t *ssr, std::shared_ptr<DataCluster::GNSS>& gnss_data,
-  std::vector<UpdateSsrType> type)
+  std::vector<UpdateSsrType> type, bool reset_ssr_status)
 {
   if (ssr == NULL) {
     LOG(ERROR) << "SSR parameter has NULL pointer!";
@@ -213,7 +213,7 @@ extern void updateSsr(
   for (int i = 0; i < MAXSAT; i++) 
   {
     if (!ssr[i].update) continue;
-    ssr[i].update = 0;
+    if (reset_ssr_status) ssr[i].update = 0;
     
     // update ephemeris
     if (std::find(type.begin(), type.end(), 
@@ -263,10 +263,6 @@ extern void updateSsr(
         gnss_data->ephemeris->ssr[i].iod[3] = ssr[i].iod[3];
         gnss_data->ephemeris->ssr[i].hrclk = ssr[i].hrclk;
         gnss_data->ephemeris->ssr[i].ura = ssr[i].ura;
-      }
-
-      if (satsys(i + 1, NULL) == SYS_CMP && (!gnss_data->ephemeris->ssr[i].t0[0].time || !gnss_data->ephemeris->ssr[i].t0[1].time)) {
-        int a = 0;
       }
     }
     // update code bias

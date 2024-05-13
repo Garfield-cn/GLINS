@@ -28,5 +28,8 @@ target_link_libraries(deg_to_dms rtklib)
 add_executable(lla_to_enu src/lla_to_enu.c)
 target_link_libraries(lla_to_enu rtklib)
 
+add_executable(ecef_to_enu src/ecef_to_enu.c)
+target_link_libraries(ecef_to_enu rtklib)
+
 add_executable(enu_to_lla src/enu_to_lla.c)
 target_link_libraries(enu_to_lla rtklib)
