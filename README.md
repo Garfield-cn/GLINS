@@ -33,22 +33,40 @@ Our LiDAR data was collected together with GICI. Please refer to the following p
 
 - [GICI Open Dataset](https://github.com/chichengcn/gici-open-dataset)
 
-## Installation Guide
-
-Detailed installation instructions will be released with the source code.
-
 ## Dependencies
 
-To be updated.
+### 1.1 Ubuntu
 
-## Build
+We are developing our code on Ubuntu 22.04, and tested on Ubuntu 20.04 and Ubuntu 24.04. We recommend you use the same or a similar environment if you are not familiar with cross-compiling.
 
-To be updated.
+### 1.2 Eigen 3.3 or later. REQUIRED.
 
-## Configuration
+Eigen is a C++ template library for linear algebra. You can find the releases on [Eigen](https://eigen.tuxfamily.org/).
 
-To be updated.
+### 1.3 OpenCV 4.2.0 or later. REQUIRED.
 
-## Usage
+OpenCV is a computer vision library. You can find the releases on [OpenCV](https://opencv.org/releases/).
 
-To be updated.
+### 1.4 yaml-cpp 0.6.0 or later. REQUIRED.
+
+yaml-cpp is a decoder and encoder for YAML formats. We use YAML files to configure the workflow. You can find the releases on [yaml-cpp](https://github.com/jbeder/yaml-cpp).
+
+### 1.5 glog 0.6.0 or later. REQUIRED.
+
+glog is a logging control library. You can find the releases on [glog](https://github.com/google/glog). You should install glog together with gflags. We suggest you install glog from source code rather than apt-get, because installing from apt-get may make GLINS fail to find the glog library during compiling.
+
+### 1.6 Ceres-Solver 2.1.0 or later. REQUIRED.
+
+Ceres-Solver is a nonlinear optimization library. You can find the releases on [Ceres-Solver](http://ceres-solver.org/).
+
+### 1.7 PCL 1.12 or later. REQUIRED.
+
+PCL is a library for point cloud processing. GLINS relies on PCL for LiDAR point cloud representation and geometric processing. Please make sure your installed PCL version is 1.12 or later. You can find the releases on [PCL](https://pointclouds.org/).
+
+### 1.8 ROS 1. REQUIRED.
+
+ROS is a software framework for robot applications. GLINS currently depends on ROS 1 for message transport, sensor interfaces, and runtime integration. Please make sure a ROS 1 distribution is properly installed in your environment.
+
+### 1.9 livox_ros_driver. REQUIRED.
+
+livox_ros_driver is required for handling Livox LiDAR data streams in ROS. Please install the driver before building or running GLINS with Livox sensors. You can find the source code and installation instructions on [livox_ros_driver](https://github.com/Livox-SDK/livox_ros_driver).
