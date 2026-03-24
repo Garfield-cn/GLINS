@@ -70,3 +70,24 @@ ROS is a software framework for robot applications. GLINS currently depends on R
 ### 1.9 livox_ros_driver. REQUIRED.
 
 livox_ros_driver is required for handling Livox LiDAR data streams in ROS. Please install the driver before building or running GLINS with Livox sensors. You can find the source code and installation instructions on [livox_ros_driver](https://github.com/Livox-SDK/livox_ros_driver).
+
+## Build
+
+Currently, the LiDAR-related modules in GLINS only support building and running with ROS. Therefore, please make sure that ROS 1 and the required LiDAR driver have been properly installed before compiling GLINS.
+
+### 2.1 Build with ROS
+
+```bash
+cd <glins-root-directory>/ros_wrapper
+catkin_make -DCMAKE_BUILD_TYPE=Release
+source ./devel/setup.bash
+```
+
+Now you can run GLINS via
+```bash
+rosrun gici_ros gici_ros_main <gici-config-file>
+```
+
+## Acknowledgements
+
+Many of the GNSS tools, I/O handlers, and message de/encoders in GLINS are inherited from [GICI](https://github.com/chichengcn/gici-open). The implementation of the IMU factor is inspired by [OKVIS](https://github.com/ethz-asl/okvis). The point cloud processing pipeline is developed with reference to [FAST-LIVO2](https://github.com/hku-mars/FAST-LIVO2).
