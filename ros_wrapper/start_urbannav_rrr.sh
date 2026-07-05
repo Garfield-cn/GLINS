@@ -31,7 +31,7 @@ sleep 2
 # Play rosbags in a new terminal
 echo "Starting rosbag in a new terminal..."
 gnome-terminal --working-directory="${BAG_DIR}" --title="rosbag_play_terminal" -- \
-  bash -c "rosbag play ./*.bag -r 1.5; exec bash"
+  bash -c "rosbag play ./*.bag; exec bash"
 
 # Wait for the rosbag terminal and obtain its window ID
 sleep 2
