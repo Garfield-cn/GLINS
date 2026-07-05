@@ -29,7 +29,7 @@ ROS_MAIN_PID=$!
 # Play rosbags in a new terminal
 echo "Starting rosbag in a new terminal..."
 gnome-terminal --working-directory="${BAG_DIR}" --title="rosbag_play_terminal" -- \
-  bash -c "rosbag play gnss_ephemeris.bag gnss_reference.bag gnss_rover.bag imu.bag lidar.bag image.bag -r 0.6; exec bash"
+  bash -c "rosbag play gnss_ephemeris.bag gnss_reference.bag gnss_rover.bag imu.bag lidar.bag image.bag; exec bash"
 
 # Wait for the rosbag terminal and obtain its window ID
 sleep 2
