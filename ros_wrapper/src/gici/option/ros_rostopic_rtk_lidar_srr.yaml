@@ -193,10 +193,13 @@ estimate:
         sigma_aw_c: 2.7361e-04
       body_to_imu_rotation: [-90.0, -90.0, 0.0]
       body_to_imu_rotation_std: 5.0
+      use_zupt: true
       car_motion: true
       car_motion_min_velocity: 3.0
       car_motion_max_anguler_velocity: 5.0
-      zupt_sigma_zero_velocity: 1e-2
+      zupt_duration: 1.0
+      zupt_max_velocity: 0.2
+      zupt_sigma_zero_velocity: 5.0e-2
     estimator_base_options:
       max_iteration: 30
       num_threads: 4
