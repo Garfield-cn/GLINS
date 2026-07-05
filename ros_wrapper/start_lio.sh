@@ -29,7 +29,7 @@ ROS_MAIN_PID=$!
 # Play the IMU and LiDAR rosbags in a new terminal
 echo "Starting rosbag in a new terminal..."
 gnome-terminal --working-directory="${BAG_DIR}" --title="rosbag_play_terminal" -- \
-  bash -c "rosbag play imu.bag lidar.bag -r 1.5; exec bash"
+  bash -c "rosbag play imu.bag lidar.bag; exec bash"
 
 # Wait for the rosbag terminal and obtain its window ID
 sleep 2
