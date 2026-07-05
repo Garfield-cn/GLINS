@@ -153,6 +153,11 @@ Topic names are configuration values rather than fixed API names.
 The GLINS LiDAR data was collected together with GICI. Related public data and conversion tools are
 available from the [GICI Open Dataset](https://github.com/chichengcn/gici-open-dataset).
 
+The original sensor data and the GNSS/camera-related data are provided through GICI, together with
+the corresponding conversion tools. For LiDAR-only users and users who prefer the ROS workflow, we
+also provide a converted [GLINS rosbag dataset](https://pan.baidu.com/s/1VyU5ykz5G_QFszEuzgm6ow?pwd=tamm)
+(extraction code: `tamm`).
+
 When preparing another dataset, preserve sensor timestamps and provide per-point LiDAR time offsets
 in seconds. Accurate GNSS-IMU and LiDAR-IMU extrinsics are required for meaningful results.
 
