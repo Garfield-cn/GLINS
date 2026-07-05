@@ -86,7 +86,7 @@ source ros_wrapper/devel/setup.bash
 
 ```bash
 rosrun gici_ros gici_ros_main \
-  "$(pwd)/ros_wrapper/src/gici/option/ros_gil_tersus_replay_rostopic.yaml"
+  "$(pwd)/ros_wrapper/src/gici/option/ros_rostopic_rtk_lidar_srr.yaml"
 ```
 
 ### Run RRR

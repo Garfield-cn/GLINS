@@ -17,7 +17,10 @@ LidarEstimatorBase::LidarEstimatorBase(const LidarEstimatorBaseOptions& options,
   scan_to_map_W_(new Cloud),
   local_map_(new Cloud)
 {
-  loss_function_ = new ceres::CauchyLoss(2 * sqrt(1 / options.var));
+  CHECK_GT(options.var, 0.0);
+  CHECK_GT(options.robust_loss_scale, 0.0);
+  loss_function_ =
+      new ceres::CauchyLoss(options.robust_loss_scale * std::sqrt(1.0 / options.var));
 }
 
 // The default destructor
@@ -105,7 +108,8 @@ void LidarEstimatorBase::selectKeyFrame(const ScanPtr& scan, const Transformatio
       Quaternion::log(T.getRotation() * last_keyframe_T_.getRotation().inverse()).norm() * 180 /
       M_PI;
   const double d = (T.getPosition() - last_keyframe_T_.getPosition()).norm();
-  if (!(a < 10 && d < 10)) {
+  if (!(a < lidar_base_options_.kfselect_max_rotation &&
+        d < lidar_base_options_.kfselect_max_translation)) {
     scan->is_keyframe = true;
     last_keyframe_ = scan;
     last_keyframe_T_ = T;
@@ -237,8 +241,8 @@ void LidarEstimatorBase::addPlaneResidualBlocks(const State& cur_state, const Sc
   }
 }
 
-void LidarEstimatorBase::addRegistrationErrorResidualBlocks(const State& cur_state,
-                                                            const ScanPtr& scan)
+size_t LidarEstimatorBase::addRegistrationErrorResidualBlocks(const State& cur_state,
+                                                              const ScanPtr& scan)
 {
   Eigen::Vector4d plane_params;
   // Transform from LiDAR to body using the extrinsic prior
@@ -246,6 +250,7 @@ void LidarEstimatorBase::addRegistrationErrorResidualBlocks(const State& cur_sta
   Cloud_ptr cloud_w(new Cloud);
 
   Cloud_ptr residual_cloud(new Cloud);
+  size_t num_residuals = 0;
 
   pcl::transformPointCloud(*scan->cloud_ptr, *cloud_b, transTomat(lidar_base_options_.T_B_L), true);
   pcl::transformPointCloud(*scan->cloud_ptr, *cloud_w,
@@ -266,7 +271,10 @@ void LidarEstimatorBase::addRegistrationErrorResidualBlocks(const State& cur_sta
     plane_params << searched_plane.normal_, searched_plane.d_;
     // Add residual blocks
     addGlobalRegistrationErrorResidualBlocks(cur_state, cloud_b->points[idx], plane_params);
+    ++num_residuals;
   }
+
+  return num_residuals;
 }
 
 ceres::ResidualBlockId LidarEstimatorBase::addPlaneErrorResidualBlocks(const State& state,
@@ -302,12 +310,12 @@ ceres::ResidualBlockId LidarEstimatorBase::addGlobalRegistrationErrorResidualBlo
     const State& state, const Point_lidar p, const Eigen::Vector4d params)
 {
   Eigen::Matrix<double, 1, 1> information = Eigen::Matrix<double, 1, 1>::Identity();
-  information *= 1 / (0.01);
+  information *= 1.0 / lidar_base_options_.var;
   std::shared_ptr<GlobalRegistrationError> registrationError =
       std::make_shared<GlobalRegistrationError>(params, p, information);
 
   ceres::ResidualBlockId ret_val = graph_->addResidualBlock(
-      registrationError, nullptr, graph_->parameterBlockPtr(state.id_in_graph.asInteger()));
+      registrationError, loss_function_, graph_->parameterBlockPtr(state.id_in_graph.asInteger()));
 
   return ret_val;
 }

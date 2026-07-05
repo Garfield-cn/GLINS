@@ -32,6 +32,7 @@
 #include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/ppp_imu_tc_estimator.h"
+#include "gici/fusion/lidar_imu_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
 #include "gici/fusion/gnss_imu_lidar_srr_estimator.h"
 #include "gici/fusion/spp_imu_camera_rrr_estimator.h"
@@ -166,6 +167,7 @@ void convert<std::string, EstimatorType>
   MAP_IN_OUT("dgnss_imu_tc", EstimatorType::DgnssImuTc);
   MAP_IN_OUT("rtk_imu_tc", EstimatorType::RtkImuTc);
   MAP_IN_OUT("ppp_imu_tc", EstimatorType::PppImuTc);
+  MAP_IN_OUT("lidar_imu", EstimatorType::LidarImu);
   MAP_IN_OUT("gnss_imu_camera_srr", EstimatorType::GnssImuCameraSrr);
   MAP_IN_OUT("gnss_imu_lidar_srr", EstimatorType::GnssImuLidarSrr);
   MAP_IN_OUT("rtk_imu_lidar_rrr", EstimatorType::RtkImuLidarRrr);
@@ -723,6 +725,7 @@ void loadOptions<ImuEstimatorBaseOptions>(
   LOAD_COMMON(body_to_imu_rotation_std);
   LOAD_COMMON(use_zupt);
   LOAD_COMMON(zupt_duration);
+  LOAD_COMMON(zupt_max_velocity);
   LOAD_COMMON(zupt_max_acc_std);
   LOAD_COMMON(zupt_max_gyro_std);
   LOAD_COMMON(zupt_max_gyro_median);
@@ -753,7 +756,10 @@ void loadOptions<LidarEstimatorBaseOptions>(YAML::Node& node, LidarEstimatorBase
 {
   LOAD_COMMON(blind);
   LOAD_COMMON(var);
+  LOAD_COMMON(robust_loss_scale);
   LOAD_COMMON(landmark_var);
+  LOAD_COMMON(kfselect_max_rotation);
+  LOAD_COMMON(kfselect_max_translation);
   LOAD_COMMON(kfselect_min_dt);
 
   Eigen::Matrix4d T_B_L_raw;
@@ -886,6 +892,20 @@ void loadOptions<GnssImuInitializerOptions>(
   else {
     LOG(INFO) << "Unable to load gnss_extrinsics_initial_std. Using default instead.";
   } 
+}
+
+template <>
+void loadOptions<LidarImuEstimatorOptions>(YAML::Node& node,
+                                           LidarImuEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+  LOAD_COMMON(initialization_duration);
+  LOAD_COMMON(time_offset);
+  LOAD_COMMON(min_registration_residuals);
+  LOAD_COMMON(initial_pose_std);
+  LOAD_COMMON(initial_speed_std);
+  LOAD_COMMON(initial_bg_std);
+  LOAD_COMMON(initial_ba_std);
 }
 
 template <>

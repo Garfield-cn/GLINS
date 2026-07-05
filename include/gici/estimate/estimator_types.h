@@ -462,6 +462,7 @@ enum class EstimatorType {
   DgnssImuTc,
   RtkImuTc,
   PppImuTc,
+  LidarImu,
   GnssImuCameraSrr,
   GnssImuLidarSrr,
   RtkImuLidarRrr,

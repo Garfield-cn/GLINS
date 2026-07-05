@@ -32,19 +32,22 @@ struct ImuEstimatorBaseOptions {
   // If use zero motion update (ZUPT)
   bool use_zupt = false;
 
-  // ZUPT window length, we think the vehicle is stable if it keeps stady within the window.
+  // ZUPT window length; the vehicle is stationary only if the IMU remains stable in this window
   double zupt_duration = 1.0;
 
-  // Maximum IMU acceleration STD to consider as stady
+  // Maximum estimated speed at which ZUPT may be activated, in meters per second
+  double zupt_max_velocity = 0.2;
+
+  // Maximum IMU acceleration STD to consider as stationary
   double zupt_max_acc_std = 0.5;
 
-  // Maximum IMU angular velocity STD to consider as stady
+  // Maximum IMU angular velocity STD to consider as stationary
   double zupt_max_gyro_std = 0.05;
 
-  // Maximum IMU angular velocity median to consider as stady
+  // Maximum IMU angular velocity median to consider as stationary
   double zupt_max_gyro_median = 0.01;
 
-  // Standard deviation for ZUPT zero velocity constriant
+  // Standard deviation for the ZUPT zero-velocity constraint
   double zupt_sigma_zero_velocity = 0.01;
 
   // If car motion

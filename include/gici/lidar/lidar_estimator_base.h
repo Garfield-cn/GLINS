@@ -23,9 +23,15 @@ struct LidarEstimatorBaseOptions {
   // LiDAR-to-body extrinsic transformation T_B_L
   Transformation T_B_L;
   // Point-to-plane residual variance, in square meters
-  double var;
+  double var = 0.01;
+  // Cauchy loss scale relative to the residual information square root
+  double robust_loss_scale = 2.0;
   // Plane landmark position variance, in square meters
   double landmark_var;
+  // Maximum keyframe rotation from the last keyframe, in degrees
+  double kfselect_max_rotation = 10.0;
+  // Maximum keyframe translation from the last keyframe, in meters
+  double kfselect_max_translation = 10.0;
   // Minimum keyframe interval, in seconds
   double kfselect_min_dt = 0.2;
 };
@@ -98,7 +104,7 @@ protected:
 
   void addPlaneResidualBlocks(const State& cur_state, const ScanPtr& scan);
 
-  void addRegistrationErrorResidualBlocks(const State& cur_state, const ScanPtr& scan);
+  size_t addRegistrationErrorResidualBlocks(const State& cur_state, const ScanPtr& scan);
 
   ceres::ResidualBlockId addPlaneErrorResidualBlocks(const State& state, const Point_lidar p,
                                                      VoxelPlanePtr& plane, const ObsId& obsid);

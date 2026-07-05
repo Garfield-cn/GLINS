@@ -1,0 +1,135 @@
+# GLINS LiDAR/IMU odometry configuration
+stream:
+  streamers:
+  - streamer:
+      tag: str_ros_imu
+      type: ros
+      topic_name: /gici/imu_raw
+      io: input
+      queue_size: 100000
+      format: imu
+  - streamer:
+      tag: str_ros_lidar
+      type: ros
+      topic_name: /livox/lidar
+      io: input
+      queue_size: 100000
+      format: livox
+  - streamer:
+      tag: str_solution
+      type: ros
+      topic_name: solution
+      queue_size: 5
+      io: output
+      format: pose_stamped
+  - streamer:
+      tag: str_solution_odometry
+      type: ros
+      topic_name: solution_odometry
+      queue_size: 10
+      io: output
+      format: odometry
+      subframe_id: Body
+  - streamer:
+      tag: str_solution_path
+      type: ros
+      topic_name: solution_path
+      queue_size: 100
+      io: output
+      format: path
+  - streamer:
+      tag: str_current_scan
+      type: ros
+      topic_name: cloud_current
+      queue_size: 100000
+      io: output
+      format: pointcloud2
+  - streamer:
+      tag: str_map
+      type: ros
+      topic_name: cloud_map
+      queue_size: 100000
+      io: output
+      format: map
+
+estimate:
+- estimator:
+    tag: est_lidar_imu
+    type: lidar_imu
+    input_tags: [str_ros_imu, str_ros_lidar]
+    str_ros_imu_roles: [major]
+    str_ros_lidar_roles: [front]
+    output_tags: [str_solution, str_solution_odometry, str_solution_path, str_current_scan, str_map]
+    output_align_tag: str_ros_imu
+    output_downsample_rate: 40
+    compute_covariance: false
+    enable_input_align: true
+    input_align_latency: 1.0
+    lidar_imu_options:
+      max_window_length: 5
+      initialization_duration: 1.0
+      # LiDAR timestamp minus IMU timestamp, in seconds
+      time_offset: 0.0
+      min_registration_residuals: 30
+      initial_pose_std: 1.0e-4
+      initial_speed_std: 0.1
+      initial_bg_std: 0.01
+      initial_ba_std: 0.1
+    imu_estimator_base_options:
+      imu_parameters:
+        sigma_bg: 1.0e-3
+        sigma_ba: 1.0e-2
+        sigma_g_c: 2.6700e-04
+        sigma_a_c: 0.0112
+        sigma_gw_c: 2.0881e-06
+        sigma_aw_c: 2.7361e-04
+      body_to_imu_rotation: [-90.0, -90.0, 0.0]
+      body_to_imu_rotation_std: 5.0
+      use_zupt: true
+      car_motion: true
+      car_motion_min_velocity: 3.0
+      car_motion_max_anguler_velocity: 5.0
+      zupt_duration: 1.0
+      zupt_max_velocity: 0.2
+      zupt_sigma_zero_velocity: 5.0e-2
+    estimator_base_options:
+      force_initial_global_position: true
+      initial_global_position: [31.0, 121.0, 0.0]
+      max_iteration: 15
+      num_threads: 6
+      max_solver_time: 0.05
+      verbose_output: true
+      solver_type: sparse_normal_cholesky
+      trust_region_strategy_type: dogleg
+    lidar_estimator_base_options:
+      blind: 2.0
+      var: 1.0e-2
+      robust_loss_scale: 0.5
+      landmark_var: 1.0e-1
+      kfselect_max_rotation: 2.0
+      kfselect_max_translation: 1.0
+      kfselect_min_dt: 0.5
+      T_B_L:
+        cols: 4
+        rows: 4
+        data: [-0.005235963831, -0.006981164601, 0.9999619233, -0.0255208369,
+               -0.015707102, -0.999851692, -0.007062639978, 0.1905764402,
+               0.9998629264, -0.01574348365, 0.005125533432, -0.0183429036,
+               0.0, 0.0, 0.0, 1.0]
+    tree_handler_options:
+      filter_radius: 0.6
+      std_range: 0.05
+      std_angle: 0.2
+      max_near_dis: 1.0
+      max_plane_dis: 0.1
+      merge_size: 25
+      voxel_size: 3.0
+      max_layer: 2
+      max_points_num: 50
+      plane_threshold: 1.0e-1
+
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: log

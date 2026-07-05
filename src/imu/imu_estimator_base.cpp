@@ -443,6 +443,9 @@ void ImuEstimatorBase::addZUPTResidualBlock(const State& state)
 {
   if (!imu_base_options_.zupt_duration) return;
 
+  const Eigen::Vector3d speed = getSpeedAndBiasEstimate(state).head<3>();
+  if (speed.norm() > imu_base_options_.zupt_max_velocity) return;
+
   // Check zero motion
   imu_mutex_.lock();
   std::vector<double> acc[3], gyro[3];
@@ -491,12 +494,6 @@ void ImuEstimatorBase::addZUPTResidualBlock(const State& state)
   graph_->addResidualBlock(error, 
     huber_loss_function_ ? huber_loss_function_.get() : nullptr,
     graph_->parameterBlockPtr(speed_and_bias_id.asInteger()));
-  
-  // set velocity parameter as zero
-  auto speed_and_bias_parameter = 
-    graph_->parameterBlockPtr(speed_and_bias_id.asInteger());
-  Eigen::Map<Eigen::Vector3d>(speed_and_bias_parameter->parameters()).setZero();
-  graph_->setParameterBlockVariable(speed_and_bias_parameter);
 
   if (base_options_.verbose_output) {
     LOG(INFO) << "Added ZUPT at " << std::fixed << state.timestamp;

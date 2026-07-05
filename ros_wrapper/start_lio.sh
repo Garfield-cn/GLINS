@@ -16,20 +16,20 @@ ROSCORE_PID=$!
 # Wait for ROS master
 sleep 1
 
-# Start RViz with the SRR configuration
+# Start RViz with the LIO configuration
 echo "Starting RViz..."
 rviz -d "${SCRIPT_DIR}/src/gici/rviz/gici_gil.rviz" &
 RVIZ_PID=$!
 
 # Start GLINS
 echo "Starting gici_ros_main..."
-rosrun gici_ros gici_ros_main "${SCRIPT_DIR}/src/gici/option/ros_rostopic_rtk_lidar_srr.yaml" &
+rosrun gici_ros gici_ros_main "${SCRIPT_DIR}/src/gici/option/ros_rostopic_lidar_imu.yaml" &
 ROS_MAIN_PID=$!
 
-# Play rosbags in a new terminal
+# Play the IMU and LiDAR rosbags in a new terminal
 echo "Starting rosbag in a new terminal..."
 gnome-terminal --working-directory="${BAG_DIR}" --title="rosbag_play_terminal" -- \
-  bash -c "rosbag play gnss_ephemeris.bag gnss_reference.bag gnss_rover.bag imu.bag lidar.bag image.bag -r 0.6; exec bash"
+  bash -c "rosbag play imu.bag lidar.bag -r 1.5; exec bash"
 
 # Wait for the rosbag terminal and obtain its window ID
 sleep 2

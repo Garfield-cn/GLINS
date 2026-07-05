@@ -1,4 +1,4 @@
-# Gici board configurations
+# GLINS RTK/IMU/LiDAR SRR configuration
 stream:
   streamers:
   - streamer:

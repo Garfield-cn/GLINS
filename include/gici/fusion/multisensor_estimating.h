@@ -27,6 +27,7 @@
 #include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/ppp_imu_tc_estimator.h"
+#include "gici/fusion/lidar_imu_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
 #include "gici/fusion/gnss_imu_lidar_srr_estimator.h"
 #include "gici/fusion/rtk_imu_lidar_rrr_estimator.h"
@@ -112,6 +113,7 @@ private:
           estimator_type == EstimatorType::GnssImuLc || estimator_type == EstimatorType::SppImuTc ||
           estimator_type == EstimatorType::DgnssImuTc ||
           estimator_type == EstimatorType::RtkImuTc || estimator_type == EstimatorType::PppImuTc ||
+          estimator_type == EstimatorType::LidarImu ||
           estimator_type == EstimatorType::GnssImuCameraSrr ||
           estimator_type == EstimatorType::GnssImuLidarSrr ||
           estimator_type == EstimatorType::SppImuCameraRrr ||
@@ -127,7 +129,8 @@ private:
               estimator_type == EstimatorType::RtkImuCameraRrr ||
               estimator_type == EstimatorType::PppImuCameraRrr);
     } else if (sensor_type == SensorType::Lidar) {
-      return (estimator_type == EstimatorType::GnssImuLidarSrr ||
+      return (estimator_type == EstimatorType::LidarImu ||
+              estimator_type == EstimatorType::GnssImuLidarSrr ||
               estimator_type == EstimatorType::RtkImuLidarRrr);
     } else
       return false;
@@ -242,6 +245,7 @@ protected:
   SppImuTcEstimatorOptions spp_imu_tc_options_;
   RtkImuTcEstimatorOptions rtk_imu_tc_options_;
   PppImuTcEstimatorOptions ppp_imu_tc_options_;
+  LidarImuEstimatorOptions lidar_imu_options_;
   GnssImuCameraSrrEstimatorOptions gnss_imu_camera_srr_options_;
   GnssImuLidarSrrEstimatorOptions gnss_imu_lidar_srr_options_;
   SppImuCameraRrrEstimatorOptions spp_imu_camera_rrr_options_;

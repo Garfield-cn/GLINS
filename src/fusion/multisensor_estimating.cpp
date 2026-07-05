@@ -17,6 +17,7 @@
 #include "gici/gnss/rtk_estimator.h"
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
+#include "gici/fusion/lidar_imu_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
 #include "gici/fusion/gnss_imu_lidar_srr_estimator.h"
 #include "gici/fusion/rtk_imu_lidar_rrr_estimator.h"
@@ -245,6 +246,26 @@ MultiSensorEstimating::MultiSensorEstimating(
     estimator_.reset(new PppImuTcEstimator(
       ppp_imu_tc_options_, gnss_imu_init_options_, ppp_options_, gnss_base_options_, 
       gnss_loose_base_options_, imu_base_options_, base_options_, ambiguity_options_));
+  }
+  // LiDAR/IMU odometry
+  else if (type_ == EstimatorType::LidarImu) {
+    YAML::Node lidar_imu_node = node["lidar_imu_options"];
+    if (lidar_imu_node.IsDefined()) {
+      option_tools::loadOptions(lidar_imu_node, lidar_imu_options_);
+    }
+
+    // Express LiDAR extrinsics in the estimator body convention
+    lidar_estimator_base_options_.T_B_L =
+        ImuEstimatorBase::rotateImuToBody(lidar_estimator_base_options_.T_B_L, imu_base_options_);
+
+    tree_handler_.reset(new TreeHandler(tree_handler_options_, imu_base_options_,
+                                        lidar_estimator_base_options_.T_B_L));
+    estimator_.reset(new LidarImuEstimator(lidar_imu_options_, lidar_estimator_base_options_,
+                                           imu_base_options_, base_options_));
+    std::shared_ptr<LidarEstimatorBase> lidar_estimator =
+        std::dynamic_pointer_cast<LidarEstimatorBase>(estimator_);
+    CHECK_NOTNULL(lidar_estimator);
+    lidar_estimator->setTreeHandler(tree_handler_);
   }
   // GNSS/IMU/Camera semi-tightly integration
   else if (type_ == EstimatorType::GnssImuCameraSrr)
@@ -515,6 +536,17 @@ void MultiSensorEstimating::resetProcessors()
     estimator_.reset(new PppImuTcEstimator(
       ppp_imu_tc_options_, gnss_imu_init_options_, ppp_options_, gnss_base_options_, 
       gnss_loose_base_options_, imu_base_options_, base_options_, ambiguity_options_));
+  }
+  // LiDAR/IMU odometry
+  else if (type_ == EstimatorType::LidarImu) {
+    tree_handler_.reset(new TreeHandler(tree_handler_options_, imu_base_options_,
+                                        lidar_estimator_base_options_.T_B_L));
+    estimator_.reset(new LidarImuEstimator(lidar_imu_options_, lidar_estimator_base_options_,
+                                           imu_base_options_, base_options_));
+    std::shared_ptr<LidarEstimatorBase> lidar_estimator =
+        std::dynamic_pointer_cast<LidarEstimatorBase>(estimator_);
+    CHECK_NOTNULL(lidar_estimator);
+    lidar_estimator->setTreeHandler(tree_handler_);
   }
   // GNSS/IMU/Camera semi-tightly integration
   else if (type_ == EstimatorType::GnssImuCameraSrr) {

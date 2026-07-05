@@ -27,6 +27,7 @@ std::string estimatorTypeToString(const EstimatorType& type)
   if (type == EstimatorType::DgnssImuTc) return "DGNSS/IMU TC";
   if (type == EstimatorType::RtkImuTc) return "RTK/IMU TC";
   if (type == EstimatorType::PppImuTc) return "PPP/IMU TC";
+  if (type == EstimatorType::LidarImu) return "LiDAR/IMU Odometry";
   if (type == EstimatorType::GnssImuCameraSrr) return "GNSS/IMU/Camera SRR";
   if (type == EstimatorType::GnssImuLidarSrr) return "GNSS/IMU/Lidar SRR";
   if (type == EstimatorType::SppImuCameraRrr) return "SPP/IMU/Camera RRR";
