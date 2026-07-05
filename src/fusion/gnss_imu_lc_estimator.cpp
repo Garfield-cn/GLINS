@@ -137,8 +137,6 @@ bool GnssImuLcEstimator::addGnssSolutionMeasurementAndState(
 // Solve current graph
 bool GnssImuLcEstimator::estimate()
 {
-  vk::Timer timer; timer.start();
-
   // Optimize
   int optimize_cnt = 0;
   if (gnss_loose_base_options_.use_outlier_rejection)
@@ -174,11 +172,10 @@ bool GnssImuLcEstimator::estimate()
       << "Final cost: " << graph_->summary.final_cost;
   }
 
-  timer.stop();
-  static FILE *fd = fopen("/home/cc/Work/Data/Log/test.txt", "w+");
-  std::stringstream stream;
-  stream << std::fixed << curState().timestamp << " " << getGnssExtrinsicsEstimate().transpose() << " " << timer.getAccumulated() << " " << graph_->summary.iterations.size() << std::endl;
-  fprintf(fd, "%s", stream.str().data()); fflush(fd);
+  auto cov = getCovariance(curState());
+  LOG(INFO) << "Std XYZ: " << sqrt(cov(0, 0)) << " " << sqrt(cov(1, 1)) << " " << sqrt(cov(2, 2));
+  LOG(INFO) << "Std RPY: " << sqrt(cov(3, 3)) * R2D << " " << sqrt(cov(4, 4)) * R2D << " "
+            << sqrt(cov(5, 5)) * R2D << "--*--*-*-*-*-*-*-*-*-*--";
 
   // Apply marginalization
   marginalization();

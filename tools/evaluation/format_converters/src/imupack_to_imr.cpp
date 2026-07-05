@@ -124,19 +124,26 @@ int main(int argc, char ** argv)
         continue;
       }
       last_tow = tow;
-      memcpy(body_buf + idx, &tow, 8); idx += 8;
-      int32_tmp = round(imu.gyro[0] * R2D / gyro_encode_factor);
-      memcpy(body_buf + idx, &int32_tmp, 4); idx += 4;
-      int32_tmp = round(imu.gyro[1] * R2D / gyro_encode_factor);
-      memcpy(body_buf + idx, &int32_tmp, 4); idx += 4;
+      memcpy(body_buf + idx, &tow, 8);
+      idx += 8;
       int32_tmp = round(imu.gyro[2] * R2D / gyro_encode_factor);
-      memcpy(body_buf + idx, &int32_tmp, 4); idx += 4;
-      int32_tmp = round(imu.acc[0] / acc_encode_factor);
-      memcpy(body_buf + idx, &int32_tmp, 4); idx += 4;
-      int32_tmp = round(imu.acc[1] / acc_encode_factor);
-      memcpy(body_buf + idx, &int32_tmp, 4); idx += 4;
+      memcpy(body_buf + idx, &int32_tmp, 4);
+      idx += 4;
+      int32_tmp = round(imu.gyro[1] * R2D / gyro_encode_factor);
+      memcpy(body_buf + idx, &int32_tmp, 4);
+      idx += 4;
+      int32_tmp = round(-imu.gyro[0] * R2D / gyro_encode_factor);
+      memcpy(body_buf + idx, &int32_tmp, 4);
+      idx += 4;
       int32_tmp = round(imu.acc[2] / acc_encode_factor);
-      memcpy(body_buf + idx, &int32_tmp, 4); idx += 4;
+      memcpy(body_buf + idx, &int32_tmp, 4);
+      idx += 4;
+      int32_tmp = round(imu.acc[1] / acc_encode_factor);
+      memcpy(body_buf + idx, &int32_tmp, 4);
+      idx += 4;
+      int32_tmp = round(-imu.acc[0] / acc_encode_factor);
+      memcpy(body_buf + idx, &int32_tmp, 4);
+      idx += 4;
       fwrite(body_buf, sizeof(uint8_t), 32, fp_imr);
     }
   }

@@ -325,7 +325,7 @@ bool SppImuCameraRrrEstimator::estimate()
     }
   }
 
-  // Image processes
+  // Image processing
   if (new_state_type == IdType::cPose) {
     // update landmarks to frontend
     updateLandmarks();

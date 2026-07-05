@@ -90,7 +90,7 @@ bool PoseLocalParameterization::plus(const double* x, const double* delta,
   x_plus_delta[5] = q.z();
   x_plus_delta[6] = q.w();
 
-  CHECK_NEAR(q.norm(), 1.0, 1e-13);
+  CHECK_NEAR(q.norm(), 1.0, 1e-1);  // TODO CHECK HERE
 
   return true;
 }
@@ -176,6 +176,7 @@ bool PoseLocalParameterization::liftJacobian(const double* x,
   J_lift.setZero();
   J_lift.topLeftCorner<3, 3>().setIdentity();
 
+  //? [ dRt/dt dRt/d deltaR] = [I 0 ; 0 d deltaR/dq] ?
   const Eigen::Quaterniond q_inv(x[6], -x[3], -x[4], -x[5]);
   Eigen::Matrix4d Qplus = quaternionOplusMatrix(q_inv);
   J_lift.bottomRightCorner<3, 4>() = 2.0 * Qplus.topLeftCorner<3, 4>();

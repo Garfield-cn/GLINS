@@ -84,15 +84,6 @@ static void drawFeatures(
         }
         else  {
           cv::circle(*img_rgb, cv::Point2f(px(0), px(1)), thickness, bgr, -1);
-          // auto& obs = frame.landmark_vec_[i]->obs_[frame.landmark_vec_[i]->obs_.size() - 2];
-          // if (obs_size >= max_size)
-          // if (auto last_frame = obs.frame.lock()) {
-          //   const auto& px_last = last_frame->px_vec_.col(obs.keypoint_index_);
-          //   cv::Point2f begin = cv::Point2f(px_last(0), px_last(1));
-          //   cv::Point2f end = cv::Point2f(px(0), px(1));
-          //   cv::Point2f begin_extend = end - (begin - end) * 2.0;
-          //   cv::line(*img_rgb, begin_extend, end, bgr, 2);
-          // }
         }
         if (isSeed(frame.type_vec_[i])) {
           const int radius = 5;
@@ -326,6 +317,7 @@ void publishNavSatFix(ros::Publisher& pub, const Eigen::Vector3d& lla,
 {
   sensor_msgs::NavSatFix sat_msg;
   sat_msg.header.stamp = time;
+  sat_msg.header.frame_id = "Sat";
   sat_msg.latitude = lla(0) * R2D;
   sat_msg.longitude = lla(1) * R2D;
   sat_msg.altitude = lla(2);
@@ -426,6 +418,94 @@ void publishImu(ros::Publisher& pub, const ImuMeasurement& imu)
   imu_msg.angular_velocity.z = imu.angular_velocity[2];
   
   pub.publish(imu_msg);
+}
+
+void publishScan(ros::Publisher& pub, const DataCluster::LiDAR& lidar)
+{
+  sensor_msgs::PointCloud2 current_scan;
+  pcl::toROSMsg(*lidar.cloud_ptr, current_scan);
+  current_scan.header.stamp = ros::Time().fromSec(lidar.timebase);
+  // Estimator scan output is expressed in the IMU/body frame B
+  current_scan.header.frame_id = "Body";
+
+  pub.publish(current_scan);
+}
+
+void publishMap(ros::Publisher& pub, const Cloud_ptr& map)
+{
+  sensor_msgs::PointCloud2 map_pc2;
+  pcl::toROSMsg(*map, map_pc2);
+  map_pc2.header.stamp = ros::Time().fromSec(map->header.stamp);
+  map_pc2.header.frame_id = "World";
+
+  pub.publish(map_pc2);
+}
+
+void publishPlanes(ros::Publisher& pub, const PlaneCloud_ptr& planes, double marker_scale)
+{
+  visualization_msgs::MarkerArray circle_array;
+
+  // Publish normal vector
+  visualization_msgs::Marker m;
+  double timestamp_in_seconds = static_cast<double>(planes->header.stamp) / 1e9;
+  m.header.frame_id = "World";
+  m.header.stamp = ros::Time().fromSec(timestamp_in_seconds);
+  m.ns = "landmarks";
+  m.id = 0;
+  m.type = visualization_msgs::Marker::LINE_LIST;
+  m.action = visualization_msgs::Marker::ADD;
+  m.scale.x = 0.3;
+  m.scale.y = marker_scale;
+  m.scale.z = marker_scale;
+
+  for (const auto& plane : *planes) {
+    Eigen::Matrix3d cov =
+        Eigen::Map<const Eigen::Matrix<double, 3, 3, Eigen::RowMajor>>(plane.covariance);
+    Eigen::EigenSolver<Eigen::Matrix3d> es(cov);
+
+    Eigen::Matrix3cd evecs = es.eigenvectors();
+    Eigen::Vector3cd evals = es.eigenvalues();
+    Eigen::Vector3d evalsReal = evals.real();
+
+    Eigen::Matrix3d::Index evalsMin, evalsMax;
+    evalsReal.minCoeff(&evalsMin);
+    evalsReal.maxCoeff(&evalsMax);
+    int evalsMid = 3 - evalsMin - evalsMax;
+
+    Eigen::Vector3d x_normal = evecs.real().col(evalsMax);
+    Eigen::Vector3d y_normal = evecs.real().col(evalsMid);
+    Eigen::Vector3d z_normal = evecs.real().col(evalsMin);
+
+    double scale = 1.5 - 5 * evalsReal(evalsMin);
+    float transparency = 1 - 5 * evalsReal(evalsMin);
+    geometry_msgs::Point start;
+    start.x = plane.x;
+    start.y = plane.y;
+    start.z = plane.z;
+
+    geometry_msgs::Point end;
+    end.x = plane.x + plane.normal_x * scale;
+    end.y = plane.y + plane.normal_y * scale;
+    end.z = plane.z + plane.normal_z * scale;
+
+    m.points.push_back(start);
+    m.points.push_back(end);
+
+    std_msgs::ColorRGBA start_color;
+    start_color.a = transparency;
+    start_color.r = 0.5;
+    start_color.g = 0.0;
+    start_color.b = 1.0;
+    m.colors.push_back(start_color);
+
+    std_msgs::ColorRGBA end_color;
+    end_color.a = transparency;
+    end_color.r = 0.0;
+    end_color.g = 1.0;
+    end_color.b = 0.0;
+    m.colors.push_back(end_color);
+  }
+  pub.publish(m);
 }
 
 // Publish GNSS message

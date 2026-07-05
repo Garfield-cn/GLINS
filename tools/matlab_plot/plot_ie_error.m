@@ -3,8 +3,8 @@ clear;
 addpath geoFunctions
 
 % Frequency of lla0 should larger than lla1
-lla0 = load('/media/cc/T72/ubuntu/datasets/gici/20230105_campus/03_parking/ie_gnssins.txt.tognss.txt');
-lla1 = load('/media/cc/T72/ubuntu/datasets/gici/20230105_campus/03_parking/solution_rrr.txt.tognss.txt.ie');
+lla0 = load('data/ie_gnssins.txt.tognss.txt');
+lla1 = load('data/solution_rrr.txt.tognss.txt.ie');
 
 D2R = pi / 180;
 enu_error = zeros(size(lla1, 1), 4);
@@ -62,5 +62,4 @@ xlim([enu_error(1,1), enu_error(end,1)]);
 legend('U');
 ylabel('Error (m)');
 xlabel('Time (s)');
-
 

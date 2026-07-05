@@ -38,7 +38,7 @@ int main(int argc, char** argv)
   std::string config_file_path = argv[1];
   YAML::Node yaml_node;
   try {
-     yaml_node = YAML::LoadFile(config_file_path);
+    yaml_node = YAML::LoadFile(config_file_path);
   } catch (YAML::BadFile &e) {
     std::cerr << "Unable to load config file!" << std::endl;
     return -1;
@@ -46,8 +46,8 @@ int main(int argc, char** argv)
 
   // Initialize glog for logging
   bool enable_logging = false;
-  if (yaml_node["logging"].IsDefined() && 
-      option_tools::safeGet(yaml_node["logging"], "enable", &enable_logging) && 
+  if (yaml_node["logging"].IsDefined() &&
+      option_tools::safeGet(yaml_node["logging"], "enable", &enable_logging) &&
       enable_logging == true) {
     YAML::Node logging_node = yaml_node["logging"];
     google::InitGoogleLogging("gici");
@@ -66,31 +66,27 @@ int main(int argc, char** argv)
   initializeSignalHandles();
 
   // Organize nodes
-  NodeOptionHandlePtr node_option_handle = 
-    std::make_shared<NodeOptionHandle>(yaml_node);
+  NodeOptionHandlePtr node_option_handle = std::make_shared<NodeOptionHandle>(yaml_node);
   if (!node_option_handle->valid) {
     std::cerr << "Invalid configurations!" << std::endl;
     return -1;
   }
 
   // Initialize nodes
-  std::unique_ptr<RosNodeHandle> node_handle = 
-    std::make_unique<RosNodeHandle>(nh, node_option_handle);
+  std::unique_ptr<RosNodeHandle> node_handle =
+      std::make_unique<RosNodeHandle>(nh, node_option_handle);
 
   // Show information
-  const std::vector<size_t> sizes = {
-    node_option_handle->streamers.size(),
-    node_option_handle->formators.size(), 
-    node_option_handle->estimators.size()};
-  std::cout << "Initialized " 
-    << sizes[0] << " streamer" << (sizes[0] > 1 ? "s" : "") << ", "
-    << sizes[1] << " formater" << (sizes[1] > 1 ? "s" : "") << ", and "
-    << sizes[2] << " estimator" << (sizes[2] > 1 ? "s" : "") << ". "
-    << "Running..." << std::endl;
-  
+  const std::vector<size_t> sizes = {node_option_handle->streamers.size(),
+                                     node_option_handle->formators.size(),
+                                     node_option_handle->estimators.size()};
+  std::cout << "Initialized " << sizes[0] << " streamer" << (sizes[0] > 1 ? "s" : "") << ", "
+            << sizes[1] << " formater" << (sizes[1] > 1 ? "s" : "") << ", and " << sizes[2]
+            << " estimator" << (sizes[2] > 1 ? "s" : "") << ". " << "Running..." << std::endl;
+
   // Start running all threads
   SpinControl::run();
-  
+
   // Loop
   ros::spin();
 

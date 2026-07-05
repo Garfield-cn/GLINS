@@ -1,7 +1,7 @@
 clear; clc;
 
 %% Read
-path = '/home/cc/Work/Data/gici/log/dd_pseudorange_residual-20240215-130229 (copy).log';
+path = 'data/dd_pseudorange_residual.log';
 fp = fopen(path, 'r');
 max_channel = 500;
 length_channel = 0;
@@ -81,4 +81,3 @@ if num_plotted > 0, legend(legends); end
 grid on;
 xlim([0, end_time - initial_time]);
 ylim([-plot_y_range, plot_y_range]);
-

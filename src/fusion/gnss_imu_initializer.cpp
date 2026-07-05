@@ -258,7 +258,6 @@ bool GnssImuInitializer::arrangeToEstimator(const int window_length,
             ImuMeasurements& imu_measurements)
 {
   if (!finished_) return false;
-
   // check if we need apply marginalization
   if (states_.size() < window_length) {
     states = states_;

@@ -353,7 +353,7 @@ Eigen::Matrix<double, 15, 15> EstimatorBase::computeAndGetCovariance(const State
     BackendId speed_and_bias_id = changeIdType(id, IdType::ImuStates);
     parameter_block_ids.push_back(speed_and_bias_id.asInteger());
 
-    // comppute covariance
+    // compute covariance
     Eigen::MatrixXd covariance;
     if (!graph_->computeCovariance(parameter_block_ids, covariance)) {
       return Eigen::Matrix<double, 15, 15>::Identity() * 1.0e6;

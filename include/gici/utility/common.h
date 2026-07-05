@@ -92,8 +92,8 @@ template<typename FloatT, int Rows, int Cols>
 inline Eigen::Matrix<FloatT, Rows, Cols> 
   cwiseSquare(Eigen::Matrix<FloatT, Rows, Cols> mat) {
   Eigen::Matrix<FloatT, Rows, Cols> out;
-  for (size_t i = 0; i < mat.rows(); i++) {
-    for (size_t j = 0; j < mat.cols(); j++) {
+  for (Eigen::Index i = 0; i < mat.rows(); i++) {
+    for (Eigen::Index j = 0; j < mat.cols(); j++) {
       out(i, j) = square(mat(i, j));
     }
   }
@@ -200,4 +200,3 @@ inline double getDivide(T x, T y) {
 }
 
 }
-

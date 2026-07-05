@@ -29,32 +29,32 @@ stream:
       tag: str_gnss_atx
       output_tags: [fmt_gnss_atx]
       type: file
-      path: /home/cc/Work/Codes/gici-open/option/igs14.atx
+      path: option/igs14.atx
       enable_time_tag: false
 
   - streamer:
       tag: str_gnss_rov_file
       input_tags: [str_gnss_rov]
       type: file
-      path: /home/cc/Work/Data/ppp/tersus_20240124/rover.bin
+      path: data/rover.bin
       enable_time_tag: true
   - streamer:
       tag: str_gnss_eph_file
       input_tags: [str_gnss_eph]
       type: file
-      path: /home/cc/Work/Data/ppp/tersus_20240124/ephemeris.bin
+      path: data/ephemeris.bin
       enable_time_tag: true
   - streamer:
       tag: str_gnss_ssr_file
       input_tags: [str_gnss_ssr]
       type: file
-      path: /home/cc/Work/Data/ppp/tersus_20240124/ssr.bin
+      path: data/ssr.bin
       enable_time_tag: true
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Work/Data/ppp/tersus_20240124/ppp_solution.txt
+      path: data/ppp_solution.txt
       enable_time_tag: false
 
   formators:
@@ -126,10 +126,10 @@ estimate:
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
       log_intermediate_data: true
-      log_intermediate_data_directory: /home/cc/Work/Data/ppp/log
+      log_intermediate_data_directory: log
 
 logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/Work/Data/Log
+  file_directory: log

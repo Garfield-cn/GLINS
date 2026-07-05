@@ -130,9 +130,8 @@ bool VelocityError<Ns ...>::EvaluateWithMinimalJacobians(
       Eigen::Matrix<double, 3, 3> J_v_W = J_v_ECEF * R_ECEF_ENU;
 
       // Body rotation in ENU
-      Eigen::Matrix<double, 3, 3> J_q_WS = J_v_W * 
-        skewSymmetric(angular_velocity_) * 
-        -skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
+      Eigen::Matrix<double, 3, 3> J_q_WS = J_v_W * skewSymmetric(angular_velocity_) *
+                                           -skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
 
       // Body pose in ENU
       J_T_WS.setZero();
@@ -143,9 +142,8 @@ bool VelocityError<Ns ...>::EvaluateWithMinimalJacobians(
       J_speed_and_bias.setZero();
       J_speed_and_bias.topLeftCorner(3, 3) = J_v_W;
 
-      // Relative position 
-      J_t_SR_S = J_v_W * skewSymmetric(angular_velocity_) * 
-                 q_WS.toRotationMatrix();
+      // Relative position
+      J_t_SR_S = J_v_W * skewSymmetric(angular_velocity_) * q_WS.toRotationMatrix();
     }
 
     // Group 1

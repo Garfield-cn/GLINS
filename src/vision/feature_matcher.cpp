@@ -17,8 +17,6 @@
 
 namespace gici {
 
-// #define DEBUG_IMAGE_DIR "/home/cc/Work/Data/tmp"
-
 FeatureMatcher::MatchResult FeatureMatcher::findMatchDirect(
     const Frame& ref_frame,
     const Frame& cur_frame,

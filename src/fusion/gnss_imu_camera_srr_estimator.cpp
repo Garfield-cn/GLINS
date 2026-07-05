@@ -263,6 +263,8 @@ bool GnssImuCameraSrrEstimator::estimate()
   // Optimize
   optimize();
 
+  LOG(INFO) << covariances_.find(states_[latest_state_index_].timestamp)->second;
+
   // Log information
   State& new_state = states_[latest_state_index_];
   if (base_options_.verbose_output) {

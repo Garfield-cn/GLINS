@@ -1,0 +1,39 @@
+---
+Language: Cpp
+BasedOnStyle: Google
+Standard: c++17
+
+# Match the existing GICI style.
+IndentWidth: 2
+TabWidth: 2
+UseTab: Never
+ContinuationIndentWidth: 4
+ConstructorInitializerIndentWidth: 2
+AccessModifierOffset: -2
+NamespaceIndentation: None
+IndentCaseLabels: true
+IndentPPDirectives: None
+
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterFunction: true
+  SplitEmptyFunction: false
+BreakConstructorInitializers: AfterColon
+PackConstructorInitializers: Never
+ColumnLimit: 100
+PointerAlignment: Left
+ReferenceAlignment: Pointer
+DerivePointerAlignment: false
+SpaceBeforeParens: ControlStatements
+
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: None
+AllowShortIfStatementsOnASingleLine: WithoutElse
+AllowShortLoopsOnASingleLine: true
+
+# Avoid unrelated include churn in files inherited from GICI.
+SortIncludes: Never
+IncludeBlocks: Preserve
+ReflowComments: true
+FixNamespaceComments: false
+...

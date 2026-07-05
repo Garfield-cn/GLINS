@@ -2,110 +2,97 @@
 stream:
   streamers:
   - streamer:
-      tag: str_gnss_rov_file
+      tag: str_gnss_rov
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/20210518.dense-urban.mk.ublox.f9p.splitter_cutted.obs
+      path: data/gnss_rover.bin
   - streamer:
-      tag: str_gnss_ref_file
+      tag: str_gnss_ref
       output_tags: [fmt_gnss_ref]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380300_01H_01S_MO.obs
+      path: data/gnss_reference.bin
   - streamer:
-      tag: str_gnss_eph_file_G
-      output_tags: [fmt_gnss_eph_G]
+      tag: str_gnss_eph
+      output_tags: [fmt_gnss_eph]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380000_01D_GN.nav
+      path: data/gnss_ephemeris.bin
   - streamer:
-      tag: str_gnss_eph_file_R
-      output_tags: [fmt_gnss_eph_R]
+      tag: str_imu
+      output_tags: [fmt_imu]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380000_01D_RN.nav
+      path: data/imu.bin
   - streamer:
-      tag: str_gnss_eph_file_E
-      output_tags: [fmt_gnss_eph_E]
+      tag: str_camera
+      output_tags: [fmt_camera]
       type: file
-      path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380000_01D_EN.nav
-  - streamer:
-      tag: str_gnss_eph_file_C
-      output_tags: [fmt_gnss_eph_C]
-      type: file
-      path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss/HKSC/HKSC00HKG_R_20211380000_01D_CN.nav
+      path: data/camera.bin
+      buffer_length: 361472  # 752 * 480 + 512
 
   formators:
   - formator:
       io: input
       tag: fmt_gnss_rov
-      type: gnss-rinex
+      type: gnss-raw
+      sub_type: tersus
   - formator:
       io: input
       tag: fmt_gnss_ref
-      type: gnss-rinex
+      type: gnss-rtcm-3
+      start_time: 2023.03.20
   - formator:
       io: input
-      tag: fmt_gnss_eph_G
-      type: gnss-rinex
+      tag: fmt_gnss_eph
+      type: gnss-rtcm-3
+      start_time: 2023.03.20
   - formator:
       io: input
-      tag: fmt_gnss_eph_R
-      type: gnss-rinex
+      tag: fmt_imu
+      type: imu-pack
   - formator:
       io: input
-      tag: fmt_gnss_eph_E
-      type: gnss-rinex
-  - formator:
-      io: input
-      tag: fmt_gnss_eph_C
-      type: gnss-rinex
+      tag: fmt_camera
+      width: 752
+      height: 480
+      type: image-pack
 
 rosbags:
-- rosbag: 
+- rosbag:
     tag: rosbag_gnss_rov
     type: rosbag
     input_tags: [fmt_gnss_rov]
-    path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss_rover.bag
-    topic_name: /gici/gnss_rover
+    path: data/rosbags/gnss_rover.bag
+    topic_name: gnss_rover
     format: gnss_raw
     enable_observation: true
-- rosbag: 
+- rosbag:
     tag: rosbag_gnss_ref
     type: rosbag
     input_tags: [fmt_gnss_ref]
-    path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss_reference.bag
-    topic_name: /gici/gnss_reference
+    path: data/rosbags/gnss_reference.bag
+    topic_name: gnss_reference
     format: gnss_raw
     enable_observation: true
     enable_antenna_position: true
-- rosbag: 
-    tag: rosbag_gnss_eph_G
+- rosbag:
+    tag: rosbag_gnss_eph
     type: rosbag
-    input_tags: [fmt_gnss_eph_G]
-    path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss_ephemeris_G.bag
-    topic_name: /gici/gps_ephemeris
+    input_tags: [fmt_gnss_eph]
+    path: data/rosbags/gnss_ephemeris.bag
+    topic_name: gnss_reference
     format: gnss_raw
     enable_ephemeris: true
     enable_ionosphere_parameter: true
-- rosbag: 
-    tag: rosbag_gnss_eph_R
+- rosbag:
+    tag: rosbag_imu
     type: rosbag
-    input_tags: [fmt_gnss_eph_R]
-    path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss_ephemeris_R.bag
-    topic_name: /gici/glonass_ephemeris
-    format: gnss_raw
-    enable_ephemeris: true
-- rosbag: 
-    tag: rosbag_gnss_eph_E
+    input_tags: [fmt_imu]
+    path: data/rosbags/imu.bag
+    topic_name: /gici/imu_raw
+    format: imu
+- rosbag:
+    tag: rosbag_camera
     type: rosbag
-    input_tags: [fmt_gnss_eph_E]
-    path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss_ephemeris_E.bag
-    topic_name: /gici/galileo_ephemeris
-    format: gnss_raw
-    enable_ephemeris: true
-- rosbag: 
-    tag: rosbag_gnss_eph_C
-    type: rosbag
-    input_tags: [fmt_gnss_eph_C]
-    path: /media/cc/T7/ubuntu/datasets/urbannav/harshurban/gnss_ephemeris_C.bag
-    topic_name: /gici/bds_ephemeris
-    format: gnss_raw
-    enable_ephemeris: true
+    input_tags: [fmt_camera]
+    path: data/rosbags/image.bag
+    topic_name: /gici/image_raw
+    format: image

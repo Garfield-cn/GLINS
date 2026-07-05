@@ -1,9 +1,10 @@
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.10)
 project(gici)
 
-# Set build flags. 
-set(CMAKE_CXX_FLAGS "-std=c++11" )
-set(CMAKE_CXX_FLAGS "-fpermissive")
+# Use the same C++ standard for standalone and ROS builds.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fpermissive")
 if ("${CMAKE_BUILD_TYPE}" STREQUAL "Release")
   if (IS_ARM)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfpu=neon -march=armv7-a")
@@ -24,6 +25,8 @@ find_package(yaml-cpp REQUIRED)
 find_package(glog REQUIRED)
 # Ceres-solver
 find_package(Ceres REQUIRED)
+# PCL
+find_package(PCL 1.10 REQUIRED)
 # Fast feature detector
 add_subdirectory(third_party/fast)
 # SVO vikit tool-kits
@@ -32,11 +35,14 @@ add_subdirectory(third_party/rpg_vikit/vikit_common)
 add_subdirectory(third_party/rpg_svo)
 # RTKLIB
 add_definitions(-DENAGLO -DENACMP -DENAGAL -DENAQZS -DENAIRN -DNFREQ=3 -DNEXOBS=3 -DDLL)
+# Suppress boost bind global placeholders deprecation warning
+add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
 add_subdirectory(third_party/rtklib)
 
 include_directories(
   ${EIGEN3_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
+  ${PCL_INCLUDE_DIRS}
   include
 )
 
@@ -46,6 +52,7 @@ aux_source_directory(src/gnss DIR_gnss)
 aux_source_directory(src/imu DIR_imu)
 aux_source_directory(src/vision DIR_vision)
 aux_source_directory(src/estimate DIR_estimate)
+aux_source_directory(src/lidar DIR_lidar)
 aux_source_directory(src/fusion DIR_fusion)
 list(APPEND DIR_ALL ${DIR_utility}
                     ${DIR_stream}
@@ -53,6 +60,7 @@ list(APPEND DIR_ALL ${DIR_utility}
                     ${DIR_imu}
                     ${DIR_vision}
                     ${DIR_estimate}
+                    ${DIR_lidar}
                     ${DIR_fusion})
 
 # library
@@ -62,7 +70,8 @@ target_link_libraries(${PROJECT_NAME}
                       vikit_common
                       svo
                       glog
-                      ${OpenCV_LIBS})
+                      ${OpenCV_LIBS}
+                      ${PCL_LIBRARIES})
 target_include_directories(${PROJECT_NAME}
     PUBLIC ${PROJECT_SOURCE_DIR}/include
 )
@@ -70,4 +79,4 @@ target_include_directories(${PROJECT_NAME}
 # executable
 add_executable(gici_main src/gici_main.cpp)
 target_link_libraries(gici_main 
-                      ${PROJECT_NAME})
+                      ${PROJECT_NAME} ${PCL_LIBRARIES})

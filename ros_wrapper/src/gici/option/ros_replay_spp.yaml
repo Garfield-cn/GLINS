@@ -5,23 +5,23 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /home/cc/Downloads/OneDrive-2023-09-18/gnss_rover.bin
+      path: data/gnss_rover.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /home/cc/Downloads/OneDrive-2023-09-18/gnss_ephemeris.bin
+      path: data/gnss_ephemeris.bin
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/Work/Codes/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Downloads/OneDrive-2023-09-18/solution.txt
+      path: data/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -104,4 +104,4 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/Work/Data/Log
+  file_directory: log

@@ -8,6 +8,7 @@
 **/
 #include "gici/ros_interface/ros_stream.h"
 
+#include <cmath>
 #include <image_transport/image_transport.h>
 #include <cv_bridge/cv_bridge.h>
 #include <sensor_msgs/image_encodings.h>
@@ -77,8 +78,30 @@ RosStream::RosStream(
     else {
       publishers_.push_back(nh_.advertise<sensor_msgs::Image>(topic_name_, queue_size_));
     }
-  }
-  else if (data_format == "imu") {
+  } else if (data_format == "livox") {
+    data_format_ = RosDataFormat::LivoxCustom;
+    if (io_type_ == StreamIOType::Input) {
+      subscribers_.push_back(nh_.subscribe<livox_ros_driver::CustomMsg>(
+          topic_name_, queue_size_, boost::bind(&RosStream::livoxCallback, this, _1)));
+    } else {
+      LOG(ERROR) << "Setting livox custom topic as output is disabled!";
+    }
+  } else if (data_format == "map") {
+    data_format_ = RosDataFormat::CloudMap;
+    if (io_type_ == StreamIOType::Input) {
+      LOG(ERROR) << "Setting map as input is disabled!";
+    } else {
+      publishers_.push_back(nh_.advertise<sensor_msgs::PointCloud2>(topic_name_, queue_size_));
+    }
+  } else if (data_format == "pointcloud2") {
+    data_format_ = RosDataFormat::PointCloud2;
+    if (io_type_ == StreamIOType::Input) {
+      subscribers_.push_back(nh_.subscribe<sensor_msgs::PointCloud2>(
+          topic_name_, queue_size_, boost::bind(&RosStream::pc2Callback, this, _1)));
+    } else {
+      publishers_.push_back(nh_.advertise<sensor_msgs::PointCloud2>(topic_name_, queue_size_));
+    }
+  } else if (data_format == "imu") {
     data_format_ = RosDataFormat::Imu;
     if (io_type_ == StreamIOType::Input) {
       subscribers_.push_back(nh_.subscribe<sensor_msgs::Imu>(
@@ -87,8 +110,7 @@ RosStream::RosStream(
     else {
       publishers_.push_back(nh_.advertise<sensor_msgs::Imu>(topic_name_, queue_size_));
     }
-  }
-  else if (data_format == "gnss_raw") {
+  } else if (data_format == "gnss_raw") {
     data_format_ = RosDataFormat::GnssRaw;
     if (io_type_ == StreamIOType::Input) {
       bool enable = false;
@@ -187,8 +209,7 @@ RosStream::RosStream(
         gnss_formats_.push_back(RosGnssDataFormat::EphemeridesCorrection);
       }
     }
-  }
-  else if (data_format == "pose_stamped") {
+  } else if (data_format == "pose_stamped") {
     data_format_ = RosDataFormat::PoseStamped;
     if (io_type_ == StreamIOType::Input) {
       LOG(ERROR) << "Setting pose stamped topic as input is disabled! If you want to input pose" 
@@ -202,8 +223,7 @@ RosStream::RosStream(
         tranform_broadcaster_ = std::make_unique<tf::TransformBroadcaster>();
       }
     }
-  }
-  else if (data_format == "pose_with_covariance_stamped") {
+  } else if (data_format == "pose_with_covariance_stamped") {
     data_format_ = RosDataFormat::PoseWithCovarianceStamped;
     if (io_type_ == StreamIOType::Input) {
       subscribers_.push_back(nh_.subscribe<geometry_msgs::PoseWithCovarianceStamped>(
@@ -234,8 +254,7 @@ RosStream::RosStream(
         tranform_broadcaster_ = std::make_unique<tf::TransformBroadcaster>();
       }
     }
-  }
-  else if (data_format == "odometry") {
+  } else if (data_format == "odometry") {
     data_format_ = RosDataFormat::Odometry;
     if (io_type_ == StreamIOType::Input) {
       LOG(ERROR) << "Setting odometry topic as input is disabled!";
@@ -253,8 +272,7 @@ RosStream::RosStream(
         return;
       }
     }
-  }
-  else if (data_format == "navsatfix") {
+  } else if (data_format == "navsatfix") {
     data_format_ = RosDataFormat::NavSatFix;
     if (io_type_ == StreamIOType::Input) {
       subscribers_.push_back(nh_.subscribe<sensor_msgs::NavSatFix>(
@@ -264,8 +282,7 @@ RosStream::RosStream(
       publishers_.push_back(nh_.advertise<sensor_msgs::NavSatFix>(
         topic_name_, queue_size_));
     }
-  }
-  else if (data_format == "marker") {
+  } else if (data_format == "marker") {
     data_format_ = RosDataFormat::Marker;
     if (io_type_ == StreamIOType::Input) {
       LOG(ERROR) << "Setting marker topic as input is disabled!";
@@ -275,8 +292,16 @@ RosStream::RosStream(
       option_tools::safeGet(streamer_node->this_node, "marker_scale", &marker_scale_);
       publishers_.push_back(nh_.advertise<visualization_msgs::Marker>(topic_name_, queue_size_));
     }
-  }
-  else if (data_format == "path") {
+  } else if (data_format == "landmark") {
+    data_format_ = RosDataFormat::Marker;
+    if (io_type_ == StreamIOType::Input) {
+      LOG(ERROR) << "Setting landmark topic as input is disabled!";
+      return;
+    } else {
+      option_tools::safeGet(streamer_node->this_node, "marker_scale", &marker_scale_);
+      publishers_.push_back(nh_.advertise<visualization_msgs::Marker>(topic_name_, queue_size_));
+    }
+  } else if (data_format == "path") {
     data_format_ = RosDataFormat::Path;
     if (io_type_ == StreamIOType::Input) {
       LOG(ERROR) << "Setting path topic as input is disabled!";
@@ -316,8 +341,13 @@ void RosStream::outputDataCallback(
   }
   else if (data->imu) {
     imuDataOutputCallback(*data->imu);
-  }
-  else if (data->image) {
+  } else if (data->lidar) {
+    lidarDataOutputCallback(*data->lidar);
+  } else if (data->laser_map) {
+    lasermapOutputCallback(data->laser_map);
+  } else if (data->planes) {
+    planesOutputCallback(data->planes);
+  } else if (data->image) {
     imageDataOutputCallback(*data->image);
   }
 }
@@ -351,47 +381,44 @@ void RosStream::solutionOutputCallback(std::string tag, Solution& solution)
 {
   if (data_format_ == RosDataFormat::PoseStamped) {
     if (tranform_broadcaster_) {
-      publishPoseWithTransform(publishers_[0], *tranform_broadcaster_, solution.pose, 
-        ros::Time(solution.timestamp), frame_id_, subframe_id_);  
+      publishPoseWithTransform(publishers_[0], *tranform_broadcaster_, solution.pose,
+                               ros::Time(solution.timestamp), frame_id_, subframe_id_);
     }
     else {
-      publishPoseStamped(publishers_[0], solution.pose, 
-        ros::Time(solution.timestamp), frame_id_);
+      publishPoseStamped(publishers_[0], solution.pose, ros::Time(solution.timestamp), frame_id_);
     }
   }
   else if (data_format_ == RosDataFormat::PoseWithCovarianceStamped) {
     if (tranform_broadcaster_) {
-      publishPoseWithCovarianceAndTransform(publishers_[0], *tranform_broadcaster_, 
-        solution.pose, solution.covariance.block<6, 6>(0, 0), 
-        ros::Time(solution.timestamp), frame_id_, subframe_id_);
+      publishPoseWithCovarianceAndTransform(publishers_[0], *tranform_broadcaster_, solution.pose,
+                                            solution.covariance.block<6, 6>(0, 0),
+                                            ros::Time(solution.timestamp), frame_id_, subframe_id_);
     }
     else {
-      publishPoseWithCovarianceStamped(publishers_[0], 
-        solution.pose, solution.covariance.block<6, 6>(0, 0), 
-        ros::Time(solution.timestamp), frame_id_);
+      publishPoseWithCovarianceStamped(publishers_[0], solution.pose,
+                                       solution.covariance.block<6, 6>(0, 0),
+                                       ros::Time(solution.timestamp), frame_id_);
     }
   }
   else if (data_format_ == RosDataFormat::Odometry) {
     CHECK_NOTNULL(tranform_broadcaster_);
-    publishOdometry(publishers_[0], *tranform_broadcaster_, solution.pose, 
-      solution.speed_and_bias.head<3>(), solution.covariance.block<9, 9>(0, 0), 
-      ros::Time(solution.timestamp), frame_id_, subframe_id_);
+    publishOdometry(publishers_[0], *tranform_broadcaster_, solution.pose,
+                    solution.speed_and_bias.head<3>(), solution.covariance.block<9, 9>(0, 0),
+                    ros::Time(solution.timestamp), frame_id_, subframe_id_);
   }
   else if (data_format_ == RosDataFormat::NavSatFix) {
-    Eigen::Vector3d lla = 
-      solution.coordinate->convert(
-        solution.pose.getPosition(), GeoType::ENU, GeoType::LLA);
-    Eigen::Matrix3d lla_covariance = 
-      solution.coordinate->convertCovariance(
+    Eigen::Vector3d lla =
+        solution.coordinate->convert(solution.pose.getPosition(), GeoType::ENU, GeoType::LLA);
+    Eigen::Matrix3d lla_covariance = solution.coordinate->convertCovariance(
         solution.covariance.topLeftCorner(3, 3), GeoType::ENU, GeoType::NED);
-    publishNavSatFix(publishers_[0], lla, 
-      lla_covariance, ros::Time(solution.timestamp), solution.status);
-      
+    publishNavSatFix(publishers_[0], lla, lla_covariance, ros::Time(solution.timestamp),
+                     solution.status);
+
   }
   else if (data_format_ == RosDataFormat::Path) {
     CHECK_NOTNULL(path_publisher_);
-    path_publisher_->addPoseAndPublish(publishers_[0], solution.pose, 
-      ros::Time(solution.timestamp), frame_id_);
+    path_publisher_->addPoseAndPublish(publishers_[0], solution.pose, ros::Time(solution.timestamp),
+                                       frame_id_);
   }
 }
 
@@ -472,6 +499,28 @@ void RosStream::imuDataOutputCallback(DataCluster::IMU& imu)
   }
 }
 
+// Send the current LiDAR scan to a ROS visualization topic
+void RosStream::lidarDataOutputCallback(DataCluster::LiDAR& lidar)
+{
+  if (data_format_ == RosDataFormat::PointCloud2) {
+    publishScan(publishers_[0], lidar);
+  }
+}
+
+void RosStream::lasermapOutputCallback(Cloud_ptr& map)
+{
+  if (data_format_ == RosDataFormat::CloudMap) {
+    publishMap(publishers_[0], map);
+  }
+}
+
+void RosStream::planesOutputCallback(PlaneCloud_ptr& plane)
+{
+  if (data_format_ == RosDataFormat::Marker) {
+    publishPlanes(publishers_[0], plane, marker_scale_);
+  }
+}
+
 // Send image data to ROS topic
 void RosStream::imageDataOutputCallback(DataCluster::Image& image)
 {
@@ -518,7 +567,7 @@ void RosStream::imuCallback(const sensor_msgs::ImuConstPtr& msg)
   data_cluster->imu->angular_velocity[0] = msg->angular_velocity.x;
   data_cluster->imu->angular_velocity[1] = msg->angular_velocity.y;
   data_cluster->imu->angular_velocity[2] = msg->angular_velocity.z;
-  
+
   // Call INS processor
   for (auto it_imu_callback : data_callbacks_) {
     it_imu_callback(tag_, data_cluster);
@@ -526,6 +575,116 @@ void RosStream::imuCallback(const sensor_msgs::ImuConstPtr& msg)
 
   // Call logger pipeline
   for (auto pipeline : pipeline_ros_to_ros_) {
+    pipeline("", data_cluster);
+  }
+}
+
+void RosStream::livoxCallback(const livox_ros_driver::CustomMsg::ConstPtr& msg)
+{
+  std::shared_ptr<DataCluster> data_cluster =
+      std::make_shared<DataCluster>(FormatorType::LivoxCustom);
+  const int size = msg->point_num;
+
+  Point_lidar point;
+  Cloud scan;
+  scan.reserve(size);
+  size_t valid_num = 0;
+  double final_time = 0;
+
+  for (size_t i = 1; i < size; i++) {
+    if (((msg->points[i].tag & 0x30) == 0x10 || (msg->points[i].tag & 0x30) == 0x00) &&
+        (pow(msg->points[i].x, 2) + pow(msg->points[i].y, 2) + pow(msg->points[i].z, 2) > 10) &&
+        ((abs(msg->points[i].x - msg->points[i - 1].x) > 1e-6) ||
+         (abs(msg->points[i].y - msg->points[i - 1].y) > 1e-6) ||
+         (abs(msg->points[i].z - msg->points[i - 1].z) > 1e-6))) {
+      point.x = msg->points[i].x;
+      point.y = msg->points[i].y;
+      point.z = msg->points[i].z;
+
+      if (!std::isfinite(point.x) || !std::isfinite(point.y) || !std::isfinite(point.z)) {
+        continue;
+      }
+
+      point.intensity = msg->points[i].reflectivity;
+      // Livox timebase and offset_time are in nanoseconds; the estimator uses seconds
+      point.curvature = msg->points[i].offset_time * 1e-9;
+      valid_num++;
+      scan.push_back(point);
+    }
+    if (i == size - 1) final_time = (msg->timebase + msg->points[i].offset_time) * 1e-9;
+  }
+
+  data_cluster->lidar->cloud_ptr.reset(new Cloud(std::move(scan)));
+  data_cluster->lidar->timebase = (msg->timebase) * 1e-9;
+  data_cluster->lidar->valid_num = valid_num;
+  data_cluster->lidar->timefinal = final_time;
+  data_cluster->lidar->seq = msg->header.seq;
+
+  // Forward the LiDAR scan to the estimator pipeline
+  for (auto it_lidar_callback : data_callbacks_) {
+    it_lidar_callback(tag_, data_cluster);
+  }
+  // Call logger pipeline
+  for (auto pipeline : pipeline_ros_to_ros_) {
+    pipeline("", data_cluster);
+  }
+}
+
+void RosStream::pc2Callback(const sensor_msgs::PointCloud2::ConstPtr& msg)
+{
+  std::shared_ptr<DataCluster> data_cluster =
+      std::make_shared<DataCluster>(FormatorType::PointCloud2);
+
+  // Convert ROS cloud to PCL cloud
+  const sensor_msgs::PointCloud2& cloud_pc2 = *msg;
+  pcl::PointCloud<PointXYZIRT>::Ptr cloudRT_ptr(new pcl::PointCloud<PointXYZIRT>);
+  pcl::fromROSMsg(cloud_pc2, *cloudRT_ptr);
+
+  // Pre-allocate memory for scan
+  Cloud scan;
+  const size_t point_count = cloudRT_ptr->size();
+  if (point_count == 0) {
+    LOG(WARNING) << "Received an empty PointCloud2 message; skipping it.";
+    return;
+  }
+  scan.reserve(point_count);
+
+  // Convert PCL XYZIRT cloud to the estimator point type
+  Point_lidar point;
+
+  // Start from 0 instead of 1 since we don't need previous point comparison
+  for (size_t i = 0; i < point_count; i++) {
+    const auto& src_point = cloudRT_ptr->points[i];
+
+    if (!std::isfinite(src_point.x) || !std::isfinite(src_point.y) || !std::isfinite(src_point.z) ||
+        src_point.y < -1) {
+      continue;
+    }
+
+    point.x = src_point.x;
+    point.y = src_point.y;
+    point.z = src_point.z;
+    point.intensity = src_point.intensity;
+    // PointXYZIRT::time is an offset from the header timestamp, in seconds
+    point.curvature = src_point.time;
+    point.normal_z = src_point.ring;  // Preserve the input ring for downstream consumers.
+    scan.push_back(point);
+  }
+
+  const double base_time = cloud_pc2.header.stamp.toSec();
+  data_cluster->lidar->cloud_ptr.reset(new Cloud(std::move(scan)));
+  data_cluster->lidar->timebase = base_time;
+  data_cluster->lidar->valid_num = data_cluster->lidar->cloud_ptr->size();
+  data_cluster->lidar->timefinal = base_time + cloudRT_ptr->points[point_count - 1].time;
+  data_cluster->lidar->seq = cloudRT_ptr->header.seq;
+
+  // Forward the LiDAR scan to the estimator pipeline
+  for (const auto& it_lidar_callback : data_callbacks_) {
+    it_lidar_callback(tag_, data_cluster);
+  }
+
+  // Call logger pipeline
+  for (const auto& pipeline : pipeline_ros_to_ros_) {
     pipeline("", data_cluster);
   }
 }

@@ -67,13 +67,13 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Documents/Shared/tmp/solution.txt
+      path: data/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution_file_2
       input_tags: [fmt_solution_file_2]
       type: file
-      path: /home/cc/Documents/Shared/tmp/solution_2.txt
+      path: data/solution_2.txt
       enable_time_tag: false
   # - streamer:
   #     tag: str_solution
@@ -117,14 +117,14 @@ stream:
   - formator:
       io: output
       tag: fmt_solution_file
-      type: nmea 
+      type: nmea
       use_esa: true
       use_esd: true
       talker_id: GP
   - formator:
       io: output
       tag: fmt_solution_file_2
-      type: nmea 
+      type: nmea
       use_esa: true
       use_esd: true
       talker_id: GP
@@ -191,22 +191,22 @@ estimate:
 #       max_window_length: 10
 #     gnss_loose_estimator_base_options:
 #     imu_estimator_base_options:
-#       imu_parameters:
-#         sigma_bg: 1.0e-3
-#         sigma_ba: 1.0e-2
-#         sigma_g_c: 1.027e-02
-#         sigma_a_c: 1.120e-02
-#         sigma_gw_c: 9.136e-05
-#         sigma_aw_c: 1.175e-04
-#       zupt_max_acc_std: 0.45
-#       zupt_max_gyro_std: 0.05
-#       zupt_max_gyro_median: 0.01
-#       zupt_sigma_zero_velocity: 1.0e-2
-#       car_motion: true
-#       body_to_imu_rotation: [0.0, 0.0, 0.0]
-#       body_to_imu_rotation_std: 5.0
-#       car_motion_min_velocity: 3.0
-#       car_motion_max_anguler_velocity: 5.0
+      # imu_parameters:
+      #   sigma_bg: 1.0e-3
+      #   sigma_ba: 1.0e-2
+      #   sigma_g_c: 1.027e-02
+      #   sigma_a_c: 1.120e-02
+      #   sigma_gw_c: 9.136e-05
+      #   sigma_aw_c: 1.175e-04
+      # zupt_max_acc_std: 0.45
+      # zupt_max_gyro_std: 0.05
+      # zupt_max_gyro_median: 0.01
+      # zupt_sigma_zero_velocity: 1.0e-2
+      # car_motion: true
+      # body_to_imu_rotation: [0.0, 0.0, 0.0]
+      # body_to_imu_rotation_std: 5.0
+      # car_motion_min_velocity: 3.0
+      # car_motion_max_anguler_velocity: 5.0
 #     estimator_base_options:
 #       max_iteration: 15
 #       num_threads: 4
@@ -359,7 +359,7 @@ estimate:
 #       kfselect_min_numkfs: 30
 #       kfselect_min_disparity: 10.0
 #       kfselect_min_dist_metric: 0.5
-#       kfselect_min_angle: 5.0  
+#       kfselect_min_angle: 5.0
 #       kfselect_min_dt: 0.5
 #       detector:
 #         cell_size: 40
@@ -377,19 +377,19 @@ estimate:
 #               rows: 4
 #               data: [264.9425, 264.79, 334.3975, 183.162]
 #             distortion:
-#               type: radial-tangential  
+#               type: radial-tangential
 #               parameters:
 #                 cols: 1
 #                 rows: 4
 #                 data: [-0.0442856, 0.0133574, 0.0, 0.0]
-#             mask: /media/cc/T7/ubuntu/datasets/urbannav/mask.png
+#             mask: data/mask.png
 #           # Transform of camera in body (IMU) frame
 #           T_B_C:
 #             cols: 4
 #             rows: 4
 #             data: [9.9885234402635936e-01, 1.3591158885981787e-03, 4.7876378696062108e-02, -8.4994249456545504e-02,
 #                    -4.7864188349269129e-02, -7.9091258538426246e-03, 9.9882253939420773e-01, 0.126,
-#                    1.7361758877140372e-03, -9.9996779874765440e-01, -7.8349959194297103e-03, 0.076, 
+#                    1.7361758877140372e-03, -9.9996779874765440e-01, -7.8349959194297103e-03, 0.076,
 #                    0., 0., 0., 1. ]
 
 # - estimator:
@@ -484,7 +484,7 @@ estimate:
 #       kfselect_min_numkfs: 30
 #       kfselect_min_disparity: 10.0
 #       kfselect_min_dist_metric: 0.5
-#       kfselect_min_angle: 5.0  
+#       kfselect_min_angle: 5.0
 #       kfselect_min_dt: 0.5
 #       detector:
 #         cell_size: 40
@@ -502,19 +502,19 @@ estimate:
 #               rows: 4
 #               data: [264.9425, 264.79, 334.3975, 183.162]
 #             distortion:
-#               type: radial-tangential  
+#               type: radial-tangential
 #               parameters:
 #                 cols: 1
 #                 rows: 4
 #                 data: [-0.0442856, 0.0133574, 0.0, 0.0]
-#             mask: /media/cc/T7/ubuntu/datasets/urbannav/mask.png
+#             mask: data/mask.png
 #           # Transform of camera in body (IMU) frame
 #           T_B_C:
 #             cols: 4
 #             rows: 4
 #             data: [9.9885234402635936e-01, 1.3591158885981787e-03, 4.7876378696062108e-02, -8.4994249456545504e-02,
 #                    -4.7864188349269129e-02, -7.9091258538426246e-03, 9.9882253939420773e-01, 0.126,
-#                    1.7361758877140372e-03, -9.9996779874765440e-01, -7.8349959194297103e-03, 0.076, 
+#                    1.7361758877140372e-03, -9.9996779874765440e-01, -7.8349959194297103e-03, 0.076,
 #                    0., 0., 0., 1. ]
 
 
@@ -522,6 +522,6 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/Work/Data/Log
+  file_directory: log
 
-# rosbag play *.bag --topics /gici/gnss_rover /gici/gnss_reference /gici/gps_ephemeris 
+# rosbag play *.bag --topics /gici/gnss_rover /gici/gnss_reference /gici/gps_ephemeris

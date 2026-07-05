@@ -23,7 +23,7 @@ stream:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /media/cc/T72/ubuntu/datasets/kaist/urban38/gici/solution.txt
+      path: data/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -212,4 +212,4 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  file_directory: log

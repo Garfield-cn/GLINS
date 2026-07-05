@@ -28,10 +28,12 @@ std::string estimatorTypeToString(const EstimatorType& type)
   if (type == EstimatorType::RtkImuTc) return "RTK/IMU TC";
   if (type == EstimatorType::PppImuTc) return "PPP/IMU TC";
   if (type == EstimatorType::GnssImuCameraSrr) return "GNSS/IMU/Camera SRR";
+  if (type == EstimatorType::GnssImuLidarSrr) return "GNSS/IMU/Lidar SRR";
   if (type == EstimatorType::SppImuCameraRrr) return "SPP/IMU/Camera RRR";
   if (type == EstimatorType::DgnssImuCameraRrr) return "DGNSS/IMU/Camera RRR";
   if (type == EstimatorType::RtkImuCameraRrr) return "RTK/IMU/Camera RRR";
   if (type == EstimatorType::PppImuCameraRrr) return "PPP/IMU/Camera RRR";
+  if (type == EstimatorType::RtkImuLidarRrr) return "RTK/IMU/Lidar RRR";
   return "";
 }
 

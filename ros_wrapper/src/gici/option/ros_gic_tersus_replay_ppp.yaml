@@ -5,46 +5,46 @@ stream:
       tag: str_gnss_rov_file
       output_tags: [fmt_gnss_rov]
       type: file
-      path: /home/cc/Work/gici_dataset_open/5.1/gnss_rover.bin
+      path: data/gnss_rover.bin
   - streamer:
       tag: str_gnss_eph
       output_tags: [fmt_gnss_eph]
       type: file
-      path: /home/cc/Work/gici_dataset_open/5.1/gnss_ephemeris.bin
+      path: data/gnss_ephemeris.bin
   - streamer:
       tag: str_gnss_ssr
       output_tags: [fmt_gnss_ssr]
       type: file
-      path: /home/cc/Work/gici_dataset_open/5.1/gnss_ssr.bin
+      path: data/gnss_ssr.bin
   - streamer:
       tag: str_gnss_atx
       output_tags: [fmt_gnss_atx]
       type: file
-      path: /home/cc/Work/Codes/gici-open/option/igs14.atx
+      path: option/igs14.atx
       enable_time_tag: false
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/Work/gici_dataset_open/code_bias/5.21/CAS0MGXRAP_20231410000_01D_01D_DCB.BSX
+      path: data/CAS0MGXRAP_20231410000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_imu
       output_tags: [fmt_imu]
       type: file
-      path: /home/cc/Work/gici_dataset_open/5.1/imu.bin
+      path: data/imu.bin
       loop_duration: 0.001
   - streamer:
       tag: str_camera
       output_tags: [fmt_camera]
       type: file
-      path: /home/cc/Work/gici_dataset_open/5.1/camera.bin
-      buffer_length: 361472  # 752 * 480 + 512 
+      path: data/camera.bin
+      buffer_length: 361472  # 752 * 480 + 512
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Work/gici_dataset_open/5.1/solution.txt
+      path: data/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution_stream
@@ -142,14 +142,14 @@ stream:
   - formator:
       io: output
       tag: fmt_solution_file
-      type: nmea 
+      type: nmea
       use_esa: true
       use_esd: true
       talker_id: GP
   - formator:
       io: output
       tag: fmt_solution_stream
-      type: nmea 
+      type: nmea
       use_esa: true
       use_esd: true
       talker_id: GP
@@ -194,7 +194,7 @@ estimate:
 #       solver_type: dense_schur
 #       trust_region_strategy_type: dogleg
 #       log_intermediate_data: true
-#       log_intermediate_data_directory: /home/cc/Work/Data/ppp/log
+#       log_intermediate_data_directory: log
 
 - estimator:
     tag: est_gnss_imu_tc
@@ -246,7 +246,7 @@ estimate:
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
       log_intermediate_data: true
-      log_intermediate_data_directory: /home/cc/Work/Data/ppp/log
+      log_intermediate_data_directory: log
     gnss_imu_initializer_options:
       max_iteration: 30
       num_threads: 4
@@ -261,5 +261,5 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/Work/Data/Log
-  
+  file_directory: log
+

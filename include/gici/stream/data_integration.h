@@ -106,6 +106,27 @@ protected:
                  const std::shared_ptr<DataCluster::IMU>& imu);
 };
 
+class LidarDataIntegration : public DataIntegrationBase {
+public:
+  LidarDataIntegration(const std::shared_ptr<EstimatingBase>& estimating,
+                       const std::vector<std::shared_ptr<Streaming>>& streamings,
+                       const std::vector<std::string>& formator_tags,
+                       const std::vector<std::vector<std::string>>& roles) :
+    DataIntegrationBase(estimating, streamings, formator_tags, roles)
+  {
+    valid_ = true;
+  }
+
+  // Data callback
+  void dataCallback(const std::string& input_tag,
+                    const std::shared_ptr<DataCluster>& data) override;
+
+protected:
+  // Handle LiDAR data
+  void handleLidar(const std::string& formator_tag,
+                   const std::shared_ptr<DataCluster::LiDAR>& lidar);
+};
+
 // Image data integration
 class ImageDataIntegration : public DataIntegrationBase {
 public:

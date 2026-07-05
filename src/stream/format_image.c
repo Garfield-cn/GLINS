@@ -9,15 +9,15 @@
 #include "gici/stream/format_image.h"
 
 /* image frame preamble */
-const char img_preamb[] = { 0xFE, 0xCA, 0x00, 0xFF, 0x00, 0xFF };
+const uint8_t img_preamb[] = { 0xFE, 0xCA, 0x00, 0xFF, 0x00, 0xFF };
 /* image frame tail */
-const char img_tail[] = { 0xCC, 0xFE, 0xFF, 0x00, 0xFF, 0x00 };
+const uint8_t img_tail[] = { 0xCC, 0xFE, 0xFF, 0x00, 0xFF, 0x00 };
 
 /* decode image message -------------------------------------------------*/
 static int decode_image(img_t *img)
 {
   gtime_t time;
-  int i=72,j,width,height,step,sec;
+  int i=72,width,height,step,sec;
   
   trace(3,"decode_image: len=%3d\n",img->len);
 
@@ -41,7 +41,7 @@ static int decode_image(img_t *img)
 /* encode image message -------------------------------------------------*/
 extern int encode_img(img_t *img)
 {
-  int i=72,j,sec=img->time.sec*1.0e9;
+  int i=72,sec=img->time.sec*1.0e9;
 
   trace(3,"encode_img\n");
 
@@ -80,7 +80,7 @@ extern int input_image(img_t *img, uint8_t data)
   /* synchronize frame */
   for (int i = 0; i < 6; i++) {
     if (img->nbyte == i) {
-      if (data!=(uint8_t)(img_preamb[i])) {
+      if (data!=img_preamb[i]) {
         if (i > 0) img->nbyte = 0;
         return 0;
       }
@@ -97,11 +97,11 @@ extern int input_image(img_t *img, uint8_t data)
 
   /* check tail */
   int is_end = 0;
-  if (data == (uint8_t)(img_tail[5])) {
+  if (data == img_tail[5]) {
     is_end = 1;
     uint8_t *tail = img->buff + (img->nbyte - 6);
     for (int i = 0; i < 6; i++) {
-      if (tail[i] != (uint8_t)(img_tail[i])) {
+      if (tail[i] != img_tail[i]) {
         is_end = 0; break;
       }
     }
@@ -137,8 +137,6 @@ extern int input_image(img_t *img, uint8_t data)
 *-----------------------------------------------------------------------------*/
 extern int input_image_v4l2(img_t *img, const uint8_t *buf, int n)
 {
-  int i;
-
   trace(4,"input_image_v4l2\n");
 
   if (buf==NULL) return 0;
@@ -163,8 +161,7 @@ extern int gen_img(img_t *img)
   
   /* set preamble and reserved */
   for (int k=0;k<6;k++) {
-    uint32_t a = (uint8_t)*(img_preamb+k);
-    setbitu(img->buff,i,8,(uint8_t)*(img_preamb+k)); i+=8;
+    setbitu(img->buff,i,8,img_preamb[k]); i+=8;
   }
   setbitu(img->buff,i,24,0    ); i+=24;
   
@@ -174,7 +171,7 @@ extern int gen_img(img_t *img)
   /* message tail */
   i=img->len*8;
   for (int k=0;k<6;k++) {
-    setbitu(img->buff,i,8,(uint8_t)*(img_tail+k)); i+=8;
+    setbitu(img->buff,i,8,img_tail[k]); i+=8;
   }
   img->len+=6;
 
@@ -191,7 +188,6 @@ extern int gen_img(img_t *img)
 extern void init_img(img_t *img, int width, int height, int step)
 {
   gtime_t time0 = {0};
-  int i;
 
   img->time = time0;
   img->width = width;

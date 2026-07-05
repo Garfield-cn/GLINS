@@ -30,6 +30,10 @@ DataCluster::DataCluster(FormatorType type)
     imu = std::make_shared<IMU>();
     return;
   }
+  if (type == FormatorType::LivoxCustom || type == FormatorType::PointCloud2) {
+    lidar = std::make_shared<LiDAR>();
+    return;
+  }
   if (type == FormatorType::OptionPack) {
     option = std::make_shared<Option>();
     return;
@@ -41,6 +45,19 @@ DataCluster::DataCluster(FormatorType type)
   if (type == FormatorType::ImagePack || type == FormatorType::ImageV4L2) {
     LOG(FATAL) << "Cannot initialize DataCluster::Image: "
            << "Image length should be given!";
+  }
+  LOG(FATAL) << "Cannot initialize: Data format not recognized!";
+}
+
+DataCluster::DataCluster(const Cloud_ptr& data, FormatorType type)
+{
+  if (type == FormatorType::LaserMap) {
+    laser_map = data;
+    return;
+  }
+  if (type == FormatorType::PointCloud2) {
+    keypoint = data;
+    return;
   }
   LOG(FATAL) << "Cannot initialize: Data format not recognized!";
 }

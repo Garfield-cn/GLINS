@@ -25,10 +25,10 @@ struct GnssImuInitializerOptions {
   // Maximum time in second for which the optimizer should run for
   double max_solver_time = 0.5;
 
-  // We should keep stady during this period to initialize roll, pitch and angular rate bias.
+  // We should keep steady during this period to initialize roll, pitch and angular rate bias.
   double time_window_length_slow_motion = 0.1;
 
-  // We should do a dynamic motion after the slow motion initilization has finished, the time 
+  // We should do a dynamic motion after the slow motion initialization has finished, the time
   // window will be used for bundle adjustment.
   double time_window_length_dynamic_motion = 0.5;
 

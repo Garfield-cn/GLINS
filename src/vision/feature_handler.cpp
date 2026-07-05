@@ -214,8 +214,6 @@ bool FeatureHandler::needKeyFrame(
   else {
     double disparity = getDisparity(keyframe, frame);
     if (disparity > options_.kfselect_min_disparity) {
-      LOG(INFO) << "Select new keyframe by disparity: " 
-                << disparity << " vs " << options_.kfselect_min_disparity;
       return true;
     }
   }
@@ -461,18 +459,6 @@ void FeatureHandler::addObservation(const FramePtr& frame)
 // Set the new frame as keyframe
 void FeatureHandler::setKeyFrame(const FrameBundlePtr& frame_bundle)
 {
-  // check if this frame tracked enough landmarks
-  const FramePtr& frame = frame_bundle->at(0);
-  int num_landmarks = 0;
-  for (const auto& type : frame->type_vec_) {
-    if (isSeed(type)) num_landmarks++;
-  }
-  if (num_landmarks < options_.kfselect_min_numkfs) {
-    // LOG(INFO) << "Too few landmarks tracked: " << num_landmarks
-    //           << ". Cannot set this frame as keyframe.";
-    // return;
-  }
-
   // set as keyframe
   frame_bundle->at(0)->setKeyframe();
   frame_bundle->setKeyframe();

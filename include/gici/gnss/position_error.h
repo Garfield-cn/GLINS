@@ -75,6 +75,7 @@ public:
   void setInformation(const information_t& information) {
     information_ = information;
     covariance_ = information.inverse();
+    //? do not understand
     // perform the Cholesky decomposition on order to obtain the correct error weighting
     Eigen::LLT<information_t> lltOfInformation(information_);
     square_root_information_ = lltOfInformation.matrixL().transpose();

@@ -90,6 +90,7 @@ bool initPoseAndBiases(const ImuMeasurements& imu_measurements,
   pose_increment.tail<3>() = ez_W.cross(e_acc).normalized();
   double angle = std::acos(ez_W.transpose() * e_acc);
   pose_increment.tail<3>() *= angle;
+  //? left ?right?
   T_WS = Transformation::exp(-pose_increment) * T_WS;
   T_WS.getRotation().normalize();
 

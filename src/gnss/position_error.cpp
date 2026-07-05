@@ -107,6 +107,7 @@ bool PositionError<Ns ...>::EvaluateWithMinimalJacobians(
         coordinate_->rotationMatrix(GeoType::ENU, GeoType::ECEF);
 
       // Body rotation in ENU
+      //? d(Rp)/dR = -(RP)^ ?
       Eigen::Matrix<double, 3, 3> J_q_WS = J_t_W * 
         -skewSymmetric(q_WS.toRotationMatrix() * t_SR_S);
 
@@ -138,6 +139,8 @@ bool PositionError<Ns ...>::EvaluateWithMinimalJacobians(
     if (parameter_block_group_ == 2)
     {
       // Pose
+      //? dr/dq = dr/d deltaR * d deltaR/dq ?
+      //? d deltaR/dq = 2 * Qq-1 ?
       if (jacobians[0] != nullptr) {
         Eigen::Map<Eigen::Matrix<double, 3, 7, Eigen::RowMajor>> J0(jacobians[0]);
         Eigen::Matrix<double, 3, 6, Eigen::RowMajor> J0_minimal;

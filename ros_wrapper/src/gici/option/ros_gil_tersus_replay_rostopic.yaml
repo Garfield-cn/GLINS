@@ -1,0 +1,233 @@
+# Gici board configurations
+stream:
+  streamers:
+  - streamer:
+      tag: str_ros_gnss_rov
+      type: ros
+      topic_name: /gnss_rover
+      io: input
+      queue_size: 100000
+      format: gnss_raw
+      enable_observation: true
+  - streamer:
+      tag: str_ros_gnss_ref
+      type: ros
+      topic_name: /gnss_reference
+      io: input
+      queue_size: 100000
+      format: gnss_raw
+      enable_observation: true
+      enable_antenna_position: true
+      enable_ephemeris: true
+  - streamer:
+      tag: str_ros_imu
+      type: ros
+      topic_name: /gici/imu_raw
+      io: input
+      queue_size: 100000
+      format: imu
+  - streamer:
+      tag: str_ros_lidar
+      type: ros
+      topic_name: /livox/lidar
+      io: input
+      queue_size: 100000
+      format: livox
+  - streamer:
+      tag: str_dcb_file
+      output_tags: [fmt_dcb_file]
+      type: file
+      path: option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      enable_time_tag: false
+  - streamer:
+      tag: str_current_scan
+      type: ros
+      topic_name: cloud_current
+      queue_size: 100000
+      io: output
+      format: pointcloud2
+  - streamer:
+      tag: str_map
+      type: ros
+      topic_name: cloud_map
+      queue_size: 100000
+      io: output
+      format: map
+  - streamer:
+      tag: str_landmark
+      type: ros
+      topic_name: landmark
+      queue_size: 100000
+      marker_scale: 0.5
+      io: output
+      format: landmark
+  - streamer:
+      tag: str_solution
+      type: ros
+      topic_name: solution
+      queue_size: 100000
+      io: output
+      format: pose_stamped
+  - streamer:
+      tag: str_solution_odometry
+      type: ros
+      topic_name: solution_odometry
+      queue_size: 10
+      io: output
+      format: odometry
+      subframe_id: Body
+  - streamer:
+      tag: str_solution_path
+      type: ros
+      topic_name: solution_path
+      queue_size: 100
+      io: output
+      format: path
+  - streamer:
+      tag: str_solution_navsatfix
+      type: ros
+      topic_name: solution_navsatfix
+      queue_size: 100
+      io: output
+      format: navsatfix
+  formators:
+  - formator:
+      io: input
+      tag: fmt_dcb_file
+      type: dcb-file
+  replay:
+    enable: false
+    speed: 1.0
+    start_offset: 50.0
+
+estimate:
+- estimator:
+    tag: est_rtk
+    type: rtk
+    input_tags: [str_ros_gnss_rov, str_ros_gnss_ref, fmt_dcb_file]
+    str_ros_gnss_rov_roles: [rover]
+    str_ros_gnss_ref_roles: [reference, ephemeris]
+    fmt_dcb_file_roles: [code_bias]
+    # output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
+    output_align_tag: str_ros_gnss_rov
+    compute_covariance: true
+    rtk_options:
+      max_window_length: 3
+      use_ambiguity_resolution: true
+      estimate_velocity: true
+    gnss_estimator_base_options:
+      gnss_common:
+#        system_exclude: [E, C]
+#        code_exclude: [G|5Q]
+#        mw_slip_thres: 0.5
+#        gf_slip_thres: 0.05
+#        gf_sd_slip_thres: 0.05
+#        min_elevation: 12.0
+#        min_SNR: [35.0, 30.0]
+      gnss_error_parameter:
+        doppler_error_factor: 1.0
+      use_outlier_rejection: true
+      max_pesudorange_error: 4.0
+      max_phaserange_error: 0.03
+      max_doppler_error: 0.5
+    estimator_base_options:
+      max_iteration: 10
+      num_threads: 2
+      max_solver_time: 0.05
+      verbose_output: false
+      solver_type: dense_schur
+      trust_region_strategy_type: dogleg
+    ambiguity_resolution_options:
+      system_exclude: [R]
+      min_percentage_fixation_uwl: 1.0
+      min_percentage_fixation_wl: 0.9
+      min_percentage_fixation_nl: 0.9
+      ratio: 2.0
+
+- estimator:
+    tag: est_gnss_imu_lidar_srr
+    type: gnss_imu_lidar_srr
+    input_tags: [str_ros_lidar, str_ros_imu, est_rtk]
+    str_ros_lidar_roles: [front]
+    str_ros_imu_roles: [major]
+    est_rtk_roles: [position_and_velocity]
+    output_tags: [str_solution, str_solution_odometry, str_solution_path, str_solution_navsatfix, str_current_scan, str_map, str_landmark]
+    output_align_tag: str_ros_imu
+    enable_input_align: true
+    input_align_latency: 1
+    output_downsample_rate: 40
+    compute_covariance: false
+    gnss_imu_lidar_srr_options:
+      max_window_length: 5
+      max_gnss_window_length_minor: 10
+      min_yaw_std_init_lidar: 1
+      reject_solution_std: 0.05
+      solution_recover_time: 2
+      lio_mode: false
+    gnss_loose_estimator_base_options:
+    lidar_estimator_base_options:
+      blind: 2
+      var: 1e-0
+      landmark_var: 1e-0
+      kfselect_min_dt: 0.5
+      T_B_L:
+        cols: 4
+        rows: 4
+        data: [ -0.005235963831, -0.006981164601,    0.9999619233, -0.0255208369,
+                -0.015707102,    -0.999851692, -0.007062639978,  0.1905764402,
+                0.9998629264,  -0.01574348365,  0.005125533432, -0.0183429036,
+                0.0000000000 , 0.0000000000,  0.0000000000,  1.0000000000 ]
+    imu_estimator_base_options:
+      imu_parameters:
+#        sigma_bg: 1.0e-1
+#        sigma_ba: 1.0e-1
+#        sigma_g_c: 2.6700e-02
+#        sigma_a_c: 0.112
+#        sigma_gw_c: 2.0881e-04
+#        sigma_aw_c: 2.7361e-02
+        sigma_bg: 1.0e-3
+        sigma_ba: 1.0e-2
+        sigma_g_c: 2.6700e-04
+        sigma_a_c: 0.0112
+        sigma_gw_c: 2.0881e-06
+        sigma_aw_c: 2.7361e-04
+      body_to_imu_rotation: [-90.0, -90.0, 0.0]
+      body_to_imu_rotation_std: 5.0
+      car_motion: true
+      car_motion_min_velocity: 3.0
+      car_motion_max_anguler_velocity: 5.0
+      zupt_sigma_zero_velocity: 1e-2
+    estimator_base_options:
+      max_iteration: 30
+      num_threads: 4
+      max_solver_time: 0.1
+      verbose_output: true
+      solver_type: sparse_normal_cholesky
+      trust_region_strategy_type: dogleg
+    gnss_imu_initializer_options:
+      max_iteration: 30
+      num_threads: 4
+      max_solver_time: 0.5
+      gnss_extrinsics: [-0.029, 0.354, -0.042]
+      gnss_extrinsics_initial_std: [0.0, 0.0, 0.0]
+      time_window_length_slow_motion: 0.3
+      time_window_length_dynamic_motion: 0.5
+      min_acceleration: 1.0
+    lidar_initializer_options:
+      window_length: 10
+    tree_handler_options:
+      filter_radius: 1
+      std_range: 0.03
+      std_angle: 0.1
+      max_near_dis: 1
+      max_plane_dis: 0.1
+      merge_size: 25
+      voxel_size: 3
+      max_layer: 2
+      max_points_num: 50
+      plane_threshold: 1e-1
+logging:
+  enable: true
+  min_log_level: 0
+  log_to_stderr: true
+  file_directory: log

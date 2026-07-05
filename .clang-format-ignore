@@ -1,0 +1,12 @@
+# Vendored code
+third_party/**
+**/rtklib/**
+**/rapidjson/**
+
+# Imported ikd-tree implementation
+include/gici/lidar/ikd_Tree.h
+src/lidar/ikd_Tree.cpp
+
+# Generated files
+**/build/**
+**/cmake-build-*/**

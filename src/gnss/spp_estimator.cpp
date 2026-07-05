@@ -513,9 +513,6 @@ bool loadNmeaFile(char *path, std::vector<NmeaEpoch>& epochs)
 
 namespace gici {
 
-static std::vector<NmeaEpoch> epochs_;
-static int epochs_idx_ = 0;
-
 // The default constructor
 SppEstimator::SppEstimator(const SppEstimatorOptions& options, 
                const GnssEstimatorBaseOptions& gnss_base_options, 
@@ -528,8 +525,6 @@ SppEstimator::SppEstimator(const SppEstimatorOptions& options,
   states_.push_back(State());
   gnss_measurements_.push_back(GnssMeasurement());
   can_compute_covariance_ = true;
-
-  loadNmeaFile("/media/cc/T7/ubuntu/datasets/urbannav/mediumurban/gnss/20210517.light-urban.tste.ublox.f9p.splitter.nmea", epochs_);
 }
 
 SppEstimator::SppEstimator(const SppEstimatorOptions& options, 
@@ -547,8 +542,6 @@ SppEstimator::SppEstimator(const SppEstimatorOptions& options,
   type_ = EstimatorType::Spp;
   states_.push_back(State());
   gnss_measurements_.push_back(GnssMeasurement());
-
-  loadNmeaFile("/media/cc/T7/ubuntu/datasets/urbannav/mediumurban/gnss/20210517.light-urban.tste.ublox.f9p.splitter.nmea", epochs_);
 }
 
 SppEstimator::SppEstimator(const GnssEstimatorBaseOptions& gnss_base_options) :
@@ -565,8 +558,6 @@ SppEstimator::SppEstimator(const GnssEstimatorBaseOptions& gnss_base_options) :
   type_ = EstimatorType::Spp;
   states_.push_back(State());
   gnss_measurements_.push_back(GnssMeasurement());
-
-  loadNmeaFile("/media/cc/T7/ubuntu/datasets/urbannav/mediumurban/gnss/20210517.light-urban.tste.ublox.f9p.splitter.nmea", epochs_);
 }
 
 // The default destructor
@@ -656,9 +647,9 @@ bool SppEstimator::addGnssMeasurementAndState(
 
   // clock block
   int num_valid_system = 0;
-  addClockParameterBlocks(curGnss(), curGnss().id, num_valid_system, 
-    std::map<char, double>(), true);
-  
+  addClockParameterBlocks(curGnss(), curGnss().id, num_valid_system, std::map<char, double>(),
+                          true);
+
   // Add pseudorange residual blocks
   int num_valid_satellite = 0;
   addPseudorangeResidualBlocks(
@@ -714,7 +705,7 @@ bool SppEstimator::estimate()
 
   // {
   //   std::ofstream outfile;
-  //   outfile.open("/home/cc/Work/Data/tmp/log.txt", std::ios::out | std::ios::trunc);
+  //   outfile.open("log.txt", std::ios::out | std::ios::trunc);
   //   outfile << graph_->summary.BriefReport() << std::endl;
 
   //   for (auto residual_map : graph_->residual_block_id_to_parameter_block_collection_map_) {
@@ -801,8 +792,8 @@ bool SppEstimator::estimate()
     // velocity block
     addGnssVelocityParameterBlock(curGnss().id);
     // frequency block
-    addFrequencyParameterBlocks(curGnss(), curGnss().id, num_valid_doppler_system, 
-      std::map<char, double>(), true);
+    addFrequencyParameterBlocks(curGnss(), curGnss().id, num_valid_doppler_system,
+                                std::map<char, double>(), true);
 
     // Add doppler residual blocks
     int num_valid_doppler_satellite = 0;

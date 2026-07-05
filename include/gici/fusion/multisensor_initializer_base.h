@@ -14,7 +14,7 @@
 
 namespace gici {
 
-// Initiliazer
+// Initializer
 class MultisensorInitializerBase : public virtual EstimatorBase {
 public:
   EIGEN_MAKE_ALIGNED_OPERATOR_NEW

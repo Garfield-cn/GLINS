@@ -9,7 +9,7 @@ set(CMAKE_C_FLAGS "-Wno-unused-but-set-variable")
 find_package(Eigen3 REQUIRED NO_MODULE)
 find_package(OpenCV 4 REQUIRED)
 find_package(catkin REQUIRED COMPONENTS
-  roscpp 
+  roscpp
   std_msgs
   nav_msgs
   sensor_msgs
@@ -37,9 +37,9 @@ include_directories(
 add_subdirectory(../../../.. gici.out)
 
 catkin_package(
-  INCLUDE_DIRS 
+  INCLUDE_DIRS
   CATKIN_DEPENDS roscpp std_msgs nav_msgs
-        sensor_msgs geometry_msgs 
+        sensor_msgs geometry_msgs
         tf tf_conversions cv_bridge
         image_transport eigen_conversions
         message_generation
@@ -55,35 +55,45 @@ aux_source_directory(src/ros_utility DIR_UTILITIES)
 # Executables
 add_executable(publish_ie_poses
               src/publish_ie_poses.cpp ${DIR_UTILITIES})
-target_link_libraries(publish_ie_poses 
+target_link_libraries(publish_ie_poses
               gici ${catkin_LIBRARIES})
 
 add_executable(publish_tum_poses
                src/publish_tum_poses.cpp ${DIR_UTILITIES})
-target_link_libraries(publish_tum_poses 
+target_link_libraries(publish_tum_poses
               gici ${catkin_LIBRARIES})
 
 add_executable(publish_nmea_poses
               src/publish_nmea_poses.cpp ${DIR_UTILITIES})
-target_link_libraries(publish_nmea_poses 
+target_link_libraries(publish_nmea_poses
               gici ${catkin_LIBRARIES})
 
 add_executable(imupack_to_rosbag
               src/imupack_to_rosbag.cpp)
-target_link_libraries(imupack_to_rosbag 
+target_link_libraries(imupack_to_rosbag
               gici ${catkin_LIBRARIES})
-              
+
 add_executable(imagepack_to_rosbag
               src/imagepack_to_rosbag.cpp)
-target_link_libraries(imagepack_to_rosbag 
+target_link_libraries(imagepack_to_rosbag
               gici ${catkin_LIBRARIES})
 
 add_executable(nmea_to_rosbag_navsatfix
               src/nmea_to_rosbag_navsatfix.cpp ${DIR_UTILITIES})
-target_link_libraries(nmea_to_rosbag_navsatfix 
+target_link_libraries(nmea_to_rosbag_navsatfix
+              gici ${catkin_LIBRARIES})
+
+add_executable(nmea_to_rosbag_odometry
+        src/nmea_to_rosbag_odometry.cpp ${DIR_UTILITIES})
+target_link_libraries(nmea_to_rosbag_odometry
+        gici ${catkin_LIBRARIES})
+
+add_executable(nmea_to_rosbag_navsatfix_vins
+              src/nmea_to_rosbag_navsatfix_obgins.cpp ${DIR_UTILITIES})
+target_link_libraries(nmea_to_rosbag_navsatfix_vins
               gici ${catkin_LIBRARIES})
 
 add_executable(gici_files_to_rosbag
               src/gici_files_to_rosbag.cpp ${DIR_UTILITIES})
-target_link_libraries(gici_files_to_rosbag 
+target_link_libraries(gici_files_to_rosbag
               gici ${catkin_LIBRARIES})

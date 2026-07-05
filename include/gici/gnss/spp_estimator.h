@@ -32,7 +32,7 @@ public:
                const EstimatorBaseOptions& base_options);
 
   // Contructor with GNSS estimator and SPP options. Other options are setted as defualt
-  SppEstimator(const SppEstimatorOptions& options, 
+  SppEstimator(const SppEstimatorOptions& options,
                const GnssEstimatorBaseOptions& gnss_base_options);
 
   // Contructor with GNSS estimator options. Other options are setted as defualt
@@ -96,6 +96,8 @@ protected:
 protected:
   // Options
   SppEstimatorOptions spp_options_;
+  double min_elevation_;
+  bool estimate_velocity_;
 };
 
 }

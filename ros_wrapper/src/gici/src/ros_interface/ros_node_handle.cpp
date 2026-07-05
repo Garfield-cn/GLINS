@@ -181,10 +181,12 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
     CHECK(input_tags.size() == input_tag_roles.size());
 
     // distinguish sensors
-    std::vector<std::string> gnss_tags, imu_tags, image_tags, solution_tags;
-    std::vector<std::vector<std::string>> gnss_roles, imu_roles, image_roles, solution_roles;
-    std::vector<std::shared_ptr<Streaming>> 
-      gnss_streamings, imu_streamings, image_streamings, solution_streamings;
+    std::vector<std::string> gnss_tags, imu_tags, image_tags, solution_tags, lidar_tags;
+    std::vector<std::vector<std::string>> gnss_roles, imu_roles, image_roles, solution_roles,
+        lidar_roles;
+    std::vector<std::shared_ptr<Streaming>> gnss_streamings, imu_streamings, image_streamings,
+        solution_streamings, lidar_streamings;
+
     for (size_t i = 0; i < input_tags.size(); i++) {
       const std::string& input_tag = input_tags[i];
       const std::vector<std::string>& roles = input_tag_roles[i];
@@ -244,9 +246,9 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
       else if (option_tools::sensorType(roles[0]) == SensorType::GeneralSolution) {
         solution_tags.push_back(input_tag);
         solution_roles.push_back(roles);
-        std::shared_ptr<Streaming> stream = is_ros ? 
-          getRosStreamFromTag(input_tag) : getStreamFromFormatorTag(input_tag);
-        if (!is_ros) {  
+        std::shared_ptr<Streaming> stream =
+            is_ros ? getRosStreamFromTag(input_tag) : getStreamFromFormatorTag(input_tag);
+        if (!is_ros) {
           bool found = false;
           for (auto streaming : solution_streamings) {
             if (stream->getTag() == streaming->getTag()) {
@@ -254,8 +256,24 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
             }
           }
           if (!found) solution_streamings.push_back(stream);
-        }
-        else solution_streamings.push_back(stream);
+        } else
+          solution_streamings.push_back(stream);
+      } else if (option_tools::sensorType(roles[0]) == SensorType::Lidar) {
+        lidar_tags.push_back(input_tag);
+        lidar_roles.push_back(roles);
+        std::shared_ptr<Streaming> stream =
+            is_ros ? getRosStreamFromTag(input_tag) : getStreamFromFormatorTag(input_tag);
+        if (!is_ros) {
+          bool found = false;
+          for (auto streaming : lidar_streamings) {
+            if (stream->getTag() == streaming->getTag()) {
+              found = true;
+              break;
+            }
+          }
+          if (!found) lidar_streamings.push_back(stream);
+        } else
+          lidar_streamings.push_back(stream);
       }
     }
 
@@ -265,6 +283,8 @@ void RosNodeHandle::rebindAllStreamerToEstimator(const NodeOptionHandlePtr& node
       estimating, gnss_streamings, gnss_tags, gnss_roles));
     data_integrations.push_back(std::make_shared<ImuDataIntegration>(
       estimating, imu_streamings, imu_tags, imu_roles));
+    data_integrations.push_back(std::make_shared<LidarDataIntegration>(estimating, lidar_streamings,
+                                                                       lidar_tags, lidar_roles));
     data_integrations.push_back(std::make_shared<ImageDataIntegration>(
       estimating, image_streamings, image_tags, image_roles));
     data_integrations.push_back(std::make_shared<SolutionDataIntegration>(

@@ -25,6 +25,7 @@
 #include <gici_ros/GnssSsrCodeBiases.h>
 #include <gici_ros/GnssSsrPhaseBiases.h>
 #include <gici_ros/GnssSsrEphemerides.h>
+#include <livox_ros_driver/CustomMsg.h>
 
 #include "gici/stream/node_handle.h"
 #include "gici/estimate/estimating.h"
@@ -36,12 +37,15 @@ namespace gici {
 enum class RosDataFormat {
   Image,
   Imu,
+  LivoxCustom,
+  PointCloud2,
   GnssRaw,
   PoseStamped,
   PoseWithCovarianceStamped,
   Odometry,
   NavSatFix,
   Marker,
+  CloudMap,
   Path
 };
 
@@ -108,12 +112,22 @@ private:
   // Send IMU data to ROS topic
   void imuDataOutputCallback(DataCluster::IMU& imu);
 
+  // Send the current LiDAR scan to a ROS visualization topic
+  void lidarDataOutputCallback(DataCluster::LiDAR& lidar);
+
+  // Send the LiDAR map to a ROS visualization topic
+  void lasermapOutputCallback(Cloud_ptr& map);
+
+  void planesOutputCallback(PlaneCloud_ptr& plane);
+
   // Send image data to ROS topic
   void imageDataOutputCallback(DataCluster::Image& image);
 
   // ROS callbacks
   void imageCallback(const sensor_msgs::ImageConstPtr& msg);
   void imuCallback(const sensor_msgs::ImuConstPtr& msg);
+  void livoxCallback(const livox_ros_driver::CustomMsg::ConstPtr& msg);
+  void pc2Callback(const sensor_msgs::PointCloud2::ConstPtr& msg);
   void gnssObservationsCallback(const gici_ros::GnssObservationsConstPtr& msg);
   void gnssEphemeridesCallback(const gici_ros::GnssEphemeridesConstPtr& msg);
   void gnssAntennaPositionCallback(const gici_ros::GnssAntennaPositionConstPtr& msg);

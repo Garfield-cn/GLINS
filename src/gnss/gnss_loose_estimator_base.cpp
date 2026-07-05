@@ -16,11 +16,13 @@
 namespace gici {
 
 // The default constructor
-GnssLooseEstimatorBase::GnssLooseEstimatorBase(
-                    const GnssLooseEstimatorBaseOptions& options,
-                    const EstimatorBaseOptions& base_options) :
-  gnss_loose_base_options_(options), EstimatorBase(base_options)
-{}
+GnssLooseEstimatorBase::GnssLooseEstimatorBase(const GnssLooseEstimatorBaseOptions& options,
+                                               const EstimatorBaseOptions& base_options) :
+  gnss_loose_base_options_(options),
+  EstimatorBase(base_options)
+{
+  loss_function_ = new ceres::CauchyLoss(2);
+}
 
 // The default destructor
 GnssLooseEstimatorBase::~GnssLooseEstimatorBase()
@@ -145,14 +147,11 @@ void GnssLooseEstimatorBase::addGnssPositionResidualBlock(
   CHECK(gnss_extrinsics_id_.valid());
   if (!measurement.has_position) return;
 
-  std::shared_ptr<PositionError<7, 3>> position_error = 
-    std::make_shared<PositionError<7, 3>>(measurement.position, 
-    measurement.covariance.topLeftCorner(3, 3).inverse());
+  std::shared_ptr<PositionError<7, 3>> position_error = std::make_shared<PositionError<7, 3>>(
+      measurement.position, (measurement.covariance.topLeftCorner(3, 3) * 1).inverse());
   position_error->setCoordinate(coordinate_);
-  ceres::ResidualBlockId residual_id = 
-    graph_->addResidualBlock(position_error, 
-      nullptr,   
-      graph_->parameterBlockPtr(state.id_in_graph.asInteger()),
+  ceres::ResidualBlockId residual_id = graph_->addResidualBlock(
+      position_error, nullptr, graph_->parameterBlockPtr(state.id_in_graph.asInteger()),
       graph_->parameterBlockPtr(gnss_extrinsics_id_.asInteger()));
 }
 
@@ -168,15 +167,13 @@ void GnssLooseEstimatorBase::addGnssVelocityResidualBlock(
 
   BackendId pose_id = state.id_in_graph;
   BackendId speed_and_bias_id = changeIdType(pose_id, IdType::ImuStates);
-  std::shared_ptr<VelocityError<7, 9, 3>> velocity_error = 
-    std::make_shared<VelocityError<7, 9, 3>>(measurement.velocity, 
-    measurement.covariance.bottomRightCorner(3, 3).inverse(), angular_velocity);
+  std::shared_ptr<VelocityError<7, 9, 3>> velocity_error = std::make_shared<VelocityError<7, 9, 3>>(
+      measurement.velocity, (measurement.covariance.bottomRightCorner(3, 3) * 1).inverse(),
+      angular_velocity);
   velocity_error->setCoordinate(coordinate_);
-  ceres::ResidualBlockId residual_id = 
-    graph_->addResidualBlock(velocity_error, 
-      nullptr,   
-      graph_->parameterBlockPtr(pose_id.asInteger()),
-      graph_->parameterBlockPtr(speed_and_bias_id.asInteger()), 
+  ceres::ResidualBlockId residual_id = graph_->addResidualBlock(
+      velocity_error, nullptr, graph_->parameterBlockPtr(pose_id.asInteger()),
+      graph_->parameterBlockPtr(speed_and_bias_id.asInteger()),
       graph_->parameterBlockPtr(gnss_extrinsics_id_.asInteger()));
 }
 

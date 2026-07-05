@@ -28,6 +28,8 @@
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/ppp_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/gnss_imu_lidar_srr_estimator.h"
+#include "gici/fusion/rtk_imu_lidar_rrr_estimator.h"
 #include "gici/fusion/spp_imu_camera_rrr_estimator.h"
 #include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
@@ -61,8 +63,11 @@ private:
   // Handle non-time-propagation sensors
   void handleNonTimePropagationSensors(EstimatorDataCluster& data);
 
-  // Handle sensors that need frontends
-  void handleFrontendSensors(EstimatorDataCluster& data);
+  // Handle sensors that require the image frontend
+  void handleImageFrontendSensors(EstimatorDataCluster& data);
+
+  // Handle sensors that require the LiDAR frontend
+  void handleLidarFrontendSensors(EstimatorDataCluster& data);
 
   // Put data from addin buffer to measurement buffer
   void putMeasurements();
@@ -72,6 +77,9 @@ private:
 
   // Image frontend processing
   void runImageFrontend();
+
+  // LiDAR frontend processing
+  void runLidarFrontend();
 
   // Measurement addin thread
   void runMeasurementAddin();
@@ -83,50 +91,54 @@ private:
   inline bool estimatorTypeContains(
     SensorType sensor_type, EstimatorType estimator_type) {
     if (sensor_type == SensorType::GNSS) {
-      return (estimator_type == EstimatorType::Spp || 
-              estimator_type == EstimatorType::Sdgnss ||
-              estimator_type == EstimatorType::Dgnss || 
-              estimator_type == EstimatorType::Rtk || 
-              estimator_type == EstimatorType::Ppp || 
-              estimator_type == EstimatorType::GnssImuLc || 
-              estimator_type == EstimatorType::SppImuTc || 
+      return (estimator_type == EstimatorType::Spp || estimator_type == EstimatorType::Sdgnss ||
+              estimator_type == EstimatorType::Dgnss || estimator_type == EstimatorType::Rtk ||
+              estimator_type == EstimatorType::Ppp || estimator_type == EstimatorType::GnssImuLc ||
+              estimator_type == EstimatorType::SppImuTc ||
               estimator_type == EstimatorType::DgnssImuTc ||
-              estimator_type == EstimatorType::RtkImuTc || 
+              estimator_type == EstimatorType::RtkImuTc ||
               estimator_type == EstimatorType::PppImuTc ||
-              estimator_type == EstimatorType::GnssImuCameraSrr || 
+              estimator_type == EstimatorType::GnssImuCameraSrr ||
+              estimator_type == EstimatorType::GnssImuLidarSrr ||
               estimator_type == EstimatorType::SppImuCameraRrr ||
               estimator_type == EstimatorType::DgnssImuCameraRrr ||
-              estimator_type == EstimatorType::RtkImuCameraRrr || 
+              estimator_type == EstimatorType::RtkImuCameraRrr ||
+              estimator_type == EstimatorType::RtkImuLidarRrr ||
               estimator_type == EstimatorType::PppImuCameraRrr);
+
     }
     else if (sensor_type == SensorType::IMU) {
-      return (estimator_type == EstimatorType::GnssImuLc || 
-              estimator_type == EstimatorType::SppImuTc || 
-              estimator_type == EstimatorType::DgnssImuTc ||
-              estimator_type == EstimatorType::RtkImuTc || 
-              estimator_type == EstimatorType::PppImuTc ||
-              estimator_type == EstimatorType::GnssImuCameraSrr || 
-              estimator_type == EstimatorType::SppImuCameraRrr ||
-              estimator_type == EstimatorType::DgnssImuCameraRrr ||
-              estimator_type == EstimatorType::RtkImuCameraRrr || 
-              estimator_type == EstimatorType::PppImuCameraRrr);
+      return (
+          estimator_type == EstimatorType::GnssImuLc || estimator_type == EstimatorType::SppImuTc ||
+          estimator_type == EstimatorType::DgnssImuTc ||
+          estimator_type == EstimatorType::RtkImuTc || estimator_type == EstimatorType::PppImuTc ||
+          estimator_type == EstimatorType::GnssImuCameraSrr ||
+          estimator_type == EstimatorType::GnssImuLidarSrr ||
+          estimator_type == EstimatorType::SppImuCameraRrr ||
+          estimator_type == EstimatorType::DgnssImuCameraRrr ||
+          estimator_type == EstimatorType::RtkImuCameraRrr ||
+          estimator_type == EstimatorType::RtkImuLidarRrr ||
+          estimator_type == EstimatorType::PppImuCameraRrr);
     }
     else if (sensor_type == SensorType::Camera) {
-      return (estimator_type == EstimatorType::GnssImuCameraSrr || 
+      return (estimator_type == EstimatorType::GnssImuCameraSrr ||
               estimator_type == EstimatorType::SppImuCameraRrr ||
               estimator_type == EstimatorType::DgnssImuCameraRrr ||
-              estimator_type == EstimatorType::RtkImuCameraRrr || 
+              estimator_type == EstimatorType::RtkImuCameraRrr ||
               estimator_type == EstimatorType::PppImuCameraRrr);
-    }
-    else return false;
+    } else if (sensor_type == SensorType::Lidar) {
+      return (estimator_type == EstimatorType::GnssImuLidarSrr ||
+              estimator_type == EstimatorType::RtkImuLidarRrr);
+    } else
+      return false;
   }
 
   // Check if there are more than one non-time-propagation sensors
   inline bool needTimeAlign(EstimatorType estimator_type) {
-    return (estimator_type == EstimatorType::GnssImuCameraSrr || 
+    return (estimator_type == EstimatorType::GnssImuCameraSrr ||
             estimator_type == EstimatorType::SppImuCameraRrr ||
             estimator_type == EstimatorType::DgnssImuCameraRrr ||
-            estimator_type == EstimatorType::RtkImuCameraRrr || 
+            estimator_type == EstimatorType::RtkImuCameraRrr ||
             estimator_type == EstimatorType::PppImuCameraRrr);
   }
 
@@ -138,6 +150,7 @@ private:
     if (data.image) num_data_type++;
     if (data.frame_bundle) num_data_type++;
     if (data.solution) num_data_type++;
+    if (data.lidar) num_data_type++;
     if (num_data_type > 1) {
       LOG(WARNING) << "Estimator data cluster should contain only one "
                    << "data type at one pack!";
@@ -150,9 +163,16 @@ private:
     return false;
   }
 
-  // Check if the data needs a frontend
-  inline bool estimatorDataNeedFrontend(const EstimatorDataCluster& data) {
+  // Check whether the data requires the image frontend
+  inline bool estimatorDataNeedImageFrontend(const EstimatorDataCluster& data)
+  {
     return (data.image != nullptr);
+  }
+
+  // Check whether the data requires the LiDAR frontend
+  inline bool estimatorDataNeedLidarFrontend(const EstimatorDataCluster& data)
+  {
+    return (data.lidar != nullptr && data.lidar->need_frontend);
   }
 
   // Check if the data will be used for time propagation (only support IMU)
@@ -167,11 +187,17 @@ protected:
   // Backend thread handles
   std::unique_ptr<std::thread> backend_thread_;
 
-  // Front thread handles
+  // Image frontend thread handle
   std::unique_ptr<std::thread> image_frontend_thread_;
+
+  // LiDAR frontend thread handle
+  std::unique_ptr<std::thread> lidar_frontend_thread_;
 
   // Frontend control
   std::shared_ptr<FeatureHandler> feature_handler_;
+
+  // LiDAR point-cloud management
+  std::shared_ptr<TreeHandler> tree_handler_;
 
   // Coordinate
   bool force_initial_global_position_;
@@ -181,17 +207,19 @@ protected:
   // Data buffers
   std::deque<EstimatorDataCluster> measurements_;  // non propagate measurements
   int last_backend_pending_num_ = 0;
-  // the frontend measurements should be processd by frontend, and the output of frontend will 
-  // be inserted into measurements_.
-  std::deque<EstimatorDataCluster> image_frontend_measurements_; 
+  // Frontend input queues; processed measurements are inserted into measurements_
+  std::deque<EstimatorDataCluster> image_frontend_measurements_;
+  std::deque<EstimatorDataCluster> lidar_frontend_measurements_;
   int last_image_pending_num_ = 0;
+  int last_lidar_pending_num_ = 0;
+  double last_lidar_timestamp = 0;
   // buffer to temporarily store measurements in case the input stream blocking
   std::deque<EstimatorDataCluster> measurement_addin_buffer_;
   // buffer to align timestamps of different sensor streams
   std::deque<EstimatorDataCluster> measurement_align_buffer_;
   double latest_imu_timestamp_;
   // mutex to lock buffers and processes
-  std::mutex mutex_addin_, mutex_input_, mutex_image_input_;
+  std::mutex mutex_addin_, mutex_input_, mutex_image_input_, mutex_lidar_input_;
   std::mutex mutex_output_;
 
   // Options
@@ -200,7 +228,9 @@ protected:
   GnssLooseEstimatorBaseOptions gnss_loose_base_options_;
   ImuEstimatorBaseOptions imu_base_options_;
   VisualEstimatorBaseOptions visual_estimator_base_options_;
+  LidarEstimatorBaseOptions lidar_estimator_base_options_;
   FeatureHandlerOptions feature_handler_options_;
+  TreeHandlerOptions tree_handler_options_;
   SppEstimatorOptions spp_options_;
   SdgnssEstimatorOptions sdgnss_options_;
   DgnssEstimatorOptions dgnss_options_;
@@ -213,9 +243,10 @@ protected:
   RtkImuTcEstimatorOptions rtk_imu_tc_options_;
   PppImuTcEstimatorOptions ppp_imu_tc_options_;
   GnssImuCameraSrrEstimatorOptions gnss_imu_camera_srr_options_;
+  GnssImuLidarSrrEstimatorOptions gnss_imu_lidar_srr_options_;
   SppImuCameraRrrEstimatorOptions spp_imu_camera_rrr_options_;
   RtkImuCameraRrrEstimatorOptions rtk_imu_camera_rrr_options_;
-
+  RtkImuLidarRrrEstimatorOptions rtk_imu_lidar_rrr_options_;
   // Solutions
   bool backend_firstly_updated_ = false;
 };

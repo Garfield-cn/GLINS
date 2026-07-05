@@ -4,14 +4,14 @@ stream:
   - streamer:
       tag: str_ros_gnss_rov
       type: ros
-      topic_name: /gici/gnss_rover
+      topic_name: /gnss_rover
       io: input
       format: gnss_raw
       enable_observation: true
   - streamer:
       tag: str_ros_gnss_ref
       type: ros
-      topic_name: /gici/gnss_reference
+      topic_name: /gnss_reference
       io: input
       format: gnss_raw
       enable_observation: true
@@ -19,27 +19,27 @@ stream:
   - streamer:
       tag: str_ros_gnss_eph
       type: ros
-      topic_name: /gici/gnss_ephemeris
+      topic_name: /gnss_ephemeris
       io: input
       format: gnss_raw
       enable_ephemeris: true
   - streamer:
       tag: str_ros_imu
       type: ros
-      topic_name: /mavros/imu/data
+      topic_name: /gici/imu_raw
       io: input
       format: imu  
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Work/Data/tmp/solution.txt
+      path: GLINS-LC.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -157,4 +157,4 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  file_directory: log

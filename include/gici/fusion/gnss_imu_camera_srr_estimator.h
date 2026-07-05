@@ -10,6 +10,7 @@
 
 #include "gici/gnss/gnss_loose_estimator_base.h"
 #include "gici/imu/imu_estimator_base.h"
+#include "gici/lidar/lidar_estimator_base.h"
 #include "gici/vision/visual_estimator_base.h"
 #include "gici/fusion/gnss_imu_initializer.h"
 

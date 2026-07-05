@@ -1,0 +1,54 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+
+[*.{h,hpp,c,cc,cpp}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+[{CMakeLists.txt,*.cmake,*.yaml,*.yml,*.sh,*.xml}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+
+# Do not impose GLINS formatting rules on vendored implementations.
+[third_party/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+tab_width = unset
+
+[**/rtklib/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+tab_width = unset
+
+[**/rapidjson/**]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+tab_width = unset
+
+[{include/gici/lidar/ikd_Tree.h,src/lidar/ikd_Tree.cpp}]
+charset = unset
+end_of_line = unset
+insert_final_newline = unset
+trim_trailing_whitespace = unset
+indent_style = unset
+indent_size = unset
+tab_width = unset

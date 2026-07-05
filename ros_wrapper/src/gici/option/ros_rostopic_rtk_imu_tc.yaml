@@ -4,42 +4,36 @@ stream:
   - streamer:
       tag: str_ros_gnss_rov
       type: ros
-      topic_name: /gici/gnss_rover
+      topic_name: /gnss_rover
       io: input
       format: gnss_raw
       enable_observation: true
   - streamer:
       tag: str_ros_gnss_ref
       type: ros
-      topic_name: /gici/gnss_reference
+      topic_name: /gnss_reference
       io: input
       format: gnss_raw
       enable_observation: true
       enable_antenna_position: true
-  - streamer:
-      tag: str_ros_gnss_eph
-      type: ros
-      topic_name: /gici/gnss_ephemeris
-      io: input
-      format: gnss_raw
       enable_ephemeris: true
   - streamer:
       tag: str_ros_imu
       type: ros
-      topic_name: /mavros/imu/data
+      topic_name: /gici/imu_raw
       io: input
       format: imu  
   - streamer:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Work/Data/tmp/solution.txt
+      path: GLINS-TC.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -80,10 +74,9 @@ estimate:
 - estimator:
     tag: est_rtk_imu_tc
     type: rtk_imu_tc
-    input_tags: [str_ros_gnss_rov, str_ros_gnss_ref, str_ros_gnss_eph, fmt_dcb_file, str_ros_imu]
+    input_tags: [str_ros_gnss_rov, str_ros_gnss_ref, fmt_dcb_file, str_ros_imu]
     str_ros_gnss_rov_roles: [rover]
-    str_ros_gnss_ref_roles: [reference]
-    str_ros_gnss_eph_roles: [ephemeris]
+    str_ros_gnss_ref_roles: [reference, ephemeris]
     fmt_dcb_file_roles: [code_bias]
     str_ros_imu_roles: [major]
     output_tags: [str_solution, str_solution_odometry, str_solution_path, fmt_solution_file]
@@ -102,7 +95,8 @@ estimate:
       use_outlier_rejection: true
       reject_one_outlier_once: false
       max_pesudorange_error: 4.0
-      max_phaserange_error: 0.03
+      max_phaserange_error: 0.06
+      max_doppler_error: 0.5
     imu_estimator_base_options:
       imu_parameters:
         sigma_bg: 1.0e-3
@@ -111,14 +105,16 @@ estimate:
         sigma_a_c: 0.0112
         sigma_gw_c: 2.0881e-06
         sigma_aw_c: 2.7361e-04
-      body_to_imu_rotation: [0.0, 0.0, 0.0]
+      body_to_imu_rotation: [-90.0, -90.0, 0.0]
     estimator_base_options:
-      max_iteration: 5
+      max_iteration: 30
       num_threads: 4
       max_solver_time: 0.05
       verbose_output: true
       solver_type: dense_schur
       trust_region_strategy_type: dogleg
+      log_intermediate_data: true
+      log_intermediate_data_directory: log
     ambiguity_resolution_options:
       system_exclude: [R]
       min_percentage_fixation_uwl: 1.0
@@ -129,9 +125,9 @@ estimate:
       max_iteration: 30
       num_threads: 4
       max_solver_time: 0.5
-      gnss_extrinsics: [-0.05, 0.03, 0.1]
+      gnss_extrinsics: [-0.029, 0.354, -0.042]
       gnss_extrinsics_initial_std: [0.0, 0.0, 0.0]
-      time_window_length_slow_motion: 0.3
+      time_window_length_slow_motion: 0.1
       time_window_length_dynamic_motion: 0.5
       min_acceleration: 1.0
 
@@ -139,4 +135,4 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  file_directory: log

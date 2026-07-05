@@ -18,19 +18,25 @@
 #include "gici/utility/rtklib_safe.h"
 #include "gici/estimate/estimator_types.h"
 #include "gici/gnss/code_bias.h"
+// #include <pcl_conversions/pcl_conversions.h>
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
 
 namespace gici {
 
 // Formator types
 enum class FormatorType {
-  RTCM2, 
+  RTCM2,
   RTCM3,
-  GnssRaw, 
-  RINEX, 
+  GnssRaw,
+  RINEX,
   ImageV4L2,
-  ImagePack,  
+  ImagePack,
   IMUPack,
-  OptionPack, 
+  LivoxCustom,
+  PointCloud2,
+  LaserMap,
+  OptionPack,
   NMEA,
   DcbFile,
   AtxFile
@@ -65,6 +71,11 @@ public:
 
   DataCluster(const MapPtr& data) : map(data) {}
 
+  DataCluster(const Cloud_ptr& data, FormatorType type);
+
+  DataCluster(const PlaneCloud_ptr& data) :
+    planes(data){};
+
   ~DataCluster();
 
   // GNSS data format
@@ -97,6 +108,17 @@ public:
     double angular_velocity[3];
   };
 
+  struct LiDAR {
+    LiDAR() :
+      cloud_ptr(new Cloud()){};
+
+    double timebase;
+    double timefinal;
+    int seq;
+    size_t valid_num;
+    Cloud_ptr cloud_ptr;
+  };
+
   // Option data format
   struct Option {
 
@@ -106,12 +128,15 @@ public:
   std::shared_ptr<GNSS> gnss;
   std::shared_ptr<Image> image;
   std::shared_ptr<IMU> imu;
+  std::shared_ptr<LiDAR> lidar;
   std::shared_ptr<Option> option;
 
   // Output data types
   std::shared_ptr<Solution> solution;
   std::shared_ptr<Frame> frame;
   std::shared_ptr<Map> map;
+  Cloud_ptr laser_map, keypoint;
+  PlaneCloud_ptr planes;
 };
 
 // Formats of FormatorType::GNSS_Raw

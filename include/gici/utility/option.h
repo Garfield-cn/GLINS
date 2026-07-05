@@ -11,19 +11,14 @@
 #include <iostream>
 #include <glog/logging.h>
 #include <yaml-cpp/yaml.h>
+#include <Eigen/Core>
+#include <aslam/common/yaml-serialization.h>
 
 namespace gici {
 
 namespace option_tools {
 
-enum class SensorType {
-  None,
-  GNSS,
-  IMU,
-  Camera,
-  GeneralSolution,
-  Option
-};
+enum class SensorType { None, GNSS, IMU, Camera, GeneralSolution, Lidar, Option };
 
 // Convert options from yaml type to gici type
 template <typename InType, typename OutType>

@@ -34,6 +34,14 @@
 # VSCode settings
 .vscode
 
+# IDE settings
+.idea/
+
+# Local build trees
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
 # Distribution / packaging
 .Python
 env/
@@ -44,6 +52,16 @@ dist/
 # ROS
 devel/
 .catkin_workspace
+/ros_wrapper/src/CMakeLists.txt
+/tools/ros/src/CMakeLists.txt
+
+# Runtime output
+log/
+
+# Editor and local backup files
+*.swp
+*-cp.yaml
+* copy.yaml
 
 # others
 trash/
@@ -52,7 +70,6 @@ third_party/eigen/
 third_party/glog/
 third_party/opencv/
 third_party/yaml-cpp/
-ros_wrapper/src/CMakeLists.txt
 *_with_passward.yaml
 data*/
 bin/

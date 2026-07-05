@@ -334,77 +334,6 @@ void GnssDataIntegration::handleGNSS(const std::string& formator_tag,
     it_gnss_callback(estimator_data);
   }
 
-  // static rtk_t *rtk = NULL;
-  // prcopt_t prcopt={ /* defaults processing options */
-  //     PMODE_PPP_KINEMA,0,2,SYS_GPS|SYS_GAL|SYS_GLO,   /* mode,soltype,nf,navsys */
-  //     12.0*D2R,{{0,0}},           /* elmin,snrmask */
-  //     EPHOPT_SSRAPC,0,0,0,                    /* sateph,modear,glomodear,bdsmodear */
-  //     5,0,10,1,                   /* maxout,minlock,minfix,armaxiter */
-  //     IONOOPT_IFLC,TROPOPT_EST,0,1,                    /* estion,esttrop,dynamics,tidecorr */
-  //     1,0,0,0,0,                  /* niter,codesmooth,intpref,sbascorr,sbassatsel */
-  //     0,0,                        /* rovpos,refpos */
-  //     {1000.0,1000.0},              /* eratio[] */
-  //     {100.0,0.003,0.003,0.0,1.0}, /* err[] */
-  //     {30.0,0.03,0.3},            /* std[] */
-  //     {1E-4,1E-3,1E-4,1E-1,1E-2,0.0}, /* prn[] */
-  //     5E-12,                      /* sclkstab */
-  //     {3.0,0.9999,0.25,0.1,0.05}, /* thresar */
-  //     0.0,0.0,0.05,               /* elmaskar,almaskhold,thresslip */
-  //     30.0,30.0,30.0,             /* maxtdif,maxinno,maxgdop */
-  //     {0},{0},{0},                /* baseline,ru,rb */
-  //     {"",""},                    /* anttype */
-  //     {{0}},{{0}},{0}             /* antdel,pcv,exsats */
-  // };
-  // prcopt.snrmask.ena[0] = 1;
-  // for (int i = 0; i < NFREQ; i++) for (int j = 0; j < 9; j++) {
-  //   prcopt.snrmask.mask[i][j] = 30.0;
-  // }
-  // CodeBias::BaseFrequencies bases;
-  // bases.insert(std::make_pair('G', std::make_pair(CODE_L1W, CODE_L2W)));
-  // bases.insert(std::make_pair('R', std::make_pair(CODE_L1P, CODE_L2P)));
-  // bases.insert(std::make_pair('E', std::make_pair(CODE_L1C, CODE_L5Q)));
-  // bases.insert(std::make_pair('C', std::make_pair(CODE_L2I, CODE_L6I)));
-  // if (rtk == NULL) {
-  //   rtk = (rtk_t *)malloc(sizeof(rtk_t));
-  //   rtkinit(rtk, &prcopt);
-  // }
-  // if (role_out == GnssRole::Rover) {
-  //   for (int i = 0; i < obs->n; i++) {
-  //     obs->data[i].rcv = 1;
-  //     for (int j = 0; j < NFREQ + NEXOBS; j++) {
-  //       char sys = gnss_common::systemConvert(satsys(obs->data[i].sat, NULL));
-  //       if (sys == 0x00) continue;
-  //       auto base = bases.at(sys);
-  //       if (gnss_common::getPhaseID(sys, obs->data[i].code[j]) == gnss_common::getPhaseID(sys, base.first)) {
-  //         obs->data[i].code[0] = obs->data[i].code[j];
-  //         obs->data[i].SNR[0] = obs->data[i].SNR[j];
-  //         obs->data[i].LLI[0] = obs->data[i].LLI[j];
-  //         obs->data[i].L[0] = obs->data[i].L[j];
-  //         obs->data[i].P[0] = obs->data[i].P[j];
-  //         obs->data[i].D[0] = obs->data[i].D[j];
-  //       }
-  //       if (gnss_common::getPhaseID(sys, obs->data[i].code[j]) == gnss_common::getPhaseID(sys, base.second)) {
-  //         obs->data[i].code[1] = obs->data[i].code[j];
-  //         obs->data[i].SNR[1] = obs->data[i].SNR[j];
-  //         obs->data[i].LLI[1] = obs->data[i].LLI[j];
-  //         obs->data[i].L[1] = obs->data[i].L[j];
-  //         obs->data[i].P[1] = obs->data[i].P[j];
-  //         obs->data[i].D[1] = obs->data[i].D[j];
-  //       }
-  //     }
-  //   }
-  //   rtkpos(rtk, obs->data, obs->n, nav);
-  //   static FILE *fp_sol = fopen("/home/cc/Work/Data/tmp/rtklib_solution.txt", "w+");
-  //   const solopt_t solopt={ /* defaults solution output options */
-  //       SOLF_NMEA,TIMES_GPST,1,3,    /* posf,times,timef,timeu */
-  //       0,0,0,0,0,0,0,              /* degf,outhead,outopt,outvel,datum,height,geoid */
-  //       0,0,0,                      /* solstatic,sstat,trace */
-  //       {0.0,0.0},                  /* nmeaintv */
-  //       " ",""                      /* separator/program name */
-  //   };
-  //   outsol(fp_sol, &rtk->sol, rtk->sol.rr, &solopt);
-  //   fflush(fp_sol);
-  // }
 }
 
 // Update GNSS ephemerides to local
@@ -579,6 +508,52 @@ void ImuDataIntegration::handleIMU(const std::string& formator_tag,
   }
 }
 
+void LidarDataIntegration::dataCallback(const std::string& input_tag,
+                                        const std::shared_ptr<DataCluster>& data)
+{
+  if (data->lidar && valid_) {
+    mutex_.lock();
+    handleLidar(input_tag, data->lidar);
+    mutex_.unlock();
+  }
+}
+
+void LidarDataIntegration::handleLidar(const std::string& formator_tag,
+                                       const std::shared_ptr<DataCluster::LiDAR>& lidar)
+{
+  // Get role
+  if (behaviors_.find(formator_tag) == behaviors_.end()) {
+    LOG(ERROR) << "Formator tag " << formator_tag << " not registered!";
+    return;
+  }
+  std::vector<LidarRole> roles;
+  bool has_front = false;
+  for (size_t i = 0; i < behaviors_.at(formator_tag).size(); i++) {
+    roles.push_back(LidarRole());
+    option_tools::convert(behaviors_.at(formator_tag)[i], roles[i]);
+    if (roles[i] == LidarRole::Side) {
+      LOG(WARNING) << "We do not support multiple LiDAR currently!";
+      return;
+    }
+    if (roles[i] == LidarRole::Front) has_front = true;
+  }
+  if (roles.size() > 1) {
+    LOG(ERROR) << "A LiDAR should has only one role!";
+  } else if (roles.size() == 0) {
+    LOG(ERROR) << "No role for current LiDAR was specified!";
+    return;
+  }
+
+  LidarMeasurement scan(lidar->timebase, lidar->timefinal, lidar->seq);
+  scan.need_frontend = true;
+  scan.cloud_ptr.reset(new Cloud(*lidar->cloud_ptr));
+
+  for (auto it_lidar_callback : estimator_callbacks_) {
+    EstimatorDataCluster estimator_data(scan, roles[0],
+                                        formator_tag.substr(4, formator_tag.size() - 4));
+    it_lidar_callback(estimator_data);
+  }
+}
 // Data callback
 void ImageDataIntegration::dataCallback(
   const std::string& input_tag, const std::shared_ptr<DataCluster>& data)

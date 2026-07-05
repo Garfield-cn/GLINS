@@ -26,14 +26,17 @@
 #include "gici/gnss/code_phase_maps.h"
 #include "gici/imu/imu_estimator_base.h"
 #include "gici/gnss/gnss_loose_estimator_base.h"
+#include "gici/lidar/lidar_estimator_base.h"
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/fusion/gnss_imu_initializer.h"
 #include "gici/fusion/spp_imu_tc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/ppp_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/gnss_imu_lidar_srr_estimator.h"
 #include "gici/fusion/spp_imu_camera_rrr_estimator.h"
 #include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
+#include "gici/fusion/rtk_imu_lidar_rrr_estimator.h"
 
 namespace gici {
 
@@ -131,6 +134,14 @@ void convert<std::string, ImuRole>
 }
 
 template <>
+void convert<std::string, LidarRole>(const std::string& in, LidarRole& out)
+{
+  MAP_IN_OUT("front", LidarRole::Front);
+  MAP_IN_OUT("side", LidarRole::Side);
+  LOG_INVALId;
+}
+
+template <>
 void convert<std::string, CameraRole>
   (const std::string& in, CameraRole& out)
 {
@@ -156,6 +167,8 @@ void convert<std::string, EstimatorType>
   MAP_IN_OUT("rtk_imu_tc", EstimatorType::RtkImuTc);
   MAP_IN_OUT("ppp_imu_tc", EstimatorType::PppImuTc);
   MAP_IN_OUT("gnss_imu_camera_srr", EstimatorType::GnssImuCameraSrr);
+  MAP_IN_OUT("gnss_imu_lidar_srr", EstimatorType::GnssImuLidarSrr);
+  MAP_IN_OUT("rtk_imu_lidar_rrr", EstimatorType::RtkImuLidarRrr);
   MAP_IN_OUT("spp_imu_camera_rrr", EstimatorType::SppImuCameraRrr);
   MAP_IN_OUT("dgnss_imu_camera_rrr", EstimatorType::DgnssImuCameraRrr);
   MAP_IN_OUT("rtk_imu_camera_rrr", EstimatorType::RtkImuCameraRrr);
@@ -242,7 +255,9 @@ SensorType sensorType(std::string in)
   MAP_IN_RET("ssr_ephemeris", SensorType::GNSS);
   MAP_IN_RET("phase_center", SensorType::GNSS);
   MAP_IN_RET("major", SensorType::IMU);
-  MAP_IN_RET("major", SensorType::IMU);
+  MAP_IN_RET("minor", SensorType::IMU);
+  MAP_IN_RET("front", SensorType::Lidar);
+  MAP_IN_RET("side", SensorType::Lidar);
   MAP_IN_RET("mono", SensorType::Camera);
   MAP_IN_RET("stereo-major", SensorType::Camera);
   MAP_IN_RET("stereo-minor", SensorType::Camera);
@@ -734,6 +749,39 @@ void loadOptions<ImuEstimatorBaseOptions>(
 }
 
 template <>
+void loadOptions<LidarEstimatorBaseOptions>(YAML::Node& node, LidarEstimatorBaseOptions& options)
+{
+  LOAD_COMMON(blind);
+  LOAD_COMMON(var);
+  LOAD_COMMON(landmark_var);
+  LOAD_COMMON(kfselect_min_dt);
+
+  Eigen::Matrix4d T_B_L_raw;
+  if (option_tools::safeGet(node, "T_B_L", &T_B_L_raw)) {
+    Quaternion q_B_L = Quaternion(static_cast<Eigen::Matrix3d>(T_B_L_raw.block<3, 3>(0, 0)));
+    Transformation T_B_L(q_B_L, T_B_L_raw.block<3, 1>(0, 3));
+    options.T_B_L = T_B_L;
+  } else {
+    LOG(INFO) << "Unable to get extrinsic transformation T_B_L for Lidar ";
+  };
+}
+
+template <>
+void loadOptions<TreeHandlerOptions>(YAML::Node& node, TreeHandlerOptions& options)
+{
+  LOAD_COMMON(filter_radius);
+  LOAD_COMMON(std_range);
+  LOAD_COMMON(std_angle);
+  LOAD_COMMON(max_near_dis);
+  LOAD_COMMON(max_plane_dis);
+  LOAD_COMMON(merge_size);
+  LOAD_COMMON(voxel_size);
+  LOAD_COMMON(max_layer);
+  LOAD_COMMON(max_points_num);
+  LOAD_COMMON(plane_threshold);
+}
+
+template <>
 void loadOptions<SppEstimatorOptions>(
     YAML::Node& node, SppEstimatorOptions& options)
 {
@@ -850,6 +898,18 @@ void loadOptions<GnssImuCameraSrrEstimatorOptions>(
 }
 
 template <>
+void loadOptions<GnssImuLidarSrrEstimatorOptions>(YAML::Node& node,
+                                                  GnssImuLidarSrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_window_length);
+  LOAD_COMMON(max_gnss_window_length_minor);
+  LOAD_COMMON(min_yaw_std_init_lidar);
+  LOAD_COMMON(reject_solution_std);
+  LOAD_COMMON(solution_recover_time);
+  LOAD_COMMON(lio_mode);
+}
+
+template <>
 void loadOptions<SppImuCameraRrrEstimatorOptions>(
     YAML::Node& node, SppImuCameraRrrEstimatorOptions& options)
 {
@@ -865,6 +925,15 @@ void loadOptions<RtkImuCameraRrrEstimatorOptions>(
   LOAD_COMMON(max_keyframes);
   LOAD_COMMON(max_gnss_window_length_minor);
   LOAD_COMMON(min_yaw_std_init_visual);
+}
+
+template <>
+void loadOptions<RtkImuLidarRrrEstimatorOptions>(YAML::Node& node,
+                                                 RtkImuLidarRrrEstimatorOptions& options)
+{
+  LOAD_COMMON(max_keyframes);
+  LOAD_COMMON(max_gnss_window_length_minor);
+  LOAD_COMMON(min_yaw_std_init_lidar);
 }
 
 template <>

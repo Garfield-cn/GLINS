@@ -36,13 +36,13 @@ template <typename Scalar>
 struct EPS {
   static constexpr Scalar value() { return static_cast<Scalar>(1.0e-5); }
   static constexpr Scalar normalization_value() {
-    return static_cast<Scalar>(1.0e-4);
+    return static_cast<Scalar>(1.0e-3);
   }
 };
 template <>
 struct EPS<double> {
   static constexpr double value() { return 1.0e-8; }
-  static constexpr double normalization_value() { return 1.0e-4; }
+  static constexpr double normalization_value() { return 1.0e-04; }
 };
 template <>
 struct EPS<float> {

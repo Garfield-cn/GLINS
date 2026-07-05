@@ -103,6 +103,12 @@ void publishError3d(ros::Publisher& pub,
 void publishImu(ros::Publisher& pub, const DataCluster::IMU& imu);
 void publishImu(ros::Publisher& pub, const ImuMeasurement& imu);
 
+// Publish a LiDAR PointCloud2 message
+void publishScan(ros::Publisher& pub, const DataCluster::LiDAR& lidar);
+void publishMap(ros::Publisher& pub, const Cloud_ptr& map);
+
+void publishPlanes(ros::Publisher& pub, const PlaneCloud_ptr& planes, double marker_scale = 0.1);
+
 // Publish GNSS message
 void publishGnssObservations(
   ros::Publisher& pub, const DataCluster::GNSS& gnss);

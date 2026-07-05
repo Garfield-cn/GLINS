@@ -25,6 +25,7 @@
 #include "gici/imu/imu_types.h"
 #include "gici/gnss/geodetic_coordinate.h"
 #include "gici/gnss/gnss_types.h"
+#include "gici/lidar/lidar_types.h"
 #include "gici/vision/image_types.h"
 #include "gici/utility/option.h"
 #include "gici/estimate/graph.h"
@@ -33,22 +34,24 @@ namespace gici {
 
 // -----------------------------------------------------------------------------
 // IDs
-enum class IdType : uint8_t
-{
+enum class IdType : uint8_t {
   cPose = 0,
   cLandmark = 1,
   ImuStates = 2,
   cExtrinsics = 3,
   gPosition = 4,
   gVelocity = 5,
-  gPose = 6, 
-  gClock = 7, 
+  gPose = 6,
+  gClock = 7,
   gFrequency = 8,
   gTroposphere = 9,
   gExtrinsics = 10,
   gAmbiguity = 11,
   gIonosphere = 12,
-  gIfb = 13
+  gIfb = 13,
+  lPose = 14,
+  lExtrinsics = 15,
+  lLandmark = 16
 };
 
 using SensorType = option_tools::SensorType;
@@ -134,6 +137,8 @@ public:
   inline static SensorType sensorType(IdType type) {
     if (type == IdType::cPose || type == IdType::cExtrinsics || 
         type == IdType::cLandmark) return SensorType::Camera;
+    if (type == IdType::lPose || type == IdType::lExtrinsics || type == IdType::lLandmark)
+      return SensorType::Lidar;
     if (type == IdType::ImuStates) return SensorType::IMU;
     if (type == IdType::gAmbiguity || type == IdType::gClock || 
         type == IdType::gExtrinsics || type == IdType::gFrequency ||
@@ -217,6 +222,12 @@ inline BackendId createLandmarkId(int track_id)
     BackendId::setBits(IdType::cLandmark, BITS_IDTYPE));
 }
 
+inline BackendId createLidarLandmarkId(int track_id)
+{
+  return BackendId(BackendId::setBits(track_id, BITS_LANDMARKID) |
+                   BackendId::setBits(IdType::lLandmark, BITS_IDTYPE));
+}
+
 inline BackendId createNFrameId(int32_t bundle_id)
 {
   CHECK_GE(bundle_id, 0);
@@ -251,6 +262,14 @@ inline BackendId createGnssPoseId(int32_t bundle_id)
     BackendId::setBits(BackendId::adjustBundleId(
       bundle_id, IdType::gPose), BITS_BUNDLEID) |
     BackendId::setBits(IdType::gPose, BITS_IDTYPE));
+}
+
+inline BackendId createLidarPoseId(int32_t bundle_id)
+{
+  CHECK_GE(bundle_id, 0);
+  return BackendId(
+      BackendId::setBits(BackendId::adjustBundleId(bundle_id, IdType::lPose), BITS_BUNDLEID) |
+      BackendId::setBits(IdType::lPose, BITS_IDTYPE));
 }
 
 inline BackendId createGnssClockId(char system,
@@ -436,14 +455,16 @@ enum class EstimatorType {
   Spp,
   Sdgnss,
   Dgnss,
-  Rtk, 
+  Rtk,
   Ppp,
   GnssImuLc,
   SppImuTc,
-  DgnssImuTc, 
+  DgnssImuTc,
   RtkImuTc,
-  PppImuTc, 
+  PppImuTc,
   GnssImuCameraSrr,
+  GnssImuLidarSrr,
+  RtkImuLidarRrr,
   SppImuCameraRrr,
   DgnssImuCameraRrr,
   RtkImuCameraRrr,
@@ -455,10 +476,13 @@ std::string estimatorTypeToString(const EstimatorType& type);
 
 // States, that handle pose parameters at every timestamp
 struct State {
+  State() :
+    current_scan_l(new Cloud){};
   BackendId id; // pose id
-  BackendId id_in_graph;  // real pose id in graph if it is a overlapped state
+  BackendId id_in_graph;  // real pose id in graph if it is an overlapped state
   double timestamp = 0.0;
   bool is_keyframe = false;
+  Cloud_ptr current_scan_l;
   GnssSolutionStatus status = GnssSolutionStatus::Single;
   ceres::ResidualBlockId imu_residual_to_lhs = nullptr;  // IMU residual from last state to current  
   bool valid() { return (id != BackendId(0) && timestamp != 0.0); }
@@ -538,10 +562,21 @@ public:
     imu(std::make_shared<ImuMeasurement>(data)),
     imu_role(role), tag(tag), timestamp(data.timestamp) {}
 
-  EstimatorDataCluster(const std::shared_ptr<cv::Mat>& data, const CameraRole& role, 
+  EstimatorDataCluster(const LidarMeasurement& data, const LidarRole& role,
+                       const std::string& tag) :
+    lidar(std::make_shared<LidarMeasurement>(data)),
+    lidar_role(role),
+    tag(tag),
+    timestamp(data.timebase)
+  {}
+
+  EstimatorDataCluster(const std::shared_ptr<cv::Mat>& data, const CameraRole& role,
                        const std::string& tag, const double time) :
     image(data),
-    image_role(role), tag(tag), timestamp(time) {}
+    image_role(role),
+    tag(tag),
+    timestamp(time)
+  {}
 
   EstimatorDataCluster(
     const FrameBundlePtr& data, const std::string& tag) : 
@@ -559,6 +594,7 @@ public:
   std::shared_ptr<GnssMeasurement> gnss;
   std::shared_ptr<ImuMeasurement> imu;
   std::shared_ptr<cv::Mat> image;
+  std::shared_ptr<LidarMeasurement> lidar;
 
   // Intermediate processing data, which generated from other estimators
   // or frontend processors
@@ -569,6 +605,7 @@ public:
   GnssRole gnss_role;
   ImuRole imu_role;
   CameraRole image_role;
+  LidarRole lidar_role;
   SolutionRole solution_role;
 
   // Common parameters

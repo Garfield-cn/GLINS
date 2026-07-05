@@ -23,7 +23,7 @@ stream:
       tag: str_dcb_file
       output_tags: [fmt_dcb_file]
       type: file
-      path: /home/cc/linux/softwares/gici/option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
+      path: option/CAS0MGXRAP_20221580000_01D_01D_DCB.BSX
       enable_time_tag: false
   - streamer:
       tag: str_ros_gnss_rov
@@ -47,17 +47,17 @@ stream:
       tag: str_gnss_rov_file
       input_tags: [str_gnss_rov]
       type: file
-      path: /home/cc/Work/Data/tmp/gnss_rover.bin
+      path: data/gnss_rover.bin
   - streamer:
       tag: str_gnss_ref_file
       input_tags: [str_gnss_ref]
       type: file
-      path: /home/cc/Work/Data/tmp/gnss_reference.bin
+      path: data/gnss_reference.bin
   - streamer:
       tag: str_solution_file
       input_tags: [fmt_solution_file]
       type: file
-      path: /home/cc/Work/Data/tmp/solution.txt
+      path: data/solution.txt
       enable_time_tag: false
   - streamer:
       tag: str_solution
@@ -144,4 +144,4 @@ logging:
   enable: true
   min_log_level: 0
   log_to_stderr: true
-  file_directory: /home/cc/datasets/log
+  file_directory: log

@@ -5,6 +5,8 @@ project(gici_tools)
 set(CMAKE_CXX_FLAGS "-std=c++11" )
 set(CMAKE_CXX_FLAGS "-fpermissive")
 
+find_package(PCL 1.8)
+
 # GICI
 add_subdirectory(../../.. gici.out)
 
@@ -36,4 +38,4 @@ target_link_libraries(cut_files
 # Cut files
 add_executable(check_image_timestamp src/check_image_timestamp.cpp)
 target_link_libraries(check_image_timestamp 
-                      gici)
+                      gici ${PCL_LIBRARIES})

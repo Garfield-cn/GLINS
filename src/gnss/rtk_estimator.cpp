@@ -179,10 +179,7 @@ bool RtkEstimator::addGnssMeasurementAndState(
 // Solve current graph
 bool RtkEstimator::estimate()
 {
-  vk::Timer timer; timer.start();
-
   status_ = EstimatorStatus::Converged;
-
   // Optimize with FDE
   size_t n_pseudorange = numPseudorangeError(curState());
   size_t n_phaserange = numPhaserangeError(curState());
@@ -205,11 +202,6 @@ bool RtkEstimator::estimate()
   else {
     optimize();
   }
-
-  timer.stop();
-  static FILE *fd_timer = fopen("/home/cc/Work/Data/Log/timer.txt", "w+");
-  fprintf(fd_timer, "%.3lf %.4lf\n", curState().timestamp, timer.getAccumulated());
-  fflush(fd_timer);
 
   // Check if we rejected too many residuals
   double ratio_pseudorange = n_pseudorange == 0.0 ? 0.0 : 1.0 - 

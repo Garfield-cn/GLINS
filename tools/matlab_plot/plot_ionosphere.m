@@ -1,5 +1,5 @@
 %% Read
-path = '/home/cc/Work/Data/ppp/log/ionosphere-20220721-121244.log';
+path = 'data/ionosphere.log';
 fp = fopen(path, 'r');
 max_prn = 100;
 length_prn = 0;
@@ -54,4 +54,3 @@ end
 legend(legends);
 grid on;
 xlim([0, end_time - initial_time]);
-

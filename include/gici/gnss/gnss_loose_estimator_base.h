@@ -148,6 +148,8 @@ protected:
 
   // States
   BackendId gnss_extrinsics_id_;
+
+  ceres::LossFunction* loss_function_;
 };
 
 }

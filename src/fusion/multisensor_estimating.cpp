@@ -18,6 +18,8 @@
 #include "gici/fusion/gnss_imu_lc_estimator.h"
 #include "gici/fusion/rtk_imu_tc_estimator.h"
 #include "gici/fusion/gnss_imu_camera_srr_estimator.h"
+#include "gici/fusion/gnss_imu_lidar_srr_estimator.h"
+#include "gici/fusion/rtk_imu_lidar_rrr_estimator.h"
 #include "gici/fusion/rtk_imu_camera_rrr_estimator.h"
 
 namespace gici {
@@ -66,6 +68,15 @@ MultiSensorEstimating::MultiSensorEstimating(
   if (estimatorTypeContains(SensorType::Camera, type_) && 
       feature_handler_node.IsDefined()) {
     option_tools::loadOptions(feature_handler_node, feature_handler_options_);
+  }
+  // Load LiDAR base options
+  YAML::Node lidar_estimator_base_node = node["lidar_estimator_base_options"];
+  YAML::Node tree_handler_node = node["tree_handler_options"];
+  if (estimatorTypeContains(SensorType::Lidar, type_) && lidar_estimator_base_node.IsDefined()) {
+    option_tools::loadOptions(lidar_estimator_base_node, lidar_estimator_base_options_);
+  }
+  if (estimatorTypeContains(SensorType::Lidar, type_) && tree_handler_node.IsDefined()) {
+    option_tools::loadOptions(tree_handler_node, tree_handler_options_);
   }
 
   // Instantiate estimators
@@ -139,7 +150,7 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
@@ -165,15 +176,15 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
 
     estimator_.reset(new SppImuTcEstimator(
-      spp_imu_tc_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_, 
-      gnss_loose_base_options_, imu_base_options_, base_options_));
+        spp_imu_tc_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_,
+        gnss_loose_base_options_, imu_base_options_, base_options_));
   }
   // RTK/IMU tightly couple
   else if (type_ == EstimatorType::RtkImuTc)
@@ -195,7 +206,7 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
@@ -225,7 +236,7 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
@@ -247,7 +258,7 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
@@ -283,7 +294,7 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
@@ -295,17 +306,48 @@ MultiSensorEstimating::MultiSensorEstimating(
     }
 
     feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
-    estimator_.reset(new SppImuCameraRrrEstimator(spp_imu_camera_rrr_options_, 
-      gnss_imu_init_options_, spp_options_, gnss_base_options_, gnss_loose_base_options_, 
-      visual_estimator_base_options_, imu_base_options_, base_options_));
-    std::shared_ptr<VisualEstimatorBase> visual_estimator = 
-      std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
+    estimator_.reset(new SppImuCameraRrrEstimator(
+        spp_imu_camera_rrr_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_,
+        gnss_loose_base_options_, visual_estimator_base_options_, imu_base_options_,
+        base_options_));
+    std::shared_ptr<VisualEstimatorBase> visual_estimator =
+        std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
+  // GNSS/IMU/LiDAR semi-tightly coupled integration
+  else if (type_ == EstimatorType::GnssImuLidarSrr) {
+    YAML::Node gnss_imu_lidar_srr_node = node["gnss_imu_lidar_srr_options"];
+    if (gnss_imu_lidar_srr_node.IsDefined()) {
+      option_tools::loadOptions(gnss_imu_lidar_srr_node, gnss_imu_lidar_srr_options_);
+    }
+    YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
+    if (gnss_imu_init_node.IsDefined()) {
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
+    }
+
+    // Rotate extrinsics
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+        gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+        gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
+
+    // Express LiDAR extrinsics in the estimator body convention
+    lidar_estimator_base_options_.T_B_L =
+        ImuEstimatorBase::rotateImuToBody(lidar_estimator_base_options_.T_B_L, imu_base_options_);
+
+    tree_handler_.reset(new TreeHandler(tree_handler_options_, imu_base_options_,
+                                        lidar_estimator_base_options_.T_B_L));
+    estimator_.reset(new GnssImuLidarSrrEstimator(
+        gnss_imu_lidar_srr_options_, gnss_imu_init_options_, lidar_estimator_base_options_,
+        gnss_loose_base_options_, imu_base_options_, base_options_));
+    std::shared_ptr<LidarEstimatorBase> lidar_estimator =
+        std::dynamic_pointer_cast<LidarEstimatorBase>(estimator_);
+    CHECK_NOTNULL(lidar_estimator);
+    lidar_estimator->setTreeHandler(tree_handler_);
+  }
   // RTK/IMU/Camera tightly integration
-  else if (type_ == EstimatorType::RtkImuCameraRrr)
-  {
+  else if (type_ == EstimatorType::RtkImuCameraRrr) {
     YAML::Node rtk_imu_camera_rrr_node = node["rtk_imu_camera_rrr_options"];
     if (rtk_imu_camera_rrr_node.IsDefined()) {
       option_tools::loadOptions(rtk_imu_camera_rrr_node, rtk_imu_camera_rrr_options_);
@@ -323,7 +365,7 @@ MultiSensorEstimating::MultiSensorEstimating(
       option_tools::loadOptions(ambiguity_node, ambiguity_options_);
     }
 
-    // rotate estrinsics
+    // Rotate extrinsics
     gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
       gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
     gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
@@ -343,7 +385,46 @@ MultiSensorEstimating::MultiSensorEstimating(
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
-  else {
+  // GNSS/IMU/LiDAR tightly coupled integration
+  else if (type_ == EstimatorType::RtkImuLidarRrr) {
+    YAML::Node rtk_imu_lidar_rrr_node = node["rtk_imu_lidar_rrr_options"];
+    if (rtk_imu_lidar_rrr_node.IsDefined()) {
+      option_tools::loadOptions(rtk_imu_lidar_rrr_node, rtk_imu_lidar_rrr_options_);
+    }
+    YAML::Node rtk_node = node["rtk_options"];
+    if (rtk_node.IsDefined()) {
+      option_tools::loadOptions(rtk_node, rtk_options_);
+    }
+    YAML::Node gnss_imu_init_node = node["gnss_imu_initializer_options"];
+    if (gnss_imu_init_node.IsDefined()) {
+      option_tools::loadOptions(gnss_imu_init_node, gnss_imu_init_options_);
+    }
+    YAML::Node ambiguity_node = node["ambiguity_resolution_options"];
+    if (ambiguity_node.IsDefined()) {
+      option_tools::loadOptions(ambiguity_node, ambiguity_options_);
+    }
+
+    // Express GNSS and LiDAR extrinsics in the estimator body convention
+    gnss_imu_init_options_.gnss_extrinsics = ImuEstimatorBase::rotateImuToBody(
+        gnss_imu_init_options_.gnss_extrinsics, imu_base_options_);
+    gnss_imu_init_options_.gnss_extrinsics_initial_std = ImuEstimatorBase::rotateImuToBody(
+        gnss_imu_init_options_.gnss_extrinsics_initial_std, imu_base_options_);
+
+    lidar_estimator_base_options_.T_B_L =
+        ImuEstimatorBase::rotateImuToBody(lidar_estimator_base_options_.T_B_L, imu_base_options_);
+
+    tree_handler_.reset(new TreeHandler(tree_handler_options_, imu_base_options_,
+                                        lidar_estimator_base_options_.T_B_L));
+    estimator_.reset(new RtkImuLidarRrrEstimator(
+        rtk_imu_lidar_rrr_options_, gnss_imu_init_options_, rtk_options_, gnss_base_options_,
+        gnss_loose_base_options_, lidar_estimator_base_options_, imu_base_options_, base_options_,
+        ambiguity_options_));
+
+    std::shared_ptr<LidarEstimatorBase> lidar_estimator =
+        std::dynamic_pointer_cast<LidarEstimatorBase>(estimator_);
+    CHECK_NOTNULL(lidar_estimator);
+    lidar_estimator->setTreeHandler(tree_handler_);
+  } else {
     LOG(ERROR) << "Invalid estimator type: " << static_cast<int>(type_);
     return;
   }
@@ -361,6 +442,10 @@ MultiSensorEstimating::~MultiSensorEstimating()
 {
   if (image_frontend_thread_) {
     image_frontend_thread_->join(); image_frontend_thread_ = nullptr;
+  }
+  if (lidar_frontend_thread_) {
+    lidar_frontend_thread_->join();
+    lidar_frontend_thread_ = nullptr;
   }
   if (measurement_thread_) {
     measurement_thread_->join(); measurement_thread_ = nullptr;
@@ -414,29 +499,25 @@ void MultiSensorEstimating::resetProcessors()
       imu_base_options_, base_options_));
   }
   // SPP/IMU tightly couple
-  else if (type_ == EstimatorType::SppImuTc) 
-  {
+  else if (type_ == EstimatorType::SppImuTc) {
     estimator_.reset(new SppImuTcEstimator(
-      spp_imu_tc_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_, 
-      gnss_loose_base_options_, imu_base_options_, base_options_));
+        spp_imu_tc_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_,
+        gnss_loose_base_options_, imu_base_options_, base_options_));
   }
   // RTK/IMU tightly couple
-  else if (type_ == EstimatorType::RtkImuTc)
-  {
+  else if (type_ == EstimatorType::RtkImuTc) {
     estimator_.reset(new RtkImuTcEstimator(
       rtk_imu_tc_options_, gnss_imu_init_options_, rtk_options_, gnss_base_options_, 
       gnss_loose_base_options_, imu_base_options_, base_options_, ambiguity_options_));
   }
   // PPP/IMU tightly couple
-  else if (type_ == EstimatorType::PppImuTc)
-  {
+  else if (type_ == EstimatorType::PppImuTc) {
     estimator_.reset(new PppImuTcEstimator(
       ppp_imu_tc_options_, gnss_imu_init_options_, ppp_options_, gnss_base_options_, 
       gnss_loose_base_options_, imu_base_options_, base_options_, ambiguity_options_));
   }
   // GNSS/IMU/Camera semi-tightly integration
-  else if (type_ == EstimatorType::GnssImuCameraSrr)
-  {
+  else if (type_ == EstimatorType::GnssImuCameraSrr) {
     feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
     estimator_.reset(new GnssImuCameraSrrEstimator(gnss_imu_camera_srr_options_,
       gnss_imu_init_options_, gnss_loose_base_options_, visual_estimator_base_options_, 
@@ -446,21 +527,32 @@ void MultiSensorEstimating::resetProcessors()
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
+  // GNSS/IMU/LiDAR semi-tightly integration
+  else if (type_ == EstimatorType::GnssImuLidarSrr) {
+    tree_handler_.reset(new TreeHandler(tree_handler_options_, imu_base_options_,
+                                        lidar_estimator_base_options_.T_B_L));
+    estimator_.reset(new GnssImuLidarSrrEstimator(
+        gnss_imu_lidar_srr_options_, gnss_imu_init_options_, lidar_estimator_base_options_,
+        gnss_loose_base_options_, imu_base_options_, base_options_));
+    std::shared_ptr<LidarEstimatorBase> lidar_estimator =
+        std::dynamic_pointer_cast<LidarEstimatorBase>(estimator_);
+    CHECK_NOTNULL(lidar_estimator);
+    lidar_estimator->setTreeHandler(tree_handler_);
+  }
   // SPP/IMU/Camera tightly integration
-  else if (type_ == EstimatorType::SppImuCameraRrr)
-  {
+  else if (type_ == EstimatorType::SppImuCameraRrr) {
     feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
-    estimator_.reset(new SppImuCameraRrrEstimator(spp_imu_camera_rrr_options_, 
-      gnss_imu_init_options_, spp_options_, gnss_base_options_, gnss_loose_base_options_, 
-      visual_estimator_base_options_, imu_base_options_, base_options_));
-    std::shared_ptr<VisualEstimatorBase> visual_estimator = 
-      std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
+    estimator_.reset(new SppImuCameraRrrEstimator(
+        spp_imu_camera_rrr_options_, gnss_imu_init_options_, spp_options_, gnss_base_options_,
+        gnss_loose_base_options_, visual_estimator_base_options_, imu_base_options_,
+        base_options_));
+    std::shared_ptr<VisualEstimatorBase> visual_estimator =
+        std::dynamic_pointer_cast<VisualEstimatorBase>(estimator_);
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
   // RTK/IMU/Camera tightly integration
-  else if (type_ == EstimatorType::RtkImuCameraRrr)
-  {
+  else if (type_ == EstimatorType::RtkImuCameraRrr) {
     feature_handler_.reset(new FeatureHandler(feature_handler_options_, imu_base_options_));
     estimator_.reset(new RtkImuCameraRrrEstimator(rtk_imu_camera_rrr_options_, 
       gnss_imu_init_options_, rtk_options_, gnss_base_options_, gnss_loose_base_options_, 
@@ -470,7 +562,19 @@ void MultiSensorEstimating::resetProcessors()
     CHECK_NOTNULL(visual_estimator);
     visual_estimator->setFeatureHandler(feature_handler_);
   }
-  else {
+  // RTK/IMU/LiDAR tightly integration
+  else if (type_ == EstimatorType::RtkImuLidarRrr) {
+    tree_handler_.reset(new TreeHandler(tree_handler_options_, imu_base_options_,
+                                        lidar_estimator_base_options_.T_B_L));
+    estimator_.reset(new RtkImuLidarRrrEstimator(
+        rtk_imu_lidar_rrr_options_, gnss_imu_init_options_, rtk_options_, gnss_base_options_,
+        gnss_loose_base_options_, lidar_estimator_base_options_, imu_base_options_, base_options_,
+        ambiguity_options_));
+    std::shared_ptr<LidarEstimatorBase> lidar_estimator =
+        std::dynamic_pointer_cast<LidarEstimatorBase>(estimator_);
+    CHECK_NOTNULL(lidar_estimator);
+    lidar_estimator->setTreeHandler(tree_handler_);
+  } else {
     LOG(ERROR) << "Invalid estimator type: " << static_cast<int>(type_);
     return;
   }
@@ -507,11 +611,16 @@ void MultiSensorEstimating::estimatorDataCallback(EstimatorDataCluster& data)
 // Process funtion in every loop
 void MultiSensorEstimating::process()
 {
-  // Process frontends in a separated thread
+  // Process the image frontend in a dedicated thread
   if (image_frontend_thread_ == nullptr && 
       estimatorTypeContains(SensorType::Camera, type_)) {
     image_frontend_thread_.reset(new std::thread(
       &MultiSensorEstimating::runImageFrontend, this));
+  }
+
+  // Process the LiDAR frontend in a dedicated thread
+  if (lidar_frontend_thread_ == nullptr && estimatorTypeContains(SensorType::Lidar, type_)) {
+    lidar_frontend_thread_.reset(new std::thread(&MultiSensorEstimating::runLidarFrontend, this));
   }
 
   // Put measurements from addin buffer to measurement buffer
@@ -530,6 +639,10 @@ void MultiSensorEstimating::process()
   if (quit_thread_) {
     if (image_frontend_thread_) {
       image_frontend_thread_->join(); image_frontend_thread_ = nullptr;
+    }
+    if (lidar_frontend_thread_) {
+      lidar_frontend_thread_->join();
+      lidar_frontend_thread_ = nullptr;
     }
     if (measurement_thread_) {
       measurement_thread_->join(); measurement_thread_ = nullptr;
@@ -703,14 +816,25 @@ void MultiSensorEstimating::handleNonTimePropagationSensors(EstimatorDataCluster
   }
 }
 
-// Handle sensors that need frontends
-void MultiSensorEstimating::handleFrontendSensors(EstimatorDataCluster& data)
+// Handle sensors that require the image frontend
+void MultiSensorEstimating::handleImageFrontendSensors(EstimatorDataCluster& data)
 {
-  CHECK(estimatorDataNeedFrontend(data));
+  CHECK(estimatorDataNeedImageFrontend(data));
   if (data.image) {
     mutex_image_input_.lock();
     image_frontend_measurements_.push_back(data);
     mutex_image_input_.unlock();
+  }
+}
+
+// Handle sensors that require the LiDAR frontend
+void MultiSensorEstimating::handleLidarFrontendSensors(EstimatorDataCluster& data)
+{
+  CHECK(estimatorDataNeedLidarFrontend(data));
+  if (data.lidar->need_frontend) {
+    mutex_lidar_input_.lock();
+    lidar_frontend_measurements_.push_back(data);
+    mutex_lidar_input_.unlock();
   }
 }
 
@@ -729,10 +853,14 @@ void MultiSensorEstimating::putMeasurements()
   // time-propagation sensors
   if (estimatorDataIsImu(data)) {
     handleTimePropagationSensors(data);
-  } 
-  // sensors that needs frontends
-  else if (estimatorDataNeedFrontend(data)) {
-    handleFrontendSensors(data);
+  }
+  // Sensors that require the image frontend
+  else if (estimatorDataNeedImageFrontend(data)) {
+    handleImageFrontendSensors(data);
+  }
+  // Sensors that require the LiDAR frontend
+  else if (estimatorDataNeedLidarFrontend(data)) {
+    handleLidarFrontendSensors(data);
   }
   // GNSS reference station data (no need to align time)
   else if (data.gnss && data.gnss_role == GnssRole::Reference) {
@@ -934,6 +1062,107 @@ void MultiSensorEstimating::runImageFrontend()
       }
     }
 
+    spin.sleep();
+  }
+}
+
+void MultiSensorEstimating::runLidarFrontend()
+{
+  SpinControl spin(1.0e-4);
+  while (!quit_thread_ && SpinControl::ok()) {
+    // Check for a pending LiDAR scan
+    mutex_lidar_input_.lock();
+    if (lidar_frontend_measurements_.size() == 0) {
+      mutex_lidar_input_.unlock();
+      spin.sleep();
+      continue;
+    }
+    EstimatorDataCluster& front_measurement = lidar_frontend_measurements_.front();
+    if (front_measurement.lidar_role != LidarRole::Front) {
+      lidar_frontend_measurements_.pop_front();
+      mutex_lidar_input_.unlock();
+      spin.sleep();
+      continue;
+    }
+
+    // Check loop back
+    if (front_measurement.timestamp < last_lidar_timestamp) {
+      LOG(WARNING) << "LiDAR loop back, remove this scan!";
+      lidar_frontend_measurements_.pop_front();
+      mutex_lidar_input_.unlock();
+      spin.sleep();
+      continue;
+    }
+
+    // Check pending
+    if (lidar_frontend_measurements_.size() > 5) {
+      if (last_lidar_pending_num_ != lidar_frontend_measurements_.size()) {
+        LOG(WARNING) << "Large LiDAR frontend backlog: " << lidar_frontend_measurements_.size()
+                     << " scans are waiting!";
+      }
+      last_lidar_pending_num_ = lidar_frontend_measurements_.size();
+    }
+
+    // Fetch data
+    std::shared_ptr<LidarMeasurement> lidar =
+        std::make_shared<LidarMeasurement>(*front_measurement.lidar);
+
+    double timebase = lidar->timebase;
+    std::string tag = front_measurement.tag;
+    LidarRole role = front_measurement.lidar_role;
+    last_lidar_timestamp = front_measurement.timestamp;
+
+    lidar_frontend_measurements_.pop_front();
+    mutex_lidar_input_.unlock();
+
+    std::shared_ptr<LidarMeasurement> scan =
+        std::make_shared<LidarMeasurement>(lidar->timebase, lidar->timefinal, lidar->seq);
+    scan->need_frontend = false;
+    scan->cloud_ptr = lidar->cloud_ptr;
+
+    Transformation T_WS;
+
+    // Process the LiDAR scan in the frontend
+    tree_handler_->processLidar(scan);
+
+    // Output plane landmarks for ROS visualization
+    std::shared_ptr<DataCluster> data_planes =
+        std::make_shared<DataCluster>(tree_handler_->visualizePlanes());
+    data_planes->planes->header.stamp = static_cast<uint64_t>(timebase * 1e9);
+
+    for (auto& callback : output_data_callbacks_) {
+      callback(tag_, data_planes);
+    }
+
+    // Send processed scan to backend
+    EstimatorDataCluster measurement(*scan, role, tag);
+    estimatorDataCallback(measurement);
+
+    // Output current map for ROS visualization
+    std::shared_ptr<DataCluster> data_map =
+        std::make_shared<DataCluster>(tree_handler_->getMap(), FormatorType::LaserMap);
+    data_map->laser_map->header.stamp = timebase;
+
+    for (auto& callback : output_data_callbacks_) {
+      callback(tag_, data_map);
+    }
+
+    // Output current scan for ROS visualization
+    std::shared_ptr<DataCluster> data_cluster =
+        std::make_shared<DataCluster>(FormatorType::PointCloud2);
+
+    // Transform point cloud from LiDAR frame to body frame for visualization
+    Cloud_ptr cloud_body(new Cloud());
+    pcl::transformPointCloud(*lidar->cloud_ptr, *cloud_body,
+                             tree_handler_->transTomat(lidar_estimator_base_options_.T_B_L), true);
+
+    data_cluster->lidar->cloud_ptr.reset(new Cloud(*cloud_body));
+    data_cluster->lidar->timebase = timebase;
+    data_cluster->lidar->valid_num = cloud_body->size();
+
+    for (auto& callback : output_data_callbacks_) {
+      callback(tag_, data_cluster);
+    }
     spin.sleep();
   }
 }
