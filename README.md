@@ -29,6 +29,7 @@ Jiahui Liu, Cheng Chi, Xin Zhang, Binlin Zhang, Dongen Li, Xingqun Zhan, and Mar
 
 | Mode | Estimator type | Inputs | Description |
 | --- | --- | --- | --- |
+| LIO | `lidar_imu` | Raw IMU, raw LiDAR | LiDAR-inertial odometry using IMU preintegration and scan-to-map registration. |
 | SRR | `gnss_imu_lidar_srr` | GNSS solution, raw IMU, raw LiDAR | Semi-tightly coupled GNSS/IMU/LiDAR estimation. `SRR` means Solution-Raw-Raw. |
 | RRR | `rtk_imu_lidar_rrr` | Raw rover/reference GNSS, raw IMU, raw LiDAR | Tightly coupled RTK/IMU/LiDAR estimation with pseudorange, carrier-phase, Doppler, IMU, and LiDAR factors. `RRR` means Raw-Raw-Raw. |
 
